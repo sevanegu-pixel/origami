@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>FullScreen</key>
+			<true/>
+			<key>Icon</key>
+			<data>
+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
+			</data>
+			<key>IsRemovable</key>
+			<true/>
+			<key>Label</key>
+			<string>Origami</string>
+			<key>PayloadDescription</key>
+			<string>Ajoute l'icône de l'appli Origami sur l'écran d'accueil, en plein écran.</string>
+			<key>PayloadDisplayName</key>
+			<string>Icône Origami</string>
+			<key>PayloadIdentifier</key>
+			<string>io.github.sevanegu-pixel.origami.webclip</string>
+			<key>PayloadType</key>
+			<string>com.apple.webClip.managed</string>
+			<key>PayloadUUID</key>
+			<string>CF6F1B17-C272-543C-863F-5DB8971CFB89</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+			<key>Precomposed</key>
+			<true/>
+			<key>URL</key>
+			<string>https://sevanegu-pixel.github.io/origami/</string>
+		</dict>
+	</array>
+	<key>PayloadDescription</key>
+	<string>Installe l'appli de comptabilité Origami sur l'écran d'accueil. Ce profil ajoute seulement une icône : il ne modifie aucun réglage de l'appareil.</string>
+	<key>PayloadDisplayName</key>
+	<string>Origami</string>
+	<key>PayloadIdentifier</key>
+	<string>io.github.sevanegu-pixel.origami</string>
+	<key>PayloadOrganization</key>
+	<string>Compagnie Origami</string>
+	<key>PayloadRemovalDisallowed</key>
+	<false/>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>541FC6B3-E78F-5E02-8D2B-56733BB18D4D</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>
