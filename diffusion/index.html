@@ -15,6 +15,22 @@
 <style>
 html, body { margin: 0; height: 100%; background: #1b1b1b; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
+/* Écran de chargement de la coquille, dans le skin de l'appareil (retenu par l'appli), jusqu'à ce que l'appli prenne le relais. */
+#charge { position: fixed; inset: 0; z-index: 5; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: var(--fond, #f7f5f6); color: var(--texte, #1f1a1d); transition: opacity .3s; }
+#charge.fini { opacity: 0; pointer-events: none; }
+#charge .nom { font-size: 15px; letter-spacing: 4px; text-transform: uppercase; color: var(--doux, #6b6168); }
+#charge .fil { width: 140px; height: 3px; border-radius: 3px; background: var(--ligne, #e6e0e3); overflow: hidden; }
+#charge .fil::after { content: ""; display: block; width: 40%; height: 100%; background: var(--accent, #7d3c5e); animation: glisse 1.1s ease-in-out infinite; }
+@keyframes glisse { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
+#charge .retro { display: none; width: min(340px, 86vw); background: #c0c0c0; color: #000; box-shadow: inset -1px -1px #0a0a0a, inset 1px 1px #fff, inset -2px -2px #808080, inset 2px 2px #dfdfdf; padding: 3px; font: 13px/1.3 Tahoma, "MS Sans Serif", Geneva, sans-serif; }
+#charge .retro b { display: block; background: linear-gradient(90deg, #000080, #1084d0); color: #fff; padding: 3px 6px; }
+#charge .retro span { display: block; padding: 14px 12px 8px; }
+#charge .retro i { display: block; margin: 0 12px 12px; height: 20px; background: #fff; box-shadow: inset 1px 1px #808080, inset -1px -1px #fff; overflow: hidden; }
+#charge .retro i::after { content: ""; display: block; height: 100%; width: 0; background: repeating-linear-gradient(90deg, #000080 0 12px, transparent 12px 15px); animation: blocs 2.4s steps(14) infinite; }
+@keyframes blocs { to { width: 100%; } }
+#charge.skin-retro { background: #008080; } #charge.skin-retro .retro { display: block; } #charge.skin-retro .nom, #charge.skin-retro .fil { display: none; }
+#charge.skin-terminal .nom { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 0; text-transform: none; color: var(--accent, #3f3); }
+@media (prefers-reduced-motion: reduce) { #charge .fil::after, #charge .retro i::after { animation: none; } }
 /* Bandeau d'installation (seulement dans le navigateur, jamais dans l'appli installée) */
 #installer { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 10; display: none;
   background: #ffffff; color: #1f1a1d; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.35); padding: 14px 14px 14px 16px; max-width: 520px; margin: 0 auto; }
@@ -32,6 +48,7 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
 <body>
 <!-- credentialless : le cadre s'ouvre sans les comptes Google du téléphone (sinon un autre compte peut bloquer l'appli).
      Sa mémoire est effacée à chaque ouverture : la page garde donc le jeton de l'appareil et le repasse à l'appli. -->
+<div id="charge" role="status" aria-live="polite"><div class="nom">Diffusion</div><div class="fil"></div><div class="retro" aria-hidden="true"><b>Diffusion</b><span>Chargement en cours…</span><i></i></div></div>
 <iframe id="app" credentialless title="Diffusion Origami" allow="clipboard-read; clipboard-write; camera"></iframe>
 <div id="installer" role="dialog" aria-label="Installer Diffusion Origami">
   <img src="icone-192.png" alt="">
@@ -47,10 +64,31 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
   function lire(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function garder(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
   var j = lire(CLE);
-  document.getElementById("app").src = EXEC + (FORME.test(j) ? "?jeton=" + encodeURIComponent(j) : "");
+  // Apparence de l'appareil (skin, clair / sombre, couleurs) : retenue ici, car la mémoire du cadre est effacée à chaque ouverture.
+  var AP = "diffusion_apparence", ap = null;
+  try { ap = JSON.parse(lire(AP) || "null"); } catch (e) { ap = null; }
+  var charge = document.getElementById("charge"), racine = document.documentElement;
+  function peindre(a) {
+    var sombreAppareil = window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+    var c = (a && a.couleurs) || (sombreAppareil ? { fond: "#17131a", texte: "#f1ebf3", doux: "#b1a5b6", ligne: "#3a3140", accent: "#d39ab9" } : { fond: "#f7f5f6", texte: "#1f1a1d", doux: "#6b6168", ligne: "#e6e0e3", accent: "#7d3c5e" });
+    ["fond", "texte", "doux", "ligne", "accent"].forEach(function (k) { if (/^(#[0-9a-f]{3,8}|rgba?\([\d., ]+\))$/i.test(String(c[k] || "").trim())) racine.style.setProperty("--" + k, String(c[k]).trim()); });
+    document.body.style.background = getComputedStyle(racine).getPropertyValue("--fond") || "";
+    var skin = a && a.apparence && a.apparence.skin;
+    charge.className = /^[a-z]+$/.test(skin || "") ? "skin-" + skin : "";
+    var tc = document.querySelector('meta[name="theme-color"]'); if (tc && c.fond) tc.setAttribute("content", skin === "retro" ? "#000080" : c.fond);
+  }
+  peindre(ap);
+  var param = ap && ap.apparence ? "&apparence=" + encodeURIComponent(JSON.stringify(ap.apparence)) : "";
+  document.getElementById("app").src = EXEC + (FORME.test(j) ? "?jeton=" + encodeURIComponent(j) + param : (param ? "?" + param.slice(1) : ""));
+  function finCharge() { charge.classList.add("fini"); setTimeout(function () { charge.style.display = "none"; }, 350); }
+  document.getElementById("app").addEventListener("load", function () { setTimeout(finCharge, 8000); });
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
     var d = ev.data;
+    if (d && d.diffusion === "apparence" && d.apparence) {
+      var garde = { apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} };
+      garder(AP, JSON.stringify(garde)); peindre(garde); finCharge(); return;
+    }
     if (!d || (d.origami !== "jeton" && d.diffusion !== "jeton")) return;
     garder(CLE, FORME.test(d.jeton || "") ? d.jeton : "");
   });
