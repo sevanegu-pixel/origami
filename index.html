@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Origami</title>
+<title>Compta</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#1b1b1b">
+<meta name="theme-color" content="#0d0d0e">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Origami">
-<link rel="apple-touch-icon" href="https://lh3.googleusercontent.com/d/1ZgT5ZfV1S7viRnwUL5A1MfGUu2eNkmPl=s180">
-<link rel="icon" href="https://lh3.googleusercontent.com/d/1ZgT5ZfV1S7viRnwUL5A1MfGUu2eNkmPl=s192">
+<meta name="apple-mobile-web-app-title" content="Compta">
+<link rel="apple-touch-icon" href="compta_180.png">
+<link rel="icon" href="compta_192.png">
 <style>
-html, body { margin: 0; height: 100%; background: #1b1b1b; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+html, body { margin: 0; height: 100%; background: #0d0d0e; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0; }
 /* Bandeau d'installation (seulement dans le navigateur, jamais dans l'appli installée) */
 #installer { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 10; display: none;
@@ -23,18 +23,18 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
 #installer img { width: 48px; height: 48px; border-radius: 12px; flex: none; }
 #installer .txt { flex: 1; min-width: 0; font-size: 14px; line-height: 1.35; }
 #installer .txt b { display: block; font-size: 16px; margin-bottom: 2px; }
-#installer .btn { flex: none; border: 0; border-radius: 12px; background: #7d3c5e; color: #fff; font: inherit; font-weight: 700; font-size: 15px; padding: 11px 16px; cursor: pointer; }
+#installer .btn { flex: none; border: 0; border-radius: 12px; background: #2f6bd8; color: #fff; font: inherit; font-weight: 700; font-size: 15px; padding: 11px 16px; cursor: pointer; }
 #installer .fermer { position: absolute; top: 4px; right: 8px; border: 0; background: none; font-size: 20px; color: #8a8086; cursor: pointer; padding: 4px; }
 #installer .partage { display: inline-block; vertical-align: -3px; width: 16px; height: 16px; }
-#installer a { color: #7d3c5e; font-weight: 600; }
+#installer a { color: #2f6bd8; font-weight: 600; }
 </style>
 </head>
 <body>
 <!-- credentialless : le cadre s'ouvre sans les comptes Google du téléphone (sinon un autre compte peut bloquer l'appli).
      Sa mémoire est effacée à chaque ouverture : la page garde donc le jeton de l'appareil et le repasse à l'appli. -->
-<iframe id="app" credentialless title="Origami" allow="clipboard-read; clipboard-write; camera"></iframe>
-<div id="installer" role="dialog" aria-label="Installer Origami">
-  <img src="https://lh3.googleusercontent.com/d/1ZgT5ZfV1S7viRnwUL5A1MfGUu2eNkmPl=s96" alt="">
+<iframe id="app" credentialless title="Compta" allow="clipboard-read; clipboard-write; camera"></iframe>
+<div id="installer" role="dialog" aria-label="Installer Compta">
+  <img src="compta_192.png" alt="">
   <div class="txt" id="instTexte"></div>
   <button class="btn" id="instBouton" hidden>Installer</button>
   <button class="fermer" id="instFermer" aria-label="Fermer">×</button>
@@ -68,7 +68,7 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
   document.getElementById("instFermer").onclick = function () { boite.classList.remove("ouvert"); garder("origami_install_masque", String(Date.now() + 14 * 864e5)); };
   window.addEventListener("beforeinstallprompt", function (e) {
     e.preventDefault(); promesse = e;
-    montrer("<b>Installer Origami</b>L'appli s'ouvrira en plein écran, comme une vraie application.", true);
+    montrer("<b>Installer Compta</b>L'appli s'ouvrira en plein écran, comme une vraie application.", true);
   });
   bouton.onclick = function () {
     if (!promesse) return;
@@ -79,11 +79,11 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
   var partage = '<svg class="partage" viewBox="0 0 24 24" fill="none" stroke="#1f6fd1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/></svg>';
   setTimeout(function () {
     if (promesse) return;
-    if (ios && safari) montrer("<b>Installer Origami</b>Appuie sur " + partage + " <strong>Partager</strong>, puis « Sur l'écran d'accueil ». Ou <a href=\"origami.mobileconfig\">installe le profil</a> en un geste.", false);
-    else if (ios) montrer("<b>Installer Origami</b>Ouvre ce lien dans <strong>Safari</strong> (menu ⋯ › « Ouvrir dans Safari ») pour l'ajouter à l'écran d'accueil.", false);
-    else if (/Android/.test(ua) && /Chrome\//.test(ua) && !/; wv\)|SamsungBrowser|WhatsApp|FBAN|FBAV|Instagram/.test(ua)) montrer("<b>Installer Origami</b>Menu ⋮ en haut à droite › « Installer l'application » ou « Ajouter à l'écran d'accueil ».", false);
-    else if (/Android/.test(ua)) montrer("<b>Installer Origami</b>Ouvre ce lien dans <strong>Chrome</strong>, puis menu ⋮ › « Ajouter à l'écran d'accueil ».", false);
-    else montrer("<b>Installer Origami</b>Dans Chrome ou Edge, clique sur l'icône d'installation à droite de la barre d'adresse.", false);
+    if (ios && safari) montrer("<b>Installer Compta</b>Appuie sur " + partage + " <strong>Partager</strong>, puis « Sur l'écran d'accueil ». Ou <a href=\"origami.mobileconfig\">installe le profil</a> en un geste.", false);
+    else if (ios) montrer("<b>Installer Compta</b>Ouvre ce lien dans <strong>Safari</strong> (menu ⋯ › « Ouvrir dans Safari ») pour l'ajouter à l'écran d'accueil.", false);
+    else if (/Android/.test(ua) && /Chrome\//.test(ua) && !/; wv\)|SamsungBrowser|WhatsApp|FBAN|FBAV|Instagram/.test(ua)) montrer("<b>Installer Compta</b>Menu ⋮ en haut à droite › « Installer l'application » ou « Ajouter à l'écran d'accueil ».", false);
+    else if (/Android/.test(ua)) montrer("<b>Installer Compta</b>Ouvre ce lien dans <strong>Chrome</strong>, puis menu ⋮ › « Ajouter à l'écran d'accueil ».", false);
+    else montrer("<b>Installer Compta</b>Dans Chrome ou Edge, clique sur l'icône d'installation à droite de la barre d'adresse.", false);
   }, 3500);
 })();
 </script>
