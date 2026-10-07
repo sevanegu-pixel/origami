@@ -80,11 +80,21 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
   peindre(ap);
   var param = ap && ap.apparence ? "&apparence=" + encodeURIComponent(JSON.stringify(ap.apparence)) : "";
   document.getElementById("app").src = EXEC + (FORME.test(j) ? "?jeton=" + encodeURIComponent(j) + param : (param ? "?" + param.slice(1) : ""));
+  function base(ok) { try { var r = indexedDB.open("diffusion-coquille", 1); r.onupgradeneeded = function () { r.result.createObjectStore("c"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
+  function lireCache(ok) { base(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get(CLE + "_donnees"); q.onsuccess = function () { ok(q.result || ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
+  function ecrireCache(t) { base(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, CLE + "_donnees"); else s.delete(CLE + "_donnees"); } catch (e) {} }); }
+  // La copie des données ne se lit et ne s'écrit que depuis un cadre placé dans notre propre cadre app,
+  // jamais depuis une autre page Google qui aurait ouvert cette page.
+  function venantDeLAppli(w) { try { var cible = document.getElementById("app").contentWindow; for (var i = 0; w && i < 6; i++) { if (w === cible) return true; if (w === w.parent) return false; w = w.parent; } } catch (e) {} return false; }
   function finCharge() { charge.classList.add("fini"); setTimeout(function () { charge.style.display = "none"; }, 350); }
   document.getElementById("app").addEventListener("load", function () { setTimeout(finCharge, 8000); });
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
     var d = ev.data;
+    // Dernières données de l'appli (ouverture immédiate) : gardées ici, la mémoire du cadre étant effacée à chaque ouverture.
+    if (d && (d.diffusion === "cache-lire" || d.diffusion === "cache-ecrire") && !venantDeLAppli(ev.source)) return;
+    if (d && d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
+    if (d && d.diffusion === "cache-ecrire") { ecrireCache(typeof d.texte === "string" ? d.texte : ""); return; }
     if (d && d.diffusion === "apparence" && d.apparence) {
       var garde = { apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} };
       garder(AP, JSON.stringify(garde)); peindre(garde); finCharge(); return;
