@@ -46,19 +46,45 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
   function lire(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function garder(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
   var j = lire(CLE);
-  document.getElementById("app").src = EXEC + (/^[a-f0-9]{96}$/.test(j) ? "?jeton=" + j : "");
+  // Fenêtre détachée (bouton « Détacher » de l'appli) : ?ouvrir=… dit quel écran ouvrir
+  var ouvrir = (location.search.match(/[?&]ouvrir=([A-Za-z0-9_-]{1,6000})(&|$)/) || [])[1] || "";
+  var params = [];
+  if (/^[a-f0-9]{96}$/.test(j)) params.push("jeton=" + j);
+  if (ouvrir) params.push("ouvrir=" + ouvrir);
+  document.getElementById("app").src = EXEC + (params.length ? "?" + params.join("&") : "");
+  var apercu = null;   // fenêtre « Aperçu du PDF » (elle suit la saisie)
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
     var d = ev.data;
-    if (!d || d.origami !== "jeton") return;
-    garder(CLE, /^[a-f0-9]{96}$/.test(d.jeton || "") ? d.jeton : "");
+    if (!d) return;
+    // ouvrir / aperçu : seulement si le message vient bien de l'appli de cette page
+    var deChezNous = false, w = ev.source, cadre = document.getElementById("app").contentWindow;
+    try { for (var i = 0; w && i < 6; i++) { if (w === cadre) { deChezNous = true; break; } if (w === w.parent) break; w = w.parent; } } catch (e2) {}
+    if (d.origami !== "jeton" && !deChezNous) return;
+    if (d.origami === "jeton") { garder(CLE, /^[a-f0-9]{96}$/.test(d.jeton || "") ? d.jeton : ""); return; }
+    if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) {
+      window.open(location.pathname + "?ouvrir=" + d.ouvrir, "_blank", "popup=yes,width=1100,height=900");
+      return;
+    }
+    if (d.origami === "apercu" && typeof d.html === "string" && d.html.length < 8e6) {
+      if (!apercu || apercu.closed) {
+        if (!d.ouvrir) return;   // fenêtre fermée : on ne la rouvre que sur demande
+        apercu = window.open("", "apercuCompta", "popup=yes,width=900,height=1000");
+        if (!apercu) return;
+      }
+      try {
+        apercu.document.open(); apercu.document.write(d.html); apercu.document.close();
+        if (typeof d.titre === "string") apercu.document.title = d.titre.slice(0, 120);
+        if (d.ouvrir) apercu.focus();
+      } catch (e) { apercu = null; }
+    }
   });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
 
   // ---- Installation en un geste ----
   var installee = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
   var masque = parseInt(lire("origami_install_masque") || "0", 10) > Date.now();
-  if (installee || masque) return;
+  if (installee || masque || ouvrir) return;
   var boite = document.getElementById("installer"), texte = document.getElementById("instTexte"), bouton = document.getElementById("instBouton");
   var ua = navigator.userAgent || "";
   var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
