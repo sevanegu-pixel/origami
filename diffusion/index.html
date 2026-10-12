@@ -91,15 +91,16 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
     var d = ev.data;
+    // Jeton, apparence et copie des données : seulement depuis notre propre cadre app (une autre page Google qui aurait ouvert celle-ci est ignorée).
+    if (!d || !venantDeLAppli(ev.source)) return;
     // Dernières données de l'appli (ouverture immédiate) : gardées ici, la mémoire du cadre étant effacée à chaque ouverture.
-    if (d && (d.diffusion === "cache-lire" || d.diffusion === "cache-ecrire") && !venantDeLAppli(ev.source)) return;
-    if (d && d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
-    if (d && d.diffusion === "cache-ecrire") { ecrireCache(typeof d.texte === "string" ? d.texte : ""); return; }
-    if (d && d.diffusion === "apparence" && d.apparence) {
+    if (d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
+    if (d.diffusion === "cache-ecrire") { ecrireCache(typeof d.texte === "string" ? d.texte : ""); return; }
+    if (d.diffusion === "apparence" && d.apparence) {
       var garde = { apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} };
       garder(AP, JSON.stringify(garde)); peindre(garde); finCharge(); return;
     }
-    if (!d || (d.origami !== "jeton" && d.diffusion !== "jeton")) return;
+    if (d.origami !== "jeton" && d.diffusion !== "jeton") return;
     garder(CLE, FORME.test(d.jeton || "") ? d.jeton : "");
   });
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
