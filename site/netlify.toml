@@ -1,0 +1,5 @@
+# Netlify reconstruit le site à chaque envoi sur GitHub.
+# Dans Netlify : Base directory = site, branche de production = site.
+[build]
+  command = "python3 build.py"
+  publish = "dist"
