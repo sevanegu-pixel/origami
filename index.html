@@ -60,7 +60,7 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
     // ouvrir / aperçu : seulement si le message vient bien de l'appli de cette page
     var deChezNous = false, w = ev.source, cadre = document.getElementById("app").contentWindow;
     try { for (var i = 0; w && i < 6; i++) { if (w === cadre) { deChezNous = true; break; } if (w === w.parent) break; w = w.parent; } } catch (e2) {}
-    if (d.origami !== "jeton" && !deChezNous) return;
+    if (!deChezNous) return;   // jeton compris : une autre page Google qui aurait ouvert celle-ci est ignorée
     if (d.origami === "jeton") { garder(CLE, /^[a-f0-9]{96}$/.test(d.jeton || "") ? d.jeton : ""); return; }
     if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) {
       window.open(location.pathname + "?ouvrir=" + d.ouvrir, "_blank", "popup=yes,width=1100,height=900");
@@ -73,7 +73,10 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
         if (!apercu) return;
       }
       try {
-        apercu.document.open(); apercu.document.write(d.html); apercu.document.close();
+        // L'aperçu partage l'adresse de la coquille : on y interdit tout script (un texte piégé dans un nom ou une note ne peut rien lancer).
+        apercu.document.open();
+        apercu.document.write('<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="script-src \'none\'; object-src \'none\'; base-uri \'none\'; form-action \'none\'">');
+        apercu.document.write(d.html); apercu.document.close();
         if (typeof d.titre === "string") apercu.document.title = d.titre.slice(0, 120);
         if (d.ouvrir) apercu.focus();
       } catch (e) { apercu = null; }
