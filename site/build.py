@@ -18,6 +18,9 @@ VERSIONS = [
     ("street", "Street · oct. 2026"),
     ("artcontemporain", "Art contemporain · oct. 2026"),
     ("engrenages", "Engrenages au crayon · oct. 2026"),
+    ("pliage", "Surprise · Pliage"),
+    ("funambule", "Surprise · Funambule"),
+    ("psyche", "Surprise · Psyché"),
     ("wix", "Copie du Wix · oct. 2026"),
 ]
 DEFAULT = VERSIONS[0][0]
