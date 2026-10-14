@@ -14,7 +14,8 @@
 }
 *,*::before,*::after{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--deep);color:var(--ink);font:300 17px/1.65 var(--body);overflow-x:hidden}
+html{overflow-x:clip}
+body{margin:0;background:var(--deep);color:var(--ink);font:300 17px/1.65 var(--body);overflow-x:clip}
 img{max-width:100%;display:block}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--gold);outline-offset:3px}
