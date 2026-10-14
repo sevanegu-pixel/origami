@@ -15,6 +15,9 @@ from content import SITE, REDIRECTS
 # (dossier, nom affiché) — la première est celle qu'on voit en arrivant sur le site
 VERSIONS = [
     ("bancal", "Bancal · oct. 2026"),
+    ("street", "Street · oct. 2026"),
+    ("artcontemporain", "Art contemporain · oct. 2026"),
+    ("engrenages", "Engrenages au crayon · oct. 2026"),
     ("wix", "Copie du Wix · oct. 2026"),
 ]
 DEFAULT = VERSIONS[0][0]
@@ -60,6 +63,7 @@ def build_version(name):
             p = os.path.join(mod.DIST, f)
             s = open(p, encoding="utf-8").read()
             s = s.replace("</body>", bar(name) + "</body>", 1)
+            s = s.replace('"origami-vu"', f'"origami-vu-{name}"')  # l'ouverture se joue une fois par visite et par version
             open(p, "w", encoding="utf-8").write(s)
     # fichiers propres à la racine du site : gérés plus bas
     for f in ("_redirects", "sitemap.xml", "robots.txt"):
