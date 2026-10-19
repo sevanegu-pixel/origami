@@ -48,8 +48,7 @@ SHOWS = [
         "links": [("Fiche technique", "https://drive.google.com/file/d/1kvYrO9AMpVJjPqmvitutZMuZZi_xF3DZ/view?usp=sharing")],
         "gallery": ["4d47d3_110859d8bd9a4be3b6473e6fdfdaedb6~mv2.jpg", "4d47d3_9b1dd66c824c463398f0243d13a7f170~mv2.jpg", "4d47d3_7064c3185f7a4317acdd4545694f817f~mv2.jpg", "4d47d3_54aff8fd388b49e7b3c34faba9c975ea~mv2.jpg", "4d47d3_146138bea4f64625bd13dfad3911df64~mv2.jpg", "4d47d3_50c4a4d59f3f43b694def81ab4f8d6b5~mv2.jpg", "4d47d3_591a784ed1b7410a84979bfbbc689e99~mv2.jpg", "4d47d3_725768fd411544058942c7e32542ccdd~mv2.jpg"],
         "dates": [
-            ("2026-10-17", "17 octobre 2026", "Le bois de la Bâtie – Genève (GE)"),
-            ("2026-05-10", "10 mai 2026", "Anières (GE) – Première"),
+            ("2026-05-17", "17 mai 2026", "Place de la Côte-d'Or – Anières (GE) – Première"),
             ("2025-08-30", "30–31 août 2025", "Sortie de résidence – Théâtre-Cirqule (GE)"),
             ("2025-04-26", "26 avril et 2 mai 2025", "Sortie de résidence – Festival L'Escalier (GE)"),
         ],
@@ -128,7 +127,17 @@ SHOWS = [
         "credits": "Avec (selon les formules) : Teddy Marguerat, Anouk Simon, Fernando Isola, Nicolas Parraguez Castro, Julie Levrat, Cristobal Bascur",
         "links": [("Infos techniques et tarifs (PDF)", FILES + "4d47d3_a2aabf868acf4680888279bcefb3ac49.pdf")],
         "gallery": ["4d47d3_89e52ea6d1c942c0888a39b219c32a56~mv2.jpg", "4d47d3_67251316a3a54dba9197de01d6a0f823~mv2.jpg", "4d47d3_6ca6d652e105407cbfe20ff07618d290~mv2.jpg", "4d47d3_b5880f52a69c4b9abd631519ccf04d3c~mv2.jpg", "4d47d3_f305686a6f1f4bf49deacd2ec90ff8a0~mv2.jpg", "4d47d3_e4ec4d6cf300495bb04daa53c1f29916~mv2.jpg", "4d47d3_9159ae5406cd4e969ab8d5810c25a31e~mv2.jpg", "4d47d3_dc784fbb1c8548bfbb050cc51a35ee85~mv2.jpg", "4d47d3_3bfbbc4bc78b41b1bf66b3f6b97d4125~mv2.jpg"],
-        "dates": [],
+        "dates": [
+            ("2026-10-17", "17 octobre 2026", "Bois de la Bâtie – Genève (GE) – Bâtie des enfants"),
+            ("2026-09-27", "27 septembre 2026", "Préau de l'école Grand-Salève – Veyrier (GE) – Vogue de Veyrier"),
+            ("2026-08-12", "12 août 2026", "Parc Chauvet-Lullin – Vernier (GE) – Août au parc"),
+            ("2026-07-18", "18–19 juillet 2026", "Big Boxon – Versoix (GE) – Cirquenbulle"),
+            ("2026-07-05", "5 juillet 2026", "Place des Théâtres – Sion (VS) – Pollen Festival"),
+            ("2026-07-04", "4 juillet 2026", "La Balme – La Roche-sur-Foron (France) – Fête de quartier"),
+            ("2026-06-06", "6 juin 2026", "Festival Taj'ums"),
+            ("2026-03-21", "21 mars 2026", "Cran-Gevrier – Annecy (France) – Carnaval de Cran-Gevrier"),
+            ("2026-02-15", "15 février 2026", "Bois de la Bâtie – Genève (GE) – Bâtie des enfants"),
+        ],
         "home": True,
     },
     {
