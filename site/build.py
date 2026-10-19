@@ -18,6 +18,7 @@ VERSIONS = [
     ("street", "Street · oct. 2026"),
     ("artcontemporain", "Art contemporain · oct. 2026"),
     ("engrenages", "Engrenages au crayon · oct. 2026"),
+    ("croquis", "Croquis de cirque · oct. 2026"),
     ("pliage", "Surprise · Pliage"),
     ("funambule", "Surprise · Funambule"),
     ("psyche", "Surprise · Psyché"),
