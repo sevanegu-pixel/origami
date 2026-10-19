@@ -135,7 +135,7 @@ SHOWS = [
             ("2026-07-18", "18–19 juillet 2026", "Big Boxon – Versoix (GE) – Cirquenbulle"),
             ("2026-07-05", "5 juillet 2026", "Place des Théâtres – Sion (VS) – Pollen Festival"),
             ("2026-07-04", "4 juillet 2026", "La Balme – La Roche-sur-Foron (France) – Fête de quartier"),
-            ("2026-06-06", "6 juin 2026", "Festival Taj'ums"),
+            ("2026-06-06", "6 juin 2026", "Neuchâtel (NE) – Festival Taj'ums"),
             ("2026-03-21", "21 mars 2026", "Cran-Gevrier – Annecy (France) – Carnaval de Cran-Gevrier"),
             ("2026-02-15", "15 février 2026", "Bois de la Bâtie – Genève (GE) – Bâtie des enfants"),
         ],
