@@ -128,6 +128,7 @@ SHOWS = [
         "links": [("Infos techniques et tarifs (PDF)", FILES + "4d47d3_a2aabf868acf4680888279bcefb3ac49.pdf")],
         "gallery": ["4d47d3_89e52ea6d1c942c0888a39b219c32a56~mv2.jpg", "4d47d3_67251316a3a54dba9197de01d6a0f823~mv2.jpg", "4d47d3_6ca6d652e105407cbfe20ff07618d290~mv2.jpg", "4d47d3_b5880f52a69c4b9abd631519ccf04d3c~mv2.jpg", "4d47d3_f305686a6f1f4bf49deacd2ec90ff8a0~mv2.jpg", "4d47d3_e4ec4d6cf300495bb04daa53c1f29916~mv2.jpg", "4d47d3_9159ae5406cd4e969ab8d5810c25a31e~mv2.jpg", "4d47d3_dc784fbb1c8548bfbb050cc51a35ee85~mv2.jpg", "4d47d3_3bfbbc4bc78b41b1bf66b3f6b97d4125~mv2.jpg"],
         "dates": [
+            ("2027-02-07", "7 février 2027", "Lieu à confirmer"),
             ("2026-10-17", "17 octobre 2026", "Bois de la Bâtie – Genève (GE) – Bâtie des enfants"),
             ("2026-09-27", "27 septembre 2026", "Préau de l'école Grand-Salève – Veyrier (GE) – Vogue de Veyrier"),
             ("2026-08-12", "12 août 2026", "Parc Chauvet-Lullin – Vernier (GE) – Août au parc"),
@@ -218,7 +219,9 @@ SHOWS = [
         "credits": "Création : Ella Beerli & Sévane Gurunlian",
         "links": [],
         "gallery": ["4d47d3_ad850f1c5a9d48d2af17d7d11891d568~mv2.jpg"],
-        "dates": [],
+        "dates": [
+            ("2027-10-16", "16 octobre 2027 à 16h", "Lieu à confirmer"),
+        ],
         "home": True,
     },
     {
