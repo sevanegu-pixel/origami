@@ -361,3 +361,20 @@ REDIRECTS = {
     "/quisommesnous/lhbp": "/quisommesnous",
     "/quisommesnous/oc": "/quisommesnous",
 }
+
+# Agenda : les dates de data/agenda.json (rempli depuis la feuille Google « Pilotage du site »)
+# remplacent celles écrites plus haut, spectacle par spectacle.
+def _charger_agenda():
+    import json, os
+    chemin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "agenda.json")
+    if not os.path.exists(chemin):
+        return
+    with open(chemin, encoding="utf-8") as f:
+        agenda = json.load(f).get("spectacles", {})
+    for show in SHOWS:
+        if show["slug"] in agenda:
+            dates = agenda[show["slug"]].get("dates", [])
+            show["dates"] = sorted(((d["date"], d["texte"], d["lieu"]) for d in dates), reverse=True)
+
+
+_charger_agenda()
