@@ -262,27 +262,31 @@
           brasG: [-118 + bal, -6], brasD: [48 + bal, 4],
           jambeG: { vers: [pieds[0] - 3, pieds[1]], pli: -1 }, jambeD: { vers: [pieds[0] + 3, pieds[1]], pli: 1 } });
       } },
-    /* couch-couch, d'après la 5e vidéo de Sévane : il arrive de profil, se tourne vers le public et reste sur place
-       en se balançant (la roue va et vient), bras grands ouverts qui font la bascule, puis repart */
-    couch: { vb: [180, 300], init: function (g) {
-        this.roue = el(g, "g", {}); this.r1 = el(this.roue, "ellipse", { "class": "t1" }); this.r2 = el(this.roue, "ellipse", { "class": "t2" });
-        this.moyeu = new Rond(this.roue, 2.2, "j"); this.tige = el(g, "path", { "class": "t1" });
-        this.pivot = el(g, "g", {}); this.c = new Corps(this.pivot);
+    /* couch-couch, d'après la 5e vidéo de Sévane : il recule sur la roue sans pédales, assis sur la selle,
+       en donnant des coups de pied sur le dessus du pneu, un pied puis l'autre ; les bras ouverts font l'équilibre */
+    couch: { vb: [200, 300], init: function (g) {
+        this.roue = el(g, "g", {}); el(this.roue, "circle", { cx: 0, cy: 0, r: 20, "class": "t1" }); el(this.roue, "circle", { cx: .6, cy: -.4, r: 21.2, "class": "t2" });
+        for (var i = 0; i < 8; i++) { var d = dir(i * 45); el(this.roue, "line", { x1: 0, y1: 0, x2: f(d[0] * 19), y2: f(d[1] * 19), "class": "t2" }); }
+        el(this.roue, "circle", { cx: 0, cy: 0, r: 2.6, "class": "j" });
+        this.fourche = el(g, "path", { "class": "t1" }); this.selle = el(g, "ellipse", { rx: 9, ry: 3, "class": "t1" });
+        this.c = new Corps(g);
       }, frame: function (n) {
-        var DUREE = 12, s = ((n.g / 450) % DUREE + DUREE) % DUREE, Y = 272, RR = 19;
-        var balance = cle(s, [[3, 0], [4, 1], [9.5, 1], [10.3, 0]]), osc = S(s * 3.2) * balance;
-        var x = cle(s, [[0, 25], [3, 90], [10.3, 90], [12, 155]]) + osc * 7;
-        var th = cle(s, [[2.4, 80], [3.8, 0], [9.6, 0], [10.6, -80]]) + osc * 10;
-        var sx = Math.cos(th * R), sp = Math.abs(Math.sin(th * R)), cr = (s < 3 || s > 10.3) ? s * 8 : osc * 1.2;
-        this.r1.setAttribute("cx", f(x)); this.r1.setAttribute("cy", Y); this.r1.setAttribute("rx", f(Math.max(2.5, RR * sp))); this.r1.setAttribute("ry", RR);
-        this.r2.setAttribute("cx", f(x + .8)); this.r2.setAttribute("cy", Y - .5); this.r2.setAttribute("rx", f(Math.max(2, RR * sp + 1.5))); this.r2.setAttribute("ry", RR + 1);
-        this.moyeu.set([x, Y]); this.tige.setAttribute("d", "M" + f(x) + " " + Y + "L" + f(x - osc * 3) + " " + (Y - 50) + "M" + f(x - osc * 3 - 7) + " " + (Y - 52) + "h14");
-        this.pivot.setAttribute("transform", "translate(" + f(x) + " 0) scale(" + f(Math.abs(sx) < .12 ? (sx < 0 ? -.12 : .12) : sx) + " 1) translate(" + f(-x) + " 0)");
-        var hx = x - osc * 3, hy = Y - 54, t = -90 - osc * 7, C = add([hx, hy], t, L.torse), ouv = .55 + .45 * balance;
-        var bas = osc * 22 * balance;
-        this.c.pose({ x: hx, y: hy, t: t, h: osc * 6,
-          brasG: { vers: [C[0] - 40 * ouv, C[1] + 12 * (1 - balance) - bas], pli: 1 }, brasD: { vers: [C[0] + 40 * ouv, C[1] + 12 * (1 - balance) + bas], pli: -1 },
-          jambeG: { vers: [x - 4, Y + 10 * S(cr)], pli: -1 }, jambeD: { vers: [x + 4, Y - 10 * S(cr)], pli: 1 } });
+        var Y = 276, RR = 20, dist = this.essai ? n.g * .035 : n.roule, x = this.essai ? 170 - ((dist % 140) + 140) % 140 : 100;
+        var sw = S(n.g * .011) * 3, seat = [x + sw * .3, Y - 64];
+        this.roue.setAttribute("transform", "translate(" + f(x) + " " + Y + ") rotate(" + f(-dist / RR / R) + ")");
+        this.fourche.setAttribute("d", "M" + f(x) + " " + Y + "L" + f(seat[0]) + " " + f(seat[1] + 3) + "M" + f(x - 2) + " " + Y + "L" + f(seat[0] - 2) + " " + f(seat[1] + 3));
+        this.selle.setAttribute("cx", f(seat[0])); this.selle.setAttribute("cy", f(seat[1]));
+        /* un coup de pied = le pied tire le pneu de l'avant vers l'arrière, puis se relève et revient devant */
+        function pied(ph) {
+          ph = ((ph % 1) + 1) % 1; var dx, y;
+          if (ph < .5) { dx = 13 - 26 * (ph / .5); y = Y - Math.sqrt(RR * RR - dx * dx) - 3; }
+          else { var u = (ph - .5) / .5; dx = -13 + 26 * u; y = Y - Math.sqrt(RR * RR - dx * dx) - 3 - Math.sin(u * Math.PI) * 9; }
+          return [x + dx, y];
+        }
+        var ph = dist / 52, PG = pied(ph), PD = pied(ph + .5), bal = S(ph * Math.PI * 2) * 12;
+        this.c.pose({ x: seat[0], y: seat[1] - 3, t: -90 + sw - 4, h: -sw * .6 + 4,
+          brasG: [-80 + bal, -18], brasD: [82 + bal, 18],
+          jambeG: { vers: PG, pli: 1 }, jambeD: { vers: PD, pli: 1 }, pieds: 70 });
       } },
     /* porté en monocycle, d'après la 6e vidéo de Sévane : elle arrive en courant, saute dans ses bras et s'accroche
        à sa taille ; ils tournent ensemble sur la roue pendant qu'elle se renverse bras ouverts, puis elle redescend */
