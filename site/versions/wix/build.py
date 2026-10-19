@@ -35,7 +35,7 @@ SHOW_BY_SLUG = {s["slug"]: s for s in SHOWS}
 
 # Étiquettes en dégradé de l'accueil (comme sur le site original)
 HOME_TAG = {
-    "commeunpoint": "Première le 10 mai 2026",
+    "commeunpoint": "Première le 17 mai 2026",
     "la-petite-fille-dans-la-poubelle": "En tournée",
     "caborigamique": "Formule adaptable",
     "edmd": "Solo en tournée",
@@ -154,7 +154,7 @@ FILES_HOME_CAB = "https://www.compagnieorigami.com/_files/ugd/" + "4d47d3_fe143a
 BLOCKS = [
     dict(slug="commeunpoint", title_dv=[("br", "#3D9BE9", 20, .47)], title_h=96,
          h=540, dvs=[("tl", "#9781FF", 212, .14), ("br", "#9781FF", 217, .3)],
-         tag=(95, 319, "Première le 10 mai 2026"), left=None, right=("4d47d3_110859d8bd9a4be3b6473e6fdfdaedb6~mv2.jpg", 835, 429),
+         tag=(95, 319, "Première le 17 mai 2026"), left=None, right=("4d47d3_110859d8bd9a4be3b6473e6fdfdaedb6~mv2.jpg", 835, 429),
          tx=125, tw=572, ty=74, sub="Spectacle en rue", subsize=30, by="Par Ella Beerli et Julie Levrat",
          paras=["Ella et Julie sont deux copines devenues artistes de cirque. Depuis petites, les deux rêvent du cirque avec des chapiteaux, des paillettes, du waow et des pop corn. En grandissant elles suivent des formations de cirque contemporain et apprécient raconter des histoires avec les mots et le corps, laissez la place à la sensibilité et à l’intimité créé entre les spectateurs.ices et les artistes.",
                 "Elles se retrouvent alors les deux, autour d’un café, à partager la réalité de leur rêve d’être artiste de cirque. Le spectacle n’est que la partie visible de leur art. Le quotidien, c’est aussi des entraînements, des montages, des ratés, des doutes, des fous rires, des stress, des ambitions toujours plus grandes…"],
