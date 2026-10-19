@@ -219,6 +219,21 @@ SHOWS = [
         "credits": "Création : Ella Beerli & Sévane Gurunlian",
         "links": [],
         "gallery": ["4d47d3_ad850f1c5a9d48d2af17d7d11891d568~mv2.jpg"],
+        # repris du dossier de création (Drive : « CVs et dossier de création - Des pâtes au seum ») ;
+        # photos extraites du dossier, dans photos/dossier-pates-NN-*.webp
+        "dossier": {
+            "photos": [f"dossier-pates-{i:02d}.jpg" for i in range(1, 12)],
+            "etapes": [
+                ("Février 2025", "Une première impulsion, la naissance d'une idée et présentation d'un numéro de portés acrobatiques lors d'un Cabarepic à Genève."),
+                ("Été 2025", "Après cinq années de tournée du spectacle La Petite Fille dans la poubelle, un besoin s'impose : celui de dire autre chose, autrement. La décision d'une nouvelle création émerge."),
+                ("Octobre 2025", "Une nouvelle forme apparaît au festival Carambole à Genève. Les Pâtes au Seum évolue, s'équilibre en portés sur monocycle."),
+                ("Décembre 2025", "Une résidence artistique permet de poser les premières fondations du projet. La recherche est nourrie par des regards extérieurs : Valentina Lupolini (Cie Humagine), Mathieu Fernandez-V. (Cie de Trop) et Tamara Savelieff-Horan (Cie Utop)."),
+            ],
+            "duo": [
+                "Depuis près de quinze ans, nous avançons en équilibre. Notre travail circassien en duo s'appuie sur les disciplines d'acrobaties, de main à main et de portés sur monocycles, une pratique encore rare. Nos créations se tissent dans le mouvement et explorent un cirque tantôt brut, tantôt traversé par des horizons plus sensibles.",
+                "Fondée en 2018, la compagnie Origami rassemble plusieurs projets qui gravitent autour de notre duo, dont Des pâtes au seum, notre deuxième création de format long, faisant suite à La Petite Fille dans la poubelle.",
+            ],
+        },
         "dates": [
             ("2027-10-16", "16 octobre 2027 à 16h", "Lieu à confirmer"),
         ],
