@@ -234,8 +234,9 @@
           brasG: { vers: [x - 6, Cy + 18], pli: -1 }, brasD: { vers: [x + 8 + 34 * ouvre, Cy + 18 - 14 * ouvre], pli: 1 },
           jambeG: { vers: [x - 4, Y + 10 * S(cr)], pli: -1 }, jambeD: { vers: [x + 4, Y - 10 * S(cr)], pli: 1 } });
       } },
-    /* colonne à deux en monocycle (en attendant la photo de Sévane) : il pédale, elle est debout sur ses épaules,
-       il lui tient les tibias, elle ouvre les bras pour l'équilibre */
+    /* colonne à deux en monocycle, d'après la photo de Sévane (20 oct., prise d'en bas) : il pédale de profil, penché un peu
+       en avant ; elle est debout jambes serrées au-dessus de sa tête, il lui tient les chevilles à bout de bras pliés ;
+       elle ouvre les bras en diagonale (un vers le ciel, l'autre vers le bas) et corrige l'équilibre */
     monocolonne: { vb: [200, 300], init: function (g) {
         this.roue = el(g, "g", {}); el(this.roue, "circle", { cx: 0, cy: 0, r: 22, "class": "t1" }); el(this.roue, "circle", { cx: .6, cy: -.4, r: 23.2, "class": "t2" });
         for (var i = 0; i < 8; i++) { var d = dir(i * 45); el(this.roue, "line", { x1: 0, y1: 0, x2: f(d[0] * 21), y2: f(d[1] * 21), "class": "t2" }); }
@@ -245,21 +246,78 @@
         this.bas = new Corps(g); this.haut = new Corps(g);
       }, frame: function (n) {
         var essai = this.essai, x = essai ? 40 + ((n.g * .05) % 120 + 120) % 120 : 100, dist = essai ? n.g * .05 : n.roule;
-        var a = dist / 22 / R, sw = S(n.g * .012) * 4, Wc = [x, 276];
+        var a = dist / 22 / R, sw = S(n.g * .012) * 3, Wc = [x, 276];
         this.roue.setAttribute("transform", "translate(" + f(x) + " 276) rotate(" + f(a) + ")");
         var P1 = add(Wc, a, 10), P2 = add(Wc, a + 180, 10), seat = [x + sw * .3, 224];
         this.manivelle.setAttribute("d", "M" + f(P1[0]) + " " + f(P1[1]) + "L" + f(P2[0]) + " " + f(P2[1]));
         this.fourche.setAttribute("d", "M" + f(x) + " 276L" + f(seat[0]) + " " + f(seat[1] + 3) + "M" + f(x - 2) + " 276L" + f(seat[0] - 2) + " " + f(seat[1] + 3));
         this.selle.setAttribute("cx", f(seat[0])); this.selle.setAttribute("cy", f(seat[1]));
-        var hy = seat[1] - 3, t = -90 + sw, C = add([seat[0], hy], t, L.torse);
-        var tib = [C[0], C[1] - 26];
-        this.bas.pose({ x: seat[0], y: hy, t: t, h: -14,
-          brasG: { vers: [tib[0] - 12, tib[1]], pli: 1 }, brasD: { vers: [tib[0] + 12, tib[1] + 2], pli: -1 },
+        var hy = seat[1] - 3, t = -84 + sw, C = add([seat[0], hy], t, L.torse);
+        var pieds = [C[0] + 3 - sw * .5, C[1] - 31];
+        this.bas.pose({ x: seat[0], y: hy, t: t, h: -10,
+          brasG: { vers: [pieds[0] - 3, pieds[1] + 2], pli: 1 }, brasD: { vers: [pieds[0] + 4, pieds[1] + 3], pli: -1 },
           jambeG: { vers: P1, pli: -1 }, jambeD: { vers: P2, pli: -1 } });
-        var h2 = [C[0] - sw * .6, C[1] - 54], C2 = [h2[0], h2[1] - L.torse], bal = S(n.g * .01) * 14;
-        this.haut.pose({ x: h2[0], y: h2[1], t: -90 - sw * .8, h: sw,
-          brasG: [-100 + bal, -10], brasD: [100 + bal, 10],
-          jambeG: { vers: [C[0] - 13, C[1] - 2], pli: -1 }, jambeD: { vers: [C[0] + 13, C[1] - 2], pli: 1 } });
+        var bal = S(n.g * .01) * 10, h2 = [pieds[0] - sw * .4, pieds[1] - 51];
+        this.haut.pose({ x: h2[0], y: h2[1], t: -90 - sw * .8 + bal * .15, h: -6,
+          brasG: [-118 + bal, -6], brasD: [48 + bal, 4],
+          jambeG: { vers: [pieds[0] - 3, pieds[1]], pli: -1 }, jambeD: { vers: [pieds[0] + 3, pieds[1]], pli: 1 } });
+      } },
+    /* couch-couch, d'après la 5e vidéo de Sévane : il arrive de profil, se tourne vers le public et reste sur place
+       en se balançant (la roue va et vient), bras grands ouverts qui font la bascule, puis repart */
+    couch: { vb: [180, 300], init: function (g) {
+        this.roue = el(g, "g", {}); this.r1 = el(this.roue, "ellipse", { "class": "t1" }); this.r2 = el(this.roue, "ellipse", { "class": "t2" });
+        this.moyeu = new Rond(this.roue, 2.2, "j"); this.tige = el(g, "path", { "class": "t1" });
+        this.pivot = el(g, "g", {}); this.c = new Corps(this.pivot);
+      }, frame: function (n) {
+        var DUREE = 12, s = ((n.g / 450) % DUREE + DUREE) % DUREE, Y = 272, RR = 19;
+        var balance = cle(s, [[3, 0], [4, 1], [9.5, 1], [10.3, 0]]), osc = S(s * 3.2) * balance;
+        var x = cle(s, [[0, 25], [3, 90], [10.3, 90], [12, 155]]) + osc * 7;
+        var th = cle(s, [[2.4, 80], [3.8, 0], [9.6, 0], [10.6, -80]]) + osc * 10;
+        var sx = Math.cos(th * R), sp = Math.abs(Math.sin(th * R)), cr = (s < 3 || s > 10.3) ? s * 8 : osc * 1.2;
+        this.r1.setAttribute("cx", f(x)); this.r1.setAttribute("cy", Y); this.r1.setAttribute("rx", f(Math.max(2.5, RR * sp))); this.r1.setAttribute("ry", RR);
+        this.r2.setAttribute("cx", f(x + .8)); this.r2.setAttribute("cy", Y - .5); this.r2.setAttribute("rx", f(Math.max(2, RR * sp + 1.5))); this.r2.setAttribute("ry", RR + 1);
+        this.moyeu.set([x, Y]); this.tige.setAttribute("d", "M" + f(x) + " " + Y + "L" + f(x - osc * 3) + " " + (Y - 50) + "M" + f(x - osc * 3 - 7) + " " + (Y - 52) + "h14");
+        this.pivot.setAttribute("transform", "translate(" + f(x) + " 0) scale(" + f(Math.abs(sx) < .12 ? (sx < 0 ? -.12 : .12) : sx) + " 1) translate(" + f(-x) + " 0)");
+        var hx = x - osc * 3, hy = Y - 54, t = -90 - osc * 7, C = add([hx, hy], t, L.torse), ouv = .55 + .45 * balance;
+        var bas = osc * 22 * balance;
+        this.c.pose({ x: hx, y: hy, t: t, h: osc * 6,
+          brasG: { vers: [C[0] - 40 * ouv, C[1] + 12 * (1 - balance) - bas], pli: 1 }, brasD: { vers: [C[0] + 40 * ouv, C[1] + 12 * (1 - balance) + bas], pli: -1 },
+          jambeG: { vers: [x - 4, Y + 10 * S(cr)], pli: -1 }, jambeD: { vers: [x + 4, Y - 10 * S(cr)], pli: 1 } });
+      } },
+    /* porté en monocycle, d'après la 6e vidéo de Sévane : elle arrive en courant, saute dans ses bras et s'accroche
+       à sa taille ; ils tournent ensemble sur la roue pendant qu'elle se renverse bras ouverts, puis elle redescend */
+    monoporte: { vb: [200, 300], init: function (g) {
+        this.pivot = el(g, "g", {}); var P = this.pivot;
+        this.roue = el(P, "g", {}); this.r1 = el(this.roue, "ellipse", { "class": "t1" }); this.r2 = el(this.roue, "ellipse", { "class": "t2" });
+        this.moyeu = new Rond(this.roue, 2.2, "j"); this.tige = el(P, "path", { "class": "t1" });
+        this.lui = new Corps(P); this.elle = new Corps(P);
+      }, frame: function (n) {
+        var DUREE = 11, s = ((n.g / 450) % DUREE + DUREE) % DUREE, x = 90, Y = 272, RR = 19, hy = Y - 54;
+        var th = cle(s, [[3, 0], [8, 720]]), sx = Math.cos(th * R), osc = S(s * 2.4) * .6;
+        this.pivot.setAttribute("transform", "translate(" + f(x) + " 0) scale(" + f(Math.abs(sx) < .12 ? (sx < 0 ? -.12 : .12) : sx) + " 1) translate(" + f(-x) + " 0)");
+        var sp = Math.abs(Math.cos(th * R)), wx = x + osc * 3;
+        this.r1.setAttribute("cx", f(wx)); this.r1.setAttribute("cy", Y); this.r1.setAttribute("rx", f(Math.max(2.5, RR * sp))); this.r1.setAttribute("ry", RR);
+        this.r2.setAttribute("cx", f(wx + .8)); this.r2.setAttribute("cy", Y - .5); this.r2.setAttribute("rx", f(Math.max(2, RR * sp + 1.5))); this.r2.setAttribute("ry", RR + 1);
+        this.moyeu.set([wx, Y]); this.tige.setAttribute("d", "M" + f(wx) + " " + Y + "L" + f(x) + " " + (Y - 50) + "M" + f(x - 7) + " " + (Y - 52) + "h14");
+        /* elle : 0 = au sol, 1 = accrochée à sa taille */
+        var haut = cle(s, [[1.8, 0], [2.6, 1], [8.6, 1], [9.4, 0]]), saut = Math.sin(Math.min(1, Math.max(0, (s < 5 ? s - 1.8 : s - 8.6) / .8)) * Math.PI) * 18;
+        var renverse = cle(s, [[3.4, 0], [4.6, 1], [7.4, 1], [8.4, 0]]);
+        var solX = s < 5 ? cle(s, [[0, 185], [1.8, x + 30]]) : cle(s, [[9.4, x + 30], [11, 190]]), solY = 272 - 52;
+        var tX = x + 15, tY = hy - 20, hx = solX + (tX - solX) * haut, hyE = solY + (tY - solY) * haut - saut;
+        var lean = 12 + 48 * renverse, t = -90 + lean * haut, CE = add([hx, hyE], t, L.torse);
+        /* lui, de profil vers la droite, le buste qui compense son poids */
+        var tl = -90 - 8 * haut - 6 * renverse, CL = add([x, hy], tl, L.torse), cr = s * 3;
+        this.lui.pose({ x: x, y: hy, t: tl, h: -6 * renverse,
+          brasG: haut > .5 ? { vers: [hx - 2, hyE - 12], pli: 1 } : { vers: [CL[0] + 20, CL[1] + 18], pli: -1 },
+          brasD: haut > .5 ? { vers: [hx + 4, hyE - 20], pli: -1 } : { vers: [CL[0] + 24, CL[1] + 6], pli: -1 },
+          jambeG: { vers: [wx - 4, Y + 9 * S(cr)], pli: -1 }, jambeD: { vers: [wx + 4, Y - 9 * S(cr)], pli: 1 } });
+        var pas = s * 7, ouv = renverse;
+        var jG = haut > .5 ? { vers: [x - 9, hy - 6], pli: 1 } : { vers: [hx - 8 + 9 * S(pas), 272 - Math.max(0, Math.cos(pas)) * 6 - saut], pli: 1 };
+        var jD = haut > .5 ? { vers: [x - 7, hy + 6], pli: 1 } : { vers: [hx - 8 - 9 * S(pas), 272 - Math.max(0, -Math.cos(pas)) * 6 - saut], pli: 1 };
+        this.elle.pose({ x: hx, y: hyE, t: haut > .5 ? t : -90 - 8, h: 10 * ouv,
+          brasG: haut > .5 ? { vers: [CE[0] - 30 * (1 - ouv) + 36 * ouv, CE[1] + 6 - 26 * ouv], pli: -1 } : [-150 + 30 * S(pas), 20],
+          brasD: haut > .5 ? { vers: [CE[0] - 26 * (1 - ouv) + 30 * ouv, CE[1] + 14 + 20 * ouv], pli: 1 } : [150 - 30 * S(pas), -20],
+          jambeG: jG, jambeD: jD });
       } },
     /* colonne à trois, d'après la photo de Sévane (19 oct.) : le porteur marche, elle est debout sur ses épaules
        (il lui tient les tibias), la troisième est dans ses bras, jambes autour de sa taille */
