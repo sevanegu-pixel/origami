@@ -458,6 +458,7 @@ ESSAIS = [  # (pantin, titre, d'après quoi)
     ("colonne", "Colonne à trois qui marche", "D'après ta photo du 19 octobre"),
     ("video2", "Lancer en main à main", "D'après ta 2e vidéo : face à face, flexion, lancer direct en équilibre, tenue, puis assise sur les épaules"),
     ("pirouette", "Pirouettes en monocycle", "D'après ta 3e vidéo (jusqu'à 17 s) : arrivée, bras ouverts, tours de plus en plus rapides, sortie"),
+    ("monocolonne", "Colonne à deux en monocycle", "Première version qui roule, en attendant ta photo"),
     ("pirouette2", "Pirouettes lentes", "D'après ta 4e vidéo : il tourne sur place, bras pliés devant lui, un bras s'ouvre par moments"),
 ]
 
