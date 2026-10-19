@@ -446,6 +446,41 @@ SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button">
 </script><script src="pantins.js" defer></script>"""
 
 
+# ---------------------------------------------------------------- page d'essais (cachée : pas dans le menu ni dans le plan du site)
+
+ESSAIS = [  # (pantin, titre, d'après quoi)
+    ("mono", "Monocycle", "Inventé"),
+    ("jongle", "Jongleur", "Inventé · rattrape ses balles à la pause"),
+    ("porte", "Main à main", "Inventé"),
+    ("cannes", "Équilibre sur cannes", "Inventé"),
+    ("salto", "Salto", "Inventé"),
+    ("video1", "Main à main", "D'après ta vidéo du 19 octobre : appui, montée en équilibre, équilibre bras tendus, le porteur descend et marche, descente devant, salut"),
+    ("colonne", "Colonne à trois qui marche", "D'après ta photo du 19 octobre"),
+    ("video2", "Lancer en main à main", "D'après ta 2e vidéo : face à face, flexion, lancer direct en équilibre, tenue, puis assise sur les épaules"),
+    ("pirouette", "Pirouettes en monocycle", "D'après ta 3e vidéo (jusqu'à 17 s) : arrivée, bras ouverts, tours de plus en plus rapides, sortie"),
+    ("monocolonne", "Colonne à deux en monocycle", "Première version qui roule, en attendant ta photo"),
+    ("pirouette2", "Pirouettes lentes", "D'après ta 4e vidéo : il tourne sur place, bras pliés devant lui, un bras s'ouvre par moments"),
+]
+
+
+def page_essais():
+    cards = "".join(
+        f"""<article class="es-card"><div class="es-scene">{perso(k, 230).replace('<span class="pantin ', '<span data-horloge class="pantin ', 1)}</div>
+<h2>{E(t)}</h2><p class="es-src">{E(src)}</p>
+<div class="es-ctl"><button type="button" class="es-pause">Pause</button>
+<label>Vitesse <select class="es-vit"><option value=".25">× 0,25</option><option value=".5">× 0,5</option><option value="1" selected>× 1</option><option value="2">× 2</option></select></label></div></article>"""
+        for k, t, src in ESSAIS)
+    return f"""<main class="essais"><section class="ph-title"><h1>Essais <i>d'animation</i></h1></section>
+<section class="es-intro"><p>Ici, je teste les pantins avant de les mettre sur le site. Envoie une vidéo courte d'un numéro dans le fil de discussion : j'en tire les poses et l'essai apparaît sur cette page, à côté des pantins inventés.</p>
+<p class="es-note">Page cachée : elle n'est ni dans le menu ni dans Google.</p></section>
+<section class="es-grid">{cards}</section></main>
+<script>
+document.addEventListener("click",function(e){{var b=e.target.closest(".es-pause");if(!b)return;var p=b.closest(".es-card").querySelector(".pantin");
+if(p.hasAttribute("data-pause")){{p.removeAttribute("data-pause");b.textContent="Pause";}}else{{p.setAttribute("data-pause","");b.textContent="Lecture";}}if(window.pantinsKick)pantinsKick();}});
+document.addEventListener("change",function(e){{if(!e.target.classList.contains("es-vit"))return;e.target.closest(".es-card").querySelector(".pantin").dataset.vitesse=e.target.value;}});
+</script>"""
+
+
 def pages():
     ps = [("index", SITE["name"], SITE["description"], page_index, None),
           ("spectacles", "Spectacles", "Tous les spectacles de la Cie Origami : cirque-théâtre, cabaret de rue, solos et créations.", page_spectacles, None),
@@ -484,6 +519,8 @@ def build():
         f.write(head("Page introuvable", "", "404") + header("") + page_404() + footer() + SCRIPT + "</body></html>")
     with open(os.path.join(DIST, "_redirects"), "w") as f:
         f.write("\n".join(f"{a}  {b}  301" for a, b in REDIRECTS.items()) + "\n")
+    with open(os.path.join(DIST, "essais.html"), "w") as f:
+        f.write(head("Essais d'animation", "", "essais").replace("<head>", '<head><meta name="robots" content="noindex">', 1) + header("") + page_essais() + footer() + SCRIPT + "</body></html>")
     urls = "".join(f"<url><loc>{SITE['url']}/{'' if s == 'index' else s}</loc></url>" for s, *_ in pages())
     with open(os.path.join(DIST, "sitemap.xml"), "w") as f:
         f.write(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>')
