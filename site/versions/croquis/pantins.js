@@ -103,14 +103,20 @@
       } },
     /* jongleur : trois balles en cascade, les mains vont les chercher */
     jongle: { vb: [160, 200], init: function (g) {
-        this.c = new Corps(g); this.balles = [0, 1, 2].map(function () { return new Rond(g, 4.2); });
+        this.c = new Corps(g); this.balles = [0, 1, 2].map(function () { return new Rond(g, 4.2); }); this.tenir = 1;
       }, frame: function (n) {
         var t = n.g * .0045, mains = [[57, 108], [103, 108]];
-        for (var i = 0; i < 3; i++) {
-          var ph = ((t + i / 3) % 1 + 1) % 1, u = (ph % .5) * 2, x = ph < .5 ? 57 + 46 * u : 103 - 46 * u, y = 106 - 70 * 4 * u * (1 - u);
-          this.balles[i].set([x, y]);
+        /* à l'arrêt du défilement, il rattrape ses balles (deux à gauche, une à droite) ; il reprend quand on bouge */
+        var cible = n.calme ? 1 : 0; this.tenir = (this.tenir || 0) + (cible - (this.tenir || 0)) * .09;
+        if (Math.abs(cible - this.tenir) < .005) this.tenir = cible;
+        var k = this.tenir * this.tenir * (3 - 2 * this.tenir), tenues = [[55, 103], [61, 101], [105, 103]];
+        for (var j = 0; j < 3; j++) {
+          var ph2 = ((t + j / 3) % 1 + 1) % 1, u2 = (ph2 % .5) * 2;
+          var vol = [ph2 < .5 ? 57 + 46 * u2 : 103 - 46 * u2, 106 - 70 * 4 * u2 * (1 - u2)];
+          this.balles[j].set([vol[0] + (tenues[j][0] - vol[0]) * k, vol[1] + (tenues[j][1] - vol[1]) * k]);
         }
-        var b = S(t * Math.PI * 4) * 5;
+        var b = S(t * Math.PI * 4) * 5 * (1 - k);
+        if (this.tenir !== cible) this.bouge = true; else this.bouge = false;
         this.c.pose({ x: 80, y: 136, t: -90 + S(t * 6) * 2, h: S(t * 3) * 8,
           brasG: { vers: [mains[0][0] + b * .4, mains[0][1] - b], pli: 1 }, brasD: { vers: [mains[1][0] - b * .4, mains[1][1] + b], pli: -1 },
           jambeG: [14, -4], jambeD: [-14, 4] });
@@ -160,7 +166,7 @@
     var svg = el(span, "svg", { viewBox: "0 0 " + N.vb[0] + " " + N.vb[1], "aria-hidden": "true" }), g = el(svg, "g", {});
     var o = Object.create(N); o.init(g); o.span = span; o.k = i * .37; o.penche = 0; o.v = 0;
     o.temps = span.closest(".loader") ? 1 : 0;
-    o.frame({ g: o.k * 900, roule: 0, penche: 0 }); tous.push(o); return o;
+    o.frame({ g: o.k * 900, roule: 0, penche: 0, calme: !o.temps }); tous.push(o); return o;
   }
   function frame(now) {
     /* les pantins suivent le défilement avec du retard : ils continuent un peu après l'arrêt, puis ralentissent */
@@ -178,7 +184,8 @@
       }
       var cible = Math.max(-26, Math.min(26, vel * 1.5)); o.v += (cible - o.penche) * .07; o.v *= .86; o.penche += o.v;
       if (Math.abs(o.v) > .02 || Math.abs(o.penche) > .05) busy = true;
-      o.frame({ g: g, roule: roule, penche: o.penche });
+      o.frame({ g: g, roule: roule, penche: o.penche, calme: !o.temps && Math.abs(vrai - ys) < 2 && Math.abs(vel) < .4 });
+      if (o.bouge) busy = true;
     });
     if (busy) requestAnimationFrame(frame); else on = false;
   }

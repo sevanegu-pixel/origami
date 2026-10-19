@@ -519,3 +519,33 @@ body:has(main.papier){background:#f8f9f9}
 .papier .sm-h{margin:0 auto 10px}
 @media (min-width:900px){.sm-gal{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .piste .star{left:24%}
+
+/* =====================================================================
+   19 oct. (3) : rien posé sur les lignes en biais, contenu centré, photos taillées dans les diagonales
+   ===================================================================== */
+.sh{--bord:max(var(--gut),calc((100vw - 1180px) / 2))}
+.sh-head{max-width:none;margin:0;padding:44px var(--bord) 18px}
+.sh-body{max-width:none;margin:0;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:500px;padding:56px 0 0}
+.sh-txt,.sh.r .sh-txt{justify-self:center;align-self:center;max-width:none;width:min(480px,100%);padding:0 var(--gut) 90px}
+.sh-txt .tag{transform:none}
+.sh-pic{margin-top:-20px}
+.sh .sh-pic{clip-path:polygon(14% 0,100% 0,100% 100%,0 100%)}
+.sh.r .sh-pic{clip-path:polygon(0 0,100% 0,86% 100%,0 100%)}
+@media (max-width:760px){
+  .sh-body{padding-top:40px}
+  .sh-txt,.sh.r .sh-txt{width:auto;padding-bottom:40px}
+  .sh .sh-pic,.sh.r .sh-pic{margin-top:0;clip-path:polygon(0 12%,100% 0,100% 88%,0 100%)}
+}
+/* la bande claire passe sous le texte, côté photo ; le titre s'aligne sur le texte */
+.sh::before{clip-path:polygon(0 90%,100% 58%,100% 74%,0 100%)}
+.sh.r::before{clip-path:polygon(0 58%,100% 90%,100% 100%,0 74%)}
+.sh-head{padding-left:calc((50vw - min(480px,50vw)) / 2 + var(--gut))}
+.sh.r .sh-head{padding-left:calc(50vw + (50vw - min(480px,50vw)) / 2 + var(--gut))}
+.wx{margin-bottom:0}
+@media (max-width:760px){.sh-head,.sh.r .sh-head{padding-left:var(--gut)}}
+.sh .sh-pic{clip-path:polygon(14% 8%,100% 0,100% 100%,0 100%)}
+.sh.r .sh-pic{clip-path:polygon(0 0,100% 8%,86% 100%,0 100%)}
+.wx .h-wide::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:4px;background:#000;z-index:3}
+@media (max-width:760px){.sh .sh-pic,.sh.r .sh-pic{clip-path:polygon(0 12%,100% 0,100% 88%,0 100%)}}
+@media (max-width:760px){.sh-body{grid-template-columns:1fr}}
+.wx+.piste{margin-top:-3px;background:#000}
