@@ -20,9 +20,12 @@ ROOT = os.path.dirname(os.path.dirname(HERE))  # dossier site/ : content.py et l
 sys.path.insert(0, ROOT)
 from content import SITE, SHOWS, ARTISTS, HISTORY, COMMITTEE, COLLABS, SUPPORTERS, PARTNER_LOGOS, REDIRECTS
 from medias import photo, video
+import importlib.util
+_spec = importlib.util.spec_from_file_location("wix_build", os.path.join(ROOT, "versions", "wix", "build.py"))
+WIX = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(WIX)  # la section « La Petite Fille » est celle du Wix
 DIST = os.path.join(HERE, "dist")
 E = html.escape
-FONTS = "https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;1,300&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=IBM+Plex+Mono:wght@400&family=Inria+Serif:ital,wght@0,300;0,400;0,700;1,400&family=Amatic+SC:wght@400;700&display=swap"
+FONTS = "https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;1,300&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=IBM+Plex+Mono:wght@400&family=Inria+Serif:ital,wght@0,300;0,400;0,700;1,400&family=Amatic+SC:wght@400;700&family=Inknut+Antiqua:wght@400&display=swap"
 
 # Logo vectoriel, inséré dans la page pour que chaque lettre puisse pencher
 _LOGO = open(os.path.join(ROOT, "logo.svg")).read()
@@ -71,17 +74,12 @@ def perso(kind, w, cls=""):
     return f'<span class="pantin {cls}" data-p="{kind}" style="width:{w}px" aria-hidden="true"></span>'
 
 
-# le sol de la piste : deux traits de crayon qui ne se rejoignent pas tout à fait
-SOL = ('<svg viewBox="0 0 1000 14" preserveAspectRatio="none"><path d="M0 8 C180 5 330 11 520 7 S820 4 1000 9" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'
-       '<path d="M30 11 C260 9 420 13 640 10 S880 8 975 12" fill="none" stroke="currentColor" stroke-width=".8" opacity=".6" vector-effect="non-scaling-stroke"/></svg>')
-
-
 STAR = '<span class="star" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 0C21 12 28 19 40 20C28 21 21 28 20 40C19 28 12 21 0 20C12 19 19 12 20 0Z"/></svg></span>'
 
 
 def piste(kind, w=170, cls=""):
-    """Une piste (un trait de crayon) sur laquelle un personnage traverse la page en défilant."""
-    return f'<div class="piste {cls}" aria-hidden="true"><span class="sol">{SOL}</span>{STAR if cls != "encre" else ""}{perso(kind, w, "roule")}</div>'
+    """Une piste en diagonale (bande violette comme sur le Wix) que le personnage remonte en défilant."""
+    return f'<div class="piste {cls}" aria-hidden="true"><span class="pente"></span>{STAR if cls != "encre" else ""}{perso(kind, w, "roule")}</div>'
 
 
 # ---------------------------------------------------------------- gabarit
@@ -100,7 +98,7 @@ def head(title, desc, path, og=None):
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <script>try{{if(sessionStorage.getItem("origami-vu"))document.documentElement.classList.add("seen")}}catch(e){{}}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="{FONTS}"><link rel="stylesheet" href="style.css"></head><body>"""
+<link rel="stylesheet" href="{FONTS}"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="wx.css"></head><body>"""
 
 
 def header(active):
@@ -142,11 +140,35 @@ def show_block(s, i, tag_text=None, h="h2"):
 NUMEROS = [("mono", 150), ("salto", 120), ("jongle", 130), ("cannes", 90), ("porte", 100)]
 
 
+def wix_block(slug):
+    """La section d'un spectacle telle qu'elle est sur le Wix (bandeau titre, bloc, grande photo, galerie)."""
+    B = next(b for b in WIX.BLOCKS if b["slug"] == slug)
+    sh = SHOW_BY_SLUG[slug]
+    dv = WIX.dv
+    out = f'<section class="h-title" style="--sh:{B["title_h"]}"><span class="h-title-bg" aria-hidden="true"></span>{"".join(dv(*t) for t in B["title_dv"])}<div class="stage"><h2><a href="{href(slug)}">{E(sh["title"])}</a></h2></div></section>'
+    side = "".join(f'<div class="h-img" style="--x:{x};--w:{w}">{WIX.media(m, sh["title"], 900)}</div>' for m, x, w in (B["left"], B["right"]) if m)
+    tag = f'<span class="h-tag" style="--x:{B["tag"][0]};--w:{B["tag"][1]}">{E(B["tag"][2])}</span>' if B["tag"] else ""
+    pill = ""
+    if B["pill"]:
+        px, pw, pl, ph = B["pill"]
+        pill = f'<a class="h-pill" href="{ph}" style="--dx:{px - B["tx"]};--w:{pw}">{E(pl)}</a>'
+    paras = "".join(f"<p>{p}</p>" for p in B["paras"])
+    out += f"""<section class="h-block" style="--sh:{B['h']}"><span class="h-block-bg" aria-hidden="true"></span>{"".join(dv(*t) for t in B["dvs"])}<div class="stage">{side}{tag}
+<div class="h-txt" style="--x:{B['tx']};--w:{B['tw']};--y:{B['ty']}"><h3 style="--fs:{B['subsize']}">{E(B['sub'])}</h3><p class="h-by">{E(B['by'])}</p>{paras}{pill}</div></div></section>"""
+    wm, wh, wdv = B["wide"]
+    out += f'<section class="h-wide" style="--sh:{wh}"><div class="h-wide-img">{WIX.media(wm, sh["title"], 1920)}</div>{"".join(dv(*t) for t in wdv)}</section>'
+    if B["gal"]:
+        gh, gids, gx, gb = B["gal"]
+        out += f"""<section class="h-gal" style="--sh:{gh}"><span class="h-gal-bg" aria-hidden="true"></span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", gb, 1)}
+<div class="h-gal-wrap"><button class="g-arrow prev" type="button" aria-label="Photos précédentes">‹</button><div class="h-gal-track" style="--gx:{gx}">{WIX.gal_track(gids, sh['title'])}</div><button class="g-arrow next" type="button" aria-label="Photos suivantes">›</button></div></section>"""
+    return f'<div class="wx">{out}</div>'
+
+
 def show_list(items):
     """Les spectacles, séparés par une étoile et un pantin qui traverse sa piste."""
     out = ""
     for i, (s, tag) in enumerate(items):
-        out += show_block(s, i, tag)
+        out += wix_block(s["slug"]) if s["slug"] == "la-petite-fille-dans-la-poubelle" else show_block(s, i, tag)
         if i < len(items) - 1:
             out += piste(*NUMEROS[i % len(NUMEROS)])
     return out
@@ -410,6 +432,8 @@ SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button">
  function show(i){cur=(i+set.length)%set.length;li.src=set[cur].dataset.full;li.alt=set[cur].querySelector("img").alt;}
  document.addEventListener("click",function(e){
   var g=e.target.closest(".gal button");if(g){set=[].slice.call(g.parentElement.children);show(set.indexOf(g));lb.hidden=false;lb.querySelector(".lb-close").focus();return;}
+  var gi=e.target.closest(".g-item");if(gi){set=[].slice.call(gi.closest(".h-gal-track").querySelectorAll(".g-item"));show(set.indexOf(gi));lb.hidden=false;lb.querySelector(".lb-close").focus();return;}
+  var ga=e.target.closest(".g-arrow");if(ga){var t=ga.parentElement.querySelector(".h-gal-track");t.scrollBy({left:(ga.classList.contains("next")?1:-1)*t.clientWidth*.7,behavior:"smooth"});return;}
   if(e.target===lb||e.target.closest(".lb-close")){lb.hidden=true;li.src="";if(set[cur])set[cur].focus();}
   if(e.target.closest(".lb-prev"))show(cur-1);if(e.target.closest(".lb-next"))show(cur+1);
   var c=e.target.closest(".copy");if(c&&navigator.clipboard){navigator.clipboard.writeText(c.dataset.copy).then(function(){c.textContent="Copié !";setTimeout(function(){c.textContent="Copier"},1800)},function(){})}
@@ -446,6 +470,10 @@ def build():
     shutil.copy(os.path.join(ROOT, "logo.svg"), DIST)
     shutil.copytree(os.path.join(HERE, "dessins"), os.path.join(DIST, "dessins"))
     shutil.copy(os.path.join(HERE, "pantins.js"), DIST)
+    sys.path.insert(0, HERE)
+    import wixcss
+    with open(os.path.join(DIST, "wx.css"), "w", encoding="utf-8") as f:
+        f.write(wixcss.scoped(os.path.join(ROOT, "versions", "wix", "style.css")))
     with open(os.path.join(DIST, "favicon.svg"), "w") as f:
         f.write('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="6" fill="#281467"/><path d="M8 32 20 6l12 26z" fill="#9781FF" transform="rotate(-6 20 20)"/></svg>')
     for slug, title, desc, fn, og in pages():

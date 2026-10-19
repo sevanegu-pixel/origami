@@ -136,10 +136,9 @@ body.menu-on{overflow:hidden}
 .pantin .t1{fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
 .pantin .t2{fill:none;stroke:currentColor;stroke-width:.7;opacity:.5}
 .pantin .j{fill:var(--deep);stroke:currentColor;stroke-width:1.1}
-.piste{position:relative;max-width:1180px;margin:0 auto;padding:26px var(--gut) 0;min-height:120px;display:flex;align-items:flex-end}
-.piste .sol{position:absolute;left:var(--gut);right:var(--gut);bottom:0;height:14px;color:rgba(204,200,241,.6)}
-.piste .sol svg{display:block;width:100%;height:100%;overflow:visible}
-.piste .pantin{position:relative;z-index:1;margin-bottom:2px}
+.piste{position:relative;margin:0;padding:30px var(--gut) 0;min-height:170px;display:flex;align-items:flex-end;--pente:.55;overflow:visible}
+.piste .pente{position:absolute;inset:0;background:linear-gradient(100deg,#281467,#3b2b8f 60%,#5a3fc0);clip-path:polygon(0 100%,100% 45%,100% 100%)}
+.piste .pantin{position:relative;z-index:1;margin-bottom:-4px}
 .piste .star{position:absolute;left:50%;top:6px;transform:translateX(-50%)}
 .star svg{width:30px;height:30px;fill:#fff}
 .hero{position:relative}
@@ -331,7 +330,8 @@ body:has(main.papier) .foot small{color:#686868}
 .sm-duo-in{display:grid;grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr);gap:50px;align-items:center;font-size:17.5px;text-align:justify}
 .enbref{font-style:italic}
 .sm-wide img{width:100%;aspect-ratio:3/2;object-fit:cover}
-.piste.encre .sol{color:#111}
+.piste.encre .pente{background:#111;clip-path:polygon(0 100%,100% 62%,100% 100%)}
+.piste.encre{--pente:.38;min-height:150px;margin-top:60px}
 .papier .pantin{color:#111}
 .papier .pantin .j{fill:#f8f9f9}
 .sm-h{max-width:1240px;margin:40px auto 0;padding:0 var(--gut)}
@@ -457,3 +457,65 @@ body:has(main.papier){background:#f8f9f9}
   .hero .intro{margin-left:0}
   .ph-title h1{padding:14px 20px}
 }
+
+
+/* =====================================================================
+   19 oct. (2) : des diagonales partout, plus de lignes droites
+   ===================================================================== */
+.sh{clip-path:polygon(0 0,100% 48px,100% 100%,0 calc(100% - 48px));margin:-24px 0;padding-top:30px}
+.sh.r{clip-path:polygon(0 48px,100% 0,100% calc(100% - 48px),0 100%)}
+.sh-head{padding-top:44px}
+.sh-line{height:5px;transform:rotate(-2.2deg);margin:6px -4% 0}
+.sh.r .sh-line{transform:rotate(2.2deg)}
+.sh-body{padding-bottom:40px}
+.piste{z-index:1}
+.ph-title,.sec-h{transform-origin:left}
+.d,.d:nth-child(odd){transform:rotate(-1.6deg)}.d:nth-child(even){transform:rotate(1.4deg) translateX(14px)}
+.foot::before{transform:rotate(-3deg);height:60px;top:-8px}
+.foot{padding-top:80px}
+
+/* la section « La Petite Fille dans la poubelle » reprise telle quelle du Wix */
+.wx{position:relative;font-family:Barlow,sans-serif;color:#fff;margin:-24px 0;z-index:0}
+.wx section{position:relative;overflow:hidden}
+.wx .h-title h2 a{color:#fff;text-decoration:none}
+.wx .h-title h2 a:hover{color:#ECCB7D}
+.wx .h-txt h3,.wx .h-txt p{color:#fff}
+.wx+.piste,.sh+.wx{margin-top:0}
+
+/* =====================================================================
+   Des pâtes au seum : mieux aligné et plus aéré
+   ===================================================================== */
+.papier{--col:1180px}
+.sm-cover,.sm-split,.sm-duo,.sm-h,.papier .s-info,.papier .s-dates{max-width:var(--col);margin-left:auto;margin-right:auto;padding-left:var(--gut);padding-right:var(--gut)}
+.sm-cover{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 80px;align-items:center;padding-top:50px;padding-bottom:120px}
+.sm-l{display:flex;flex-direction:column;align-items:flex-start;gap:28px}
+.sm-titre{margin:0}
+.oursin{margin:0 0 0 12%}
+.sm-r .spaced:first-child{margin-top:0}
+.sm-photo{margin-top:36px}
+.sm-split,.sm-split.r{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 90px;align-items:center;margin-top:0;margin-bottom:150px}
+.sm-ph img{max-height:640px}
+.sm-txt{font-size:17.5px;line-height:1.8;text-align:left;hyphens:manual;max-width:58ch}
+.sm-txt p{margin:0 0 20px}
+.papier .contour{margin:0 0 34px}
+.etapes{gap:26px}
+.etapes b{margin-bottom:4px}
+.sm-duo{margin-top:0;margin-bottom:140px}
+.sm-duo-in{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 90px;align-items:center;text-align:left;line-height:1.8}
+.piste.encre{margin:0 0 100px}
+.sm-h{margin-top:0;margin-bottom:10px}
+.sm-gal{gap:28px;padding-top:20px;padding-bottom:140px;max-width:var(--col);padding-left:var(--gut);padding-right:var(--gut)}
+.sm-gal button,.sm-gal button:nth-child(n){transform:none;aspect-ratio:4/3}
+.sm-gal button:hover{transform:scale(1.02)}
+.papier .s-info{gap:60px;padding-top:0;padding-bottom:110px}
+.papier .s-dates{padding-bottom:120px}
+@media (max-width:860px){
+  .sm-cover{gap:40px;padding-bottom:80px}
+  .sm-split,.sm-split.r,.sm-duo-in{gap:36px;margin-bottom:90px}
+  .sm-duo{margin-bottom:90px}
+  .sm-gal{padding-bottom:90px}
+  .wx{margin:0}
+}
+.papier .sm-h{margin:0 auto 10px}
+@media (min-width:900px){.sm-gal{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.piste .star{left:24%}
