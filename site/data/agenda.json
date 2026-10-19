@@ -1,0 +1,268 @@
+{
+  "_note": "Agenda du site. Modifié depuis la feuille Google « Pilotage du site » (dossier pilotage/ du dépôt). Une entrée par spectacle.",
+  "spectacles": {
+    "commeunpoint": {
+      "titre": "Comme un point désarticulé",
+      "dates": [
+        {
+          "date": "2026-05-17",
+          "texte": "17 mai 2026",
+          "lieu": "Place de la Côte-d'Or – Anières (GE) – Première"
+        },
+        {
+          "date": "2025-08-30",
+          "texte": "30–31 août 2025",
+          "lieu": "Sortie de résidence – Théâtre-Cirqule (GE)"
+        },
+        {
+          "date": "2025-04-26",
+          "texte": "26 avril et 2 mai 2025",
+          "lieu": "Sortie de résidence – Festival L'Escalier (GE)"
+        }
+      ]
+    },
+    "la-petite-fille-dans-la-poubelle": {
+      "titre": "La Petite Fille dans la poubelle",
+      "dates": [
+        {
+          "date": "2025-09-06",
+          "texte": "6 septembre 2025",
+          "lieu": "Schlössli – Ins (BE)"
+        },
+        {
+          "date": "2024-12-10",
+          "texte": "10 décembre 2024",
+          "lieu": "Théâtre des Grottes – Genève (GE)"
+        },
+        {
+          "date": "2024-06-28",
+          "texte": "28 juin – 21 juillet 2024",
+          "lieu": "La Chapelle des Italiens – Festival OFF d'Avignon (France)"
+        },
+        {
+          "date": "2024-02-04",
+          "texte": "4 février 2024",
+          "lieu": "Théâtre municipal de Sainte-Pazanne – Nantes (France)"
+        },
+        {
+          "date": "2024-02-03",
+          "texte": "3 février 2024",
+          "lieu": "Chapidock – Nantes (France)"
+        },
+        {
+          "date": "2023-09-28",
+          "texte": "28 sept. – 1er oct. 2023",
+          "lieu": "Théâtricul – Chêne-Bourg (GE)"
+        },
+        {
+          "date": "2023-05-02",
+          "texte": "2–4 mai 2023",
+          "lieu": "Festival Émersion – Onex (GE)"
+        },
+        {
+          "date": "2022-09-11",
+          "texte": "11 septembre 2022",
+          "lieu": "Festival de la Lune – Monnetier-Mornex (France)"
+        },
+        {
+          "date": "2022-09-10",
+          "texte": "10 septembre 2022",
+          "lieu": "Le Chant du Gros – Le Noirmont"
+        },
+        {
+          "date": "2022-09-03",
+          "texte": "3–4 septembre 2022",
+          "lieu": "Théâtricul – Chêne-Bourg (GE)"
+        },
+        {
+          "date": "2022-08-13",
+          "texte": "13 août 2022",
+          "lieu": "Chapit'O – Bulle (FR)"
+        },
+        {
+          "date": "2022-07-17",
+          "texte": "17 juillet 2022",
+          "lieu": "Tour de plage – Carouge (GE)"
+        },
+        {
+          "date": "2022-07-08",
+          "texte": "8 juillet 2022",
+          "lieu": "Maison de quartier – Champel (GE)"
+        },
+        {
+          "date": "2022-06-05",
+          "texte": "5 juin 2022",
+          "lieu": "Festival Weekend Cirqué – Colombier (NE)"
+        },
+        {
+          "date": "2022-01-29",
+          "texte": "29–30 janvier 2022",
+          "lieu": "L'Almacén – Genève (GE)"
+        },
+        {
+          "date": "2021-09-25",
+          "texte": "25 septembre 2021",
+          "lieu": "Quartier d'été – Saint-Genis-Pouilly (France)"
+        },
+        {
+          "date": "2021-09-23",
+          "texte": "23 septembre 2021",
+          "lieu": "Place Graveson – Thônex (GE)"
+        },
+        {
+          "date": "2021-09-11",
+          "texte": "11 septembre 2021",
+          "lieu": "Les Grottes sont à vous – Genève (GE)"
+        },
+        {
+          "date": "2021-07-23",
+          "texte": "23 juillet 2021",
+          "lieu": "Les Nuits du cirque – Thonon-les-Bains (France)"
+        },
+        {
+          "date": "2021-07-07",
+          "texte": "7 juillet 2021",
+          "lieu": "École Adrien-Jeandin – Thônex (GE)"
+        },
+        {
+          "date": "2021-06-04",
+          "texte": "4–5 juin 2021",
+          "lieu": "Ferme de l'Amarante – Reignier (France)"
+        },
+        {
+          "date": "2021-05-30",
+          "texte": "30 mai 2021",
+          "lieu": "Ferme de l'Amarante – Reignier (France)"
+        },
+        {
+          "date": "2021-05-22",
+          "texte": "22–23 mai 2021",
+          "lieu": "Ferme de l'Amarante – Reignier (France) – Premières"
+        }
+      ]
+    },
+    "caborigamique": {
+      "titre": "Le Cabaret Origamique",
+      "dates": [
+        {
+          "date": "2027-02-07",
+          "texte": "7 février 2027",
+          "lieu": "Lieu à confirmer"
+        },
+        {
+          "date": "2026-10-17",
+          "texte": "17 octobre 2026",
+          "lieu": "Bois de la Bâtie – Genève (GE) – Bâtie des enfants"
+        },
+        {
+          "date": "2026-09-27",
+          "texte": "27 septembre 2026",
+          "lieu": "Préau de l'école Grand-Salève – Veyrier (GE) – Vogue de Veyrier"
+        },
+        {
+          "date": "2026-08-12",
+          "texte": "12 août 2026",
+          "lieu": "Parc Chauvet-Lullin – Vernier (GE) – Août au parc"
+        },
+        {
+          "date": "2026-07-18",
+          "texte": "18–19 juillet 2026",
+          "lieu": "Big Boxon – Versoix (GE) – Cirquenbulle"
+        },
+        {
+          "date": "2026-07-05",
+          "texte": "5 juillet 2026",
+          "lieu": "Place des Théâtres – Sion (VS) – Pollen Festival"
+        },
+        {
+          "date": "2026-07-04",
+          "texte": "4 juillet 2026",
+          "lieu": "La Balme – La Roche-sur-Foron (France) – Fête de quartier"
+        },
+        {
+          "date": "2026-06-06",
+          "texte": "6 juin 2026",
+          "lieu": "Neuchâtel (NE) – Festival Taj'ums"
+        },
+        {
+          "date": "2026-03-21",
+          "texte": "21 mars 2026",
+          "lieu": "Cran-Gevrier – Annecy (France) – Carnaval de Cran-Gevrier"
+        },
+        {
+          "date": "2026-02-15",
+          "texte": "15 février 2026",
+          "lieu": "Bois de la Bâtie – Genève (GE) – Bâtie des enfants"
+        }
+      ]
+    },
+    "edmd": {
+      "titre": "L'Équilibre de mon déséquilibre",
+      "dates": [
+        {
+          "date": "2024-10-27",
+          "texte": "27 octobre 2024",
+          "lieu": "Gala d'ouverture – Festival Internacional de Circo Independiente (Buenos Aires)"
+        },
+        {
+          "date": "2024-09-26",
+          "texte": "26 septembre 2024",
+          "lieu": "Station Circus – Jeudi du cirque (Buenos Aires)"
+        },
+        {
+          "date": "2024-04-12",
+          "texte": "12 avril 2024",
+          "lieu": "Festival L'Escalier (GE)"
+        },
+        {
+          "date": "2024-04-05",
+          "texte": "5 avril 2024",
+          "lieu": "Festival L'Escalier (GE)"
+        }
+      ]
+    },
+    "oups-vache": {
+      "titre": "Oups, j'ai percuté une vache !",
+      "dates": []
+    },
+    "des-pates-au-seum": {
+      "titre": "Des pâtes au seum",
+      "dates": [
+        {
+          "date": "2027-10-16",
+          "texte": "16 octobre 2027 à 16h",
+          "lieu": "Lieu à confirmer"
+        }
+      ]
+    },
+    "la-vouivre": {
+      "titre": "La Vouivre",
+      "dates": []
+    },
+    "lepetitcirquedescontes": {
+      "titre": "Le Petit Cirque des contes",
+      "dates": [
+        {
+          "date": "2023-09-10",
+          "texte": "10 septembre 2023",
+          "lieu": "Les Grottes sont à vous ! – Genève (GE)"
+        },
+        {
+          "date": "2023-09-02",
+          "texte": "2 septembre 2023",
+          "lieu": "Villa Tacchini – Lancy (GE)"
+        },
+        {
+          "date": "2023-07-08",
+          "texte": "8 juillet 2023",
+          "lieu": "MQ Thônex – Belle-Terre (GE)"
+        },
+        {
+          "date": "2023-02-12",
+          "texte": "12 février 2023",
+          "lieu": "La Bâtie des enfants – Genève (GE)"
+        }
+      ]
+    }
+  }
+}
