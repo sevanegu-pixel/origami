@@ -81,6 +81,8 @@ def build():
     os.makedirs(DIST)
     for name, _ in VERSIONS:
         build_version(name)
+    for d in ("photos", "videos", "fichiers"):  # médias communs à toutes les versions (voir medias.py)
+        shutil.copytree(os.path.join(HERE, d), os.path.join(DIST, d))
     # page d'erreur : celle de la version par défaut, avec ses liens qui pointent vers son dossier
     s = open(os.path.join(DIST, DEFAULT, "404.html"), encoding="utf-8").read()
     s = s.replace("<head>", f'<head><base href="/{DEFAULT}/">', 1)

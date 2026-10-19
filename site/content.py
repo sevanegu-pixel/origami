@@ -17,7 +17,7 @@ SITE = {
     "og_image": "4d47d3_85bf461adcdc4b2fad9eed0058d62a9f~mv2.jpg",
 }
 
-FILES = "https://www.compagnieorigami.com/_files/ugd/"
+FILES = "../fichiers/"  # PDF dans site/fichiers/, vus depuis une page d'une version
 
 # Couleurs "papier" : chaque spectacle a sa feuille d'origami
 PAPER = {"rose": "#D8436F", "jaune": "#E9A91E", "vert": "#1F7A6D", "bleu": "#3257A8", "orange": "#E0662B", "violet": "#7B4FA0", "encre": "#2B2D33"}

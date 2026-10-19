@@ -4,17 +4,16 @@
     python3 build.py            -> dossier dist/ (le site à mettre en ligne)
     python3 build.py --preview  -> aussi preview.html (tout le site en une page, pour l'aperçu)
 
-Photos : IMG_MODE = "wix" utilise les photos hébergées chez Wix (temporaire).
-Une fois les photos copiées dans dist/images/, passez IMG_MODE = "local".
+Photos, vidéos et PDF : servis depuis le site (voir medias.py à la racine de site/).
 """
 import base64, html, os, re, shutil, sys, datetime
 
-IMG_MODE = "wix"
 TODAY = datetime.date.today().isoformat()
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))  # dossier site/ : content.py et logo.svg communs
 sys.path.insert(0, ROOT)
 from content import SITE, SHOWS, ARTISTS, HISTORY, COMMITTEE, COLLABS, SUPPORTERS, PARTNER_LOGOS, REDIRECTS
+from medias import photo, video
 DIST = os.path.join(HERE, "dist")
 E = html.escape
 FONTS = "https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Barlow:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,200;1,300;1,400&family=Bodoni+Moda:ital,wght@0,400;1,400&family=Chelsea+Market&family=Inknut+Antiqua:wght@400&display=swap"
@@ -22,9 +21,7 @@ LOGO_SRC = "logo.svg"  # logo original (vectoriel), remplacé par une data: URI 
 
 
 def img(mid, w=1400):
-    if IMG_MODE == "local":
-        return "images/" + mid.replace("~", "_")
-    return f"https://static.wixstatic.com/media/{mid}/v1/fit/w_{w},h_{w},q_85,enc_auto/{mid}"
+    return photo(mid, w)
 
 
 def pic(mid, alt, w=1400, eager=False):
@@ -98,7 +95,7 @@ def head(title, desc, path, og=None):
 <link rel="canonical" href="{SITE['url']}/{path}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Cie Origami – Cirque">
 <meta property="og:title" content="{E(full)}"><meta property="og:description" content="{E(desc)}">
-<meta property="og:image" content="{img(og, 1600)}"><meta name="twitter:card" content="summary_large_image">
+<meta property="og:image" content="{photo(og, 1600, absolute=True)}"><meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{FONTS}"><link rel="stylesheet" href="style.css"></head><body>"""
@@ -149,7 +146,7 @@ def dv(kind, color, h, op, soft=False):
     return f'<span class="dvg" style="opacity:{op}"><i class="dv {kind}" style="--h:{h};--o:1;--c:{color}"></i></span>'
 
 
-FILES_HOME_CAB = "https://www.compagnieorigami.com/_files/ugd/" + "4d47d3_fe143ae880844006b8f688c89b82b9b5.pdf"
+FILES_HOME_CAB = "../fichiers/" + "4d47d3_fe143ae880844006b8f688c89b82b9b5.pdf"
 
 BLOCKS = [
     dict(slug="commeunpoint", title_dv=[("br", "#3D9BE9", 20, .47)], title_h=96,
@@ -242,7 +239,7 @@ def media(m, alt, w=900):
         return out
     vid, poster, pos = m[4:].split("|")
     return (f'<video class="loopvid" autoplay muted loop playsinline preload="metadata" poster="{img(poster, w)}" '
-            f'style="object-position:{pos}" aria-label="{E(alt)}"><source src="https://video.wixstatic.com/video/{vid}/720p/mp4/file.mp4" type="video/mp4"></video>')
+            f'style="object-position:{pos}" aria-label="{E(alt)}"><source src="{video(vid)}" type="video/mp4"></video>')
 
 
 def gal_track(ids, title):
@@ -648,10 +645,7 @@ def build():
         f.write(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>')
     with open(os.path.join(DIST, "robots.txt"), "w") as f:
         f.write(f"User-agent: *\nAllow: /\nSitemap: {SITE['url']}/sitemap.xml\n")
-    ids = set(re.findall(r"4d47d3_[0-9a-f]+~mv2\.(?:jpg|jpeg|png)", open(os.path.join(ROOT, "content.py")).read() + open(__file__).read()))
-    with open(os.path.join(ROOT, "photos-a-recuperer.txt"), "w") as f:
-        f.write("".join(f"https://static.wixstatic.com/media/{i}\n" for i in sorted(ids)))
-    print("site:", len(os.listdir(DIST)), "fichiers ;", len(ids), "photos")
+    print("site:", len(os.listdir(DIST)), "fichiers")
 
 
 def build_preview():

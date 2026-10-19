@@ -13,12 +13,12 @@ Les bords déchirés sont calculés ici (clip-path), différents pour chaque él
 """
 import html, os, re, shutil, sys, datetime, random, zlib
 
-IMG_MODE = "wix"
 TODAY = datetime.date.today().isoformat()
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))  # dossier site/ : content.py et logo.svg communs
 sys.path.insert(0, ROOT)
 from content import SITE, SHOWS, ARTISTS, HISTORY, COMMITTEE, COLLABS, SUPPORTERS, REDIRECTS, PAPER
+from medias import photo, video
 DIST = os.path.join(HERE, "dist")
 E = html.escape
 FONTS = ("https://fonts.googleapis.com/css2?family=Anton&family=Barlow:ital,wght@0,400;0,500;0,600;1,400"
@@ -35,9 +35,7 @@ MONTHS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "s
 
 
 def img(mid, w=1400):
-    if IMG_MODE == "local":
-        return "images/" + mid.replace("~", "_")
-    return f"https://static.wixstatic.com/media/{mid}/v1/fit/w_{w},h_{w},q_85,enc_auto/{mid}"
+    return photo(mid, w)
 
 
 def pic(mid, alt, w=1400, eager=False):
@@ -146,7 +144,7 @@ def head(title, desc, path, og=None):
 <link rel="canonical" href="{SITE['url']}/{path}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Cie Origami">
 <meta property="og:title" content="{E(full)}"><meta property="og:description" content="{E(desc)}">
-<meta property="og:image" content="{img(og, 1600)}"><meta name="twitter:card" content="summary_large_image">
+<meta property="og:image" content="{photo(og, 1600, absolute=True)}"><meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0e0a16">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <script>document.documentElement.classList.add("js");try{{if(sessionStorage.getItem("origami-vu"))document.documentElement.classList.add("seen")}}catch(e){{}}</script>
