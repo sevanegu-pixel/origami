@@ -4,17 +4,16 @@
     python3 build.py   -> dossier dist/ (le site à mettre en ligne)
 
 Les textes et données sont dans content.py, le design dans style.css.
-Photos : IMG_MODE = "wix" utilise les photos hébergées chez Wix (temporaire).
-Une fois les photos copiées dans dist/images/, passez IMG_MODE = "local".
+Photos, vidéos et PDF : servis depuis le site (voir medias.py à la racine de site/).
 """
 import html, os, re, shutil, sys, datetime
 
-IMG_MODE = "wix"
 TODAY = datetime.date.today().isoformat()
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))  # dossier site/ : content.py et logo.svg communs
 sys.path.insert(0, ROOT)
 from content import SITE, SHOWS, ARTISTS, HISTORY, COMMITTEE, COLLABS, SUPPORTERS, REDIRECTS
+from medias import photo, video
 DIST = os.path.join(HERE, "dist")
 E = html.escape
 FONTS = "https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;1,300&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=IBM+Plex+Mono:wght@400&display=swap"
@@ -25,9 +24,7 @@ LOGO_SVG = re.sub(r'fill="#[0-9A-Fa-f]+"', 'fill="currentColor" role="img" aria-
 
 
 def img(mid, w=1400):
-    if IMG_MODE == "local":
-        return "images/" + mid.replace("~", "_")
-    return f"https://static.wixstatic.com/media/{mid}/v1/fit/w_{w},h_{w},q_85,enc_auto/{mid}"
+    return photo(mid, w)
 
 
 def pic(mid, alt, w=1400, eager=False):
@@ -72,7 +69,7 @@ def head(title, desc, path, og=None):
 <link rel="canonical" href="{SITE['url']}/{path}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Cie Origami">
 <meta property="og:title" content="{E(full)}"><meta property="og:description" content="{E(desc)}">
-<meta property="og:image" content="{img(og, 1600)}"><meta name="twitter:card" content="summary_large_image">
+<meta property="og:image" content="{photo(og, 1600, absolute=True)}"><meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#050407">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <script>try{{if(sessionStorage.getItem("origami-vu"))document.documentElement.classList.add("seen")}}catch(e){{}}</script>
