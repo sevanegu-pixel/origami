@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Frais</title>
+<!-- Pas de start_url dans le manifeste : l'appli installée s'ouvre sur cette adresse, lien personnel compris. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0e0e0e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Frais">
+<link rel="apple-touch-icon" href="frais_180.png">
+<link rel="icon" href="frais_192.png">
+<style>
+html, body { margin: 0; min-height: 100%; background: #0e0e0e; color: #f3eee9; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 440px; margin: 0 auto; padding: calc(40px + env(safe-area-inset-top)) 20px 40px; text-align: center; }
+img.logo { width: 112px; height: 112px; border-radius: 26px; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+h1 { font-size: 26px; margin: 18px 0 4px; }
+p { color: #b9b0a8; line-height: 1.45; font-size: 15px; }
+.btn { display: block; width: 100%; box-sizing: border-box; border: 0; border-radius: 14px; background: #f0a22e; color: #1b1206; font: inherit; font-weight: 700; font-size: 17px; padding: 15px; margin-top: 22px; cursor: pointer; text-decoration: none; }
+.carte { background: #1b1b1b; border-radius: 16px; padding: 14px 16px; margin-top: 18px; text-align: left; font-size: 14px; line-height: 1.5; color: #d9d2cb; }
+.carte b { color: #ffc04a; }
+.partage { display: inline-block; vertical-align: -3px; width: 16px; height: 16px; }
+#install[hidden], #ouvrir[hidden], #sansLien[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <img class="logo" src="frais_192.png" alt="">
+  <h1>Frais</h1>
+  <p>Tes tickets de défraiement pour la Cie Origami.</p>
+  <a class="btn" id="ouvrir" hidden>Ouvrir mes défraiements</a>
+  <div class="carte" id="sansLien" hidden>Ouvre le <b>lien personnel</b> que la Cie Origami t'a envoyé : il te connecte directement, sans mot de passe.</div>
+  <div class="carte" id="install" hidden></div>
+</main>
+<script>
+(function () {
+  var EXEC = "https://script.google.com/macros/s/AKfycbwIjgSj2dPJm_yubC6EF8tf9kCQK66bCLQYzOMkeny_buAxIkEG1CZRNSYCJ5t-cBWn/exec";
+  var CLE = "origami_frais_cle";
+  function lire() { try { return localStorage.getItem(CLE) || ""; } catch (e) { return ""; } }
+  function garder(v) { try { localStorage.setItem(CLE, v); } catch (e) {} }
+  var m = location.search.match(/[?&]cle=([A-Za-z0-9]{16,64})(&|$)/);
+  var cle = m ? m[1] : lire();
+  if (m) garder(m[1]);
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
+  if (!cle) { document.getElementById("sansLien").hidden = false; return; }
+  var adresse = EXEC + "?cle=" + cle;
+  var installee = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+  if (installee) { location.replace(adresse); return; }   // depuis l'icône : directement dans l'appli
+  var b = document.getElementById("ouvrir"); b.href = adresse; b.hidden = false;
+  // Pas encore installée : on explique comment mettre l'icône sur l'écran d'accueil.
+  var ua = navigator.userAgent || "", boite = document.getElementById("install");
+  var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  var safari = ios && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA|FBAN|FBAV|Instagram|WhatsApp/.test(ua);
+  var partage = '<svg class="partage" viewBox="0 0 24 24" fill="none" stroke="#ffc04a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/></svg>';
+  var texte = "";
+  if (ios && safari) texte = "Appuie sur " + partage + " <b>Partager</b>, puis « Sur l'écran d'accueil ».";
+  else if (ios) texte = "Ouvre ce lien dans <b>Safari</b> (menu ⋯ › « Ouvrir dans Safari »), puis Partager › « Sur l'écran d'accueil ».";
+  else if (/Android/.test(ua)) texte = "Dans <b>Chrome</b> : menu ⋮ › « Ajouter à l'écran d'accueil » (ou « Installer l'application »).";
+  else texte = "Sur téléphone, ajoute cette page à l'écran d'accueil pour avoir l'icône.";
+  var promesse = null;
+  window.addEventListener("beforeinstallprompt", function (e) {
+    e.preventDefault(); promesse = e;
+    boite.innerHTML = "<b>Mettre l'icône sur ton téléphone</b><br>"; var bt = document.createElement("button");
+    bt.className = "btn"; bt.style.marginTop = "10px"; bt.textContent = "Installer Frais"; boite.appendChild(bt);
+    bt.onclick = function () { promesse.prompt(); };
+  });
+  boite.innerHTML = "<b>Mettre l'icône sur ton téléphone</b><br>" + texte; boite.hidden = false;
+})();
+</script>
+</body>
+</html>
