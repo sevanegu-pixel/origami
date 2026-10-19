@@ -549,3 +549,16 @@ body:has(main.papier){background:#f8f9f9}
 @media (max-width:760px){.sh .sh-pic,.sh.r .sh-pic{clip-path:polygon(0 12%,100% 0,100% 88%,0 100%)}}
 @media (max-width:760px){.sh-body{grid-template-columns:1fr}}
 .wx+.piste{margin-top:-3px;background:#000}
+
+/* page Essais d'animation */
+.es-intro{max-width:760px;margin:0 auto;padding:30px var(--gut) 10px}
+.es-note{color:var(--soft);font-size:14px}
+.es-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));gap:34px;max-width:1180px;margin:0 auto;padding:30px var(--gut) 90px}
+.es-card{position:relative;padding:22px 22px 26px;background:linear-gradient(160deg,#2a1866,#1b0f4c);clip-path:polygon(0 4%,100% 0,100% 96%,0 100%)}
+.es-scene{display:flex;justify-content:center;align-items:flex-end;min-height:420px}
+.es-card h2{font:400 34px/1.1 var(--hand);margin:14px 0 2px}
+.es-src{color:var(--soft);font-size:14px;margin:0 0 14px}
+.es-ctl{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:14px}
+.es-ctl button,.es-ctl select{font:inherit;color:#fff;background:transparent;border:1px solid var(--line);padding:5px 14px;cursor:pointer}
+.es-ctl select option{color:#111}
+.es-ctl button:hover{background:var(--pink);border-color:var(--pink)}
