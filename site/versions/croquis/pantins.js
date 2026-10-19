@@ -154,7 +154,7 @@
   };
 
   /* ---------------- moteur */
-  var tous = [], vis = new Set(), lastY = scrollY, vel = 0, on = false;
+  var tous = [], vis = new Set(), ys = scrollY, lastY = ys, vel = 0, on = false;
   function monte(span, i) {
     var N = NUMEROS[span.dataset.p]; if (!N) return;
     var svg = el(span, "svg", { viewBox: "0 0 " + N.vb[0] + " " + N.vb[1], "aria-hidden": "true" }), g = el(svg, "g", {});
@@ -163,14 +163,17 @@
     o.frame({ g: o.k * 900, roule: 0, penche: 0 }); tous.push(o); return o;
   }
   function frame(now) {
-    var y = scrollY, dy = y - lastY; lastY = y; vel = vel * .75 + dy * .25; var busy = Math.abs(vel) > .05;
+    /* les pantins suivent le défilement avec du retard : ils continuent un peu après l'arrêt, puis ralentissent */
+    var vrai = scrollY; ys += (vrai - ys) * .045; if (Math.abs(vrai - ys) < .3) ys = vrai;
+    var y = ys, dy = y - lastY; lastY = y; vel = vel * .75 + dy * .25; var busy = Math.abs(vel) > .05 || ys !== vrai;
     tous.forEach(function (o) {
       if (!o.temps && !vis.has(o.span)) return;
       var g = o.temps ? now * .45 : y + o.k * 900, roule = g * .35, s = o.span;
       if (o.temps) busy = true;
       if (s.classList.contains("roule")) {
-        var pi = s.parentElement, r = pi.getBoundingClientRect(), tt = Math.max(0, Math.min(1, (innerHeight - r.top) / (innerHeight + r.height)));
-        roule = tt * (pi.clientWidth - s.offsetWidth - 2 * parseFloat(getComputedStyle(pi).paddingLeft || 0)); s.style.transform = "translateX(" + f(roule) + "px)";
+        var pi = s.parentElement, cs = getComputedStyle(pi), r = pi.getBoundingClientRect(), top = r.top + (vrai - ys), tt = Math.max(0, Math.min(1, (innerHeight - top) / (innerHeight + r.height)));
+        /* --pente : la piste est une diagonale, le pantin monte en avançant */
+        roule = tt * (pi.clientWidth - s.offsetWidth - 2 * parseFloat(cs.paddingLeft || 0)); s.style.transform = "translate(" + f(roule) + "px," + f(-tt * (parseFloat(cs.getPropertyValue("--pente")) || 0) * pi.clientHeight) + "px)";
         roule *= 160 / s.offsetWidth;
       }
       var cible = Math.max(-26, Math.min(26, vel * 1.5)); o.v += (cible - o.penche) * .07; o.v *= .86; o.penche += o.v;
