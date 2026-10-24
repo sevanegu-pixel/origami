@@ -5,6 +5,8 @@
  *   - Récupérer l'agenda du site : remplit l'onglet « Agenda » avec les dates en ligne.
  *   - Publier l'agenda sur le site : envoie l'onglet sur GitHub (site/data/agenda.json,
  *     branche `site`) ; Netlify reconstruit alors le site tout seul.
+ *   - Réservations : lien de l'appli : affiche le lien personnel de l'application de réservations
+ *     (voir Reservations.js et Admin.html).
  *   - Régler l'accès GitHub : enregistre le jeton GitHub de la personne connectée
  *     (gardé dans ses propriétés personnelles, jamais dans la feuille).
  */
@@ -27,6 +29,9 @@ function onOpen() {
     .createMenu('Site Origami')
     .addItem("Récupérer l'agenda du site", 'recupererAgenda')
     .addItem("Publier l'agenda sur le site", 'publierAgenda')
+    .addSeparator()
+    .addItem("Réservations : lien de l'appli", 'lienAppli')
+    .addItem('Réservations : changer la clé du lien', 'changerCleAppli')
     .addSeparator()
     .addItem('Ouvrir le site de test', 'ouvrirSiteTest')
     .addItem("Régler l'accès GitHub", 'reglerJeton')
