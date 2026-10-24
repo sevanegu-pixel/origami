@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """Génère le site statique de la Cie Origami (version « Croquis », octobre 2026).
 
-Bancal + la présentation des spectacles d'Engrenages ; à la place des engrenages, les
-personnages croqués de la page Collaborations font du cirque quand la page bouge
-(dessins découpés dans dessins/, voir dessins.py). La page Des pâtes au seum reprend
-le dossier de création (papier clair, encre noire, traits de pinceau).
+Bancal (menu plein écran, ouverture) habillé du thème du Wix : fonds violets en diagonale,
+titres Amatic SC, étiquettes dégradées, boutons roses, étoiles. Les spectacles sont des
+sections pleine largeur comme sur le Wix. Les seules animations sont des pantins articulés
+inventés (pantins.js) qui font du cirque quand la page défile. La page Des pâtes au seum
+reprend le dossier de création (papier clair, encre noire, traits de pinceau).
 
     python3 build.py   -> dossier dist/ (le site à mettre en ligne)
 
@@ -17,11 +18,14 @@ TODAY = datetime.date.today().isoformat()
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))  # dossier site/ : content.py et logo.svg communs
 sys.path.insert(0, ROOT)
-from content import SITE, SHOWS, ARTISTS, HISTORY, COMMITTEE, COLLABS, SUPPORTERS, REDIRECTS
+from content import SITE, SHOWS, ARTISTS, HISTORY, COMMITTEE, COLLABS, SUPPORTERS, PARTNER_LOGOS, REDIRECTS
 from medias import photo, video
+import importlib.util
+_spec = importlib.util.spec_from_file_location("wix_build", os.path.join(ROOT, "versions", "wix", "build.py"))
+WIX = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(WIX)  # la section « La Petite Fille » est celle du Wix
 DIST = os.path.join(HERE, "dist")
 E = html.escape
-FONTS = "https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;1,300&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=IBM+Plex+Mono:wght@400&family=Inria+Serif:ital,wght@0,300;0,400;0,700;1,400&family=Amatic+SC:wght@700&display=swap"
+FONTS = "https://fonts.googleapis.com/css2?family=Barlow:ital,wght@0,300;0,400;0,500;1,300&family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;1,6..96,400&family=IBM+Plex+Mono:wght@400&family=Inria+Serif:ital,wght@0,300;0,400;0,700;1,400&family=Amatic+SC:wght@400;700&family=Inknut+Antiqua:wght@400&display=swap"
 
 # Logo vectoriel, inséré dans la page pour que chaque lettre puisse pencher
 _LOGO = open(os.path.join(ROOT, "logo.svg")).read()
@@ -63,36 +67,19 @@ def wob(tag, inner, f=1, cls="", attrs=""):
     return f'<{tag}{c} style="--f:{f}"{attrs}>{inner}</{tag}>'
 
 
-# ---------------------------------------------------------------- personnages croqués
-# Chaque personnage = les pièces d'un même dessin, superposées ; le script les fait bouger
-# selon le défilement (comme les engrenages tournaient). (pièce, origine de rotation en %)
-PERSOS = {
-    "mono": (411, 497, [("mono-cycliste", None), ("mono-roue", "57.9% 87.3%"), ("mono-voltige", "28% 22%")]),
-    "tour": (309, 351, [("tour-bas", None), ("tour-haut", "48.5% 34.8%")]),
-    "seau": (309, 351, [("seau-seau", None), ("seau-perso", "47.9% 69.2%")]),
-    "duo": (792, 598, [("duo", "48% 92%")]),
-    "velo": (202, 385, [("velo-cadre", None), ("velo-roue", "52.3% 73%")]),
-}
+# ---------------------------------------------------------------- pantins articulés (pantins.js)
+# numéros : mono (monocycle), jongle, porte (main à main), cannes (équilibre), salto
+
+def perso(kind, w, cls=""):
+    return f'<span class="pantin {cls}" data-p="{kind}" style="width:{w}px" aria-hidden="true"></span>'
 
 
-def perso(kind, w, cls="", label=""):
-    pw, ph, parts = PERSOS[kind]
-    layers = ""
-    for name, o in parts:
-        origin = f' style="transform-origin:{o}"' if o else ""
-        layers += f'<img class="pz {name.split("-")[-1]}" src="dessins/{name}.png" alt="" width="{pw}" height="{ph}"{origin} decoding="async">'
-    aria = f' role="img" aria-label="{E(label)}"' if label else ' aria-hidden="true"'
-    return f'<span class="perso p-{kind} {cls}" data-p="{kind}" style="width:{w}px"{aria}>{layers}</span>'
-
-
-# le sol de la piste : deux traits de crayon qui ne se rejoignent pas tout à fait
-SOL = ('<svg viewBox="0 0 1000 14" preserveAspectRatio="none"><path d="M0 8 C180 5 330 11 520 7 S820 4 1000 9" fill="none" stroke="currentColor" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'
-       '<path d="M30 11 C260 9 420 13 640 10 S880 8 975 12" fill="none" stroke="currentColor" stroke-width=".8" opacity=".6" vector-effect="non-scaling-stroke"/></svg>')
+STAR = '<span class="star" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 0C21 12 28 19 40 20C28 21 21 28 20 40C19 28 12 21 0 20C12 19 19 12 20 0Z"/></svg></span>'
 
 
 def piste(kind, w=170, cls=""):
-    """Une piste (un trait de crayon) sur laquelle un personnage traverse la page en défilant."""
-    return f'<div class="piste {cls}" aria-hidden="true"><span class="sol">{SOL}</span>{perso(kind, w, "roule")}</div>'
+    """Une piste en diagonale (bande violette comme sur le Wix) que le personnage remonte en défilant."""
+    return f'<div class="piste {cls}" aria-hidden="true"><span class="pente"></span>{STAR if cls != "encre" else ""}{perso(kind, w, "roule")}</div>'
 
 
 # ---------------------------------------------------------------- gabarit
@@ -111,7 +98,7 @@ def head(title, desc, path, og=None):
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <script>try{{if(sessionStorage.getItem("origami-vu"))document.documentElement.classList.add("seen")}}catch(e){{}}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="{FONTS}"><link rel="stylesheet" href="style.css"></head><body>"""
+<link rel="stylesheet" href="{FONTS}"><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="wx.css"></head><body>"""
 
 
 def header(active):
@@ -141,20 +128,49 @@ def footer():
 # ---------------------------------------------------------------- blocs
 
 def show_block(s, i, tag_text=None, h="h2"):
-    """Présentation d'Engrenages (photo encadrée au crayon + texte, en zigzag), bandes en diagonale de Bancal."""
+    """Comme sur le Wix : une section pleine largeur, des diagonales, le titre au-dessus d'un trait, la photo bord à bord."""
     r = " r" if i % 2 else ""
     meta = tag_text or " · ".join(x for x in (s["genre"], s["venue"], s["duration"]) if x)
-    return f"""<div class="show-w{r}"><span class="band" aria-hidden="true"></span><a class="show{r}" href="{href(s['slug'])}"><div class="pic frame fold">{pic(s['card'], s['title'], 1100)}</div>
-<div class="txt"><span class="meta mono">{E(meta)}</span>{wob(h, E(s['title']), 1.3)}<p class="teaser">{E(s['teaser'])}</p><span class="go">Découvrir <span aria-hidden="true">→</span></span></div></a></div>"""
+    u = href(s["slug"])
+    return f"""<section class="sh{r}"><div class="sh-head"><{h} class="sh-t"><a href="{u}">{E(s['title'])}</a></{h}></div><span class="sh-line" aria-hidden="true"></span>
+<div class="sh-body"><div class="sh-txt"><span class="tag">{E(meta)}</span><p class="sh-by">{E(s['by'])}</p><p class="teaser">{E(s['teaser'])}</p>
+<a class="pill" href="{u}">en savoir plus</a></div><a class="sh-pic" href="{u}" tabindex="-1">{pic(s['card'], s['title'], 1400)}</a></div></section>"""
+
+
+NUMEROS = [("mono", 150), ("salto", 120), ("jongle", 130), ("cannes", 90), ("porte", 100)]
+
+
+def wix_block(slug):
+    """La section d'un spectacle telle qu'elle est sur le Wix (bandeau titre, bloc, grande photo, galerie)."""
+    B = next(b for b in WIX.BLOCKS if b["slug"] == slug)
+    sh = SHOW_BY_SLUG[slug]
+    dv = WIX.dv
+    out = f'<section class="h-title" style="--sh:{B["title_h"]}"><span class="h-title-bg" aria-hidden="true"></span>{"".join(dv(*t) for t in B["title_dv"])}<div class="stage"><h2><a href="{href(slug)}">{E(sh["title"])}</a></h2></div></section>'
+    side = "".join(f'<div class="h-img" style="--x:{x};--w:{w}">{WIX.media(m, sh["title"], 900)}</div>' for m, x, w in (B["left"], B["right"]) if m)
+    tag = f'<span class="h-tag" style="--x:{B["tag"][0]};--w:{B["tag"][1]}">{E(B["tag"][2])}</span>' if B["tag"] else ""
+    pill = ""
+    if B["pill"]:
+        px, pw, pl, ph = B["pill"]
+        pill = f'<a class="h-pill" href="{ph}" style="--dx:{px - B["tx"]};--w:{pw}">{E(pl)}</a>'
+    paras = "".join(f"<p>{p}</p>" for p in B["paras"])
+    out += f"""<section class="h-block" style="--sh:{B['h']}"><span class="h-block-bg" aria-hidden="true"></span>{"".join(dv(*t) for t in B["dvs"])}<div class="stage">{side}{tag}
+<div class="h-txt" style="--x:{B['tx']};--w:{B['tw']};--y:{B['ty']}"><h3 style="--fs:{B['subsize']}">{E(B['sub'])}</h3><p class="h-by">{E(B['by'])}</p>{paras}{pill}</div></div></section>"""
+    wm, wh, wdv = B["wide"]
+    out += f'<section class="h-wide" style="--sh:{wh}"><div class="h-wide-img">{WIX.media(wm, sh["title"], 1920)}</div>{"".join(dv(*t) for t in wdv)}</section>'
+    if B["gal"]:
+        gh, gids, gx, gb = B["gal"]
+        out += f"""<section class="h-gal" style="--sh:{gh}"><span class="h-gal-bg" aria-hidden="true"></span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", gb, 1)}
+<div class="h-gal-wrap"><button class="g-arrow prev" type="button" aria-label="Photos précédentes">‹</button><div class="h-gal-track" style="--gx:{gx}">{WIX.gal_track(gids, sh['title'])}</div><button class="g-arrow next" type="button" aria-label="Photos suivantes">›</button></div></section>"""
+    return f'<div class="wx">{out}</div>'
 
 
 def show_list(items):
-    """Spectacles en zigzag ; un personnage traverse sur sa piste tous les deux spectacles."""
+    """Les spectacles, séparés par une étoile et un pantin qui traverse sa piste."""
     out = ""
     for i, (s, tag) in enumerate(items):
-        out += show_block(s, i, tag)
-        if i % 2 == 1 and i < len(items) - 1:
-            out += piste(["mono", "tour", "seau"][(i // 2) % 3], 150 if i // 2 % 3 else 170)
+        out += wix_block(s["slug"]) if s["slug"] == "la-petite-fille-dans-la-poubelle" else show_block(s, i, tag)
+        if i < len(items) - 1:
+            out += piste(*NUMEROS[i % len(NUMEROS)])
     return out
 
 
@@ -199,7 +215,7 @@ def page_index():
     shows = show_list([(SHOW_BY_SLUG[sl], HOME_TAG.get(sl)) for sl in HOME_ORDER])
     nxt = upcoming()[:4]
     return f"""<main>
-<section class="hero"><div class="hero-p">{perso("duo", 330)}</div>{wob("h1", "Bienvenue dans l'univers<br>de la cie <i>Origami</i>", 1)}
+<section class="hero"><div class="hero-p">{perso("porte", 150)}</div>{wob("h1", "Bienvenue dans l'univers<br>de la cie <i>Origami</i>", 1)}
 <div class="intro wob" style="--f:.4"><p>Depuis 2018, la Cie Origami tisse des spectacles aux formes multiples, nés d'une passion commune : celle de créer, de raconter, de surprendre.</p>
 <p>Chaque projet réunit des artistes de cirque aux univers singuliers, pour donner vie à des œuvres tantôt drôles, tantôt poétiques, toujours sensibles. La compagnie s'adresse à tous les publics (petits, grands ou avertis) avec le désir d'offrir des instants forts et partagés.</p></div></section>
 <section aria-label="Spectacles">{shows}</section>
@@ -214,11 +230,11 @@ def page_spectacles():
     current = [s for s in SHOWS if s["status"] != "Répertoire"]
     archive = [s for s in SHOWS if s["status"] == "Répertoire"]
     blocks = show_list([(s, f"{s['status']} · {s['genre']}") for s in current])
-    rep = "".join(f"""<a href="{href(s['slug'])}"><div class="pic fold">{pic(s['card'], s['title'], 800)}</div><h3>{E(s['title'])}</h3><p>{E(s['teaser'])}</p></a>""" for s in archive)
+    rep = "".join(f"""<a href="{href(s['slug'])}"><div class="pic">{pic(s['card'], s['title'], 800)}</div><h3>{E(s['title'])}</h3><p>{E(s['teaser'])}</p></a>""" for s in archive)
     return f"""<main><section class="ph-title">{wob("h1", "Spec<i>tacles</i>", 1)}
 <p class="intro">Cirque-théâtre, cabaret de rue, solos intimistes et créations en cours. En rue et en salle, pour tous les publics.</p></section>
 {blocks}
-{piste("velo", 110)}
+{piste("salto", 110)}
 <section class="wrap" style="margin-top:40px">{wob("h2", "Le <i>répertoire</i>", .9, "sec-h")}</section><div class="rep">{rep}</div></main>"""
 
 
@@ -252,7 +268,7 @@ def page_seum(s):
 <div class="sm-ph">{pic(ph[2], s['title'] + " – équilibre", 1100)}</div></section>
 <section class="sm-duo"><h2 class="contour">Le duo</h2><div class="sm-duo-in">{coins('<p class="enbref">En bref !</p>' + duo)}
 <div class="sm-wide">{pic(ph[6], "Ella Beerli et Sévane Gurunlian", 1400)}</div></div></section>
-{piste("velo", 110, "encre")}
+{piste("mono", 120, "encre")}
 <section aria-label="Photos"><h2 class="contour sm-h">Photos</h2><div class="gal sm-gal">{gal}</div></section>
 <section class="s-info"><div><h2>Équipe</h2><p>{E(s['credits'])}</p></div>
 <div><h2>Pour accueillir ce spectacle</h2><div class="links">{links}</div><p style="margin-top:16px"><a href="mailto:{SITE['email']}">{SITE['email']}</a> · {SITE['phone']}</p></div></section>
@@ -326,12 +342,12 @@ def page_qui():
 
 def page_collabs():
     # mise en page reprise de la page Collaborations du Wix : un groupe, ses noms sur deux colonnes, un personnage à côté
-    figs = [("duo", 190), ("tour", 120), ("mono", 130), ("seau", 120), ("velo", 80)]
+    # les vrais dessins, fixes (comme sur le Wix) ; un pantin pour le dernier groupe
+    figs = [f'<img class="cdessin" src="{img(m, 500)}" alt="" loading="lazy">' for m in PARTNER_LOGOS] + [perso("jongle", 110)]
     groups = ""
     for gi, (title, items) in enumerate(COLLABS):
         li = "".join(f"""<li><h3>{('<a href="' + u + '" rel="noopener">' + E(n) + '</a>') if u else E(n)}</h3><p>{E(t)}</p></li>""" for n, u, t in items)
-        kind, w = figs[gi % len(figs)]
-        groups += f'<div class="cgroup">{wob("h2", E(title), .8)}<div class="cg-in"><ul class="clist">{li}</ul><div class="cfig">{perso(kind, w)}</div></div></div>'
+        groups += f'<div class="cgroup">{wob("h2", E(title), .8)}<div class="cg-in"><ul class="clist">{li}</ul><div class="cfig">{figs[gi % len(figs)]}</div></div></div>'
     crew = "".join(f"<li><strong>{E(s['title'])}</strong><span>{E(s['credits'])}</span></li>" for s in SHOWS)
     sup = "".join(f'<li><a href="{u}" rel="noopener">{E(n)}</a></li>' for n, u in SUPPORTERS)
     return f"""<main><section class="c-head"><div class="c-frame">{wob("h1", "Collabo<i>rations</i>", 1)}
@@ -372,9 +388,9 @@ SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button">
 (function(){
  var reduce=matchMedia("(prefers-reduced-motion: reduce)").matches,root=document.documentElement;
 
- /* ouverture : le monocycle arrive, la voltigeuse fait un salto, puis le logo se déplie ; une fois par visite */
+ /* ouverture : le pantin arrive sur son monocycle, puis le logo se déplie ; une fois par visite */
  var loader=document.querySelector(".loader");
- if(!root.classList.contains("seen")){setTimeout(function(){loader.classList.add("done");try{sessionStorage.setItem("origami-vu","1")}catch(e){}},reduce?150:2700);}
+ if(!root.classList.contains("seen")){setTimeout(function(){loader.classList.add("done");try{sessionStorage.setItem("origami-vu","1")}catch(e){}},reduce?150:3000);}
 
  /* menu plein écran : la feuille se déplie, puis se replie */
  var menu=document.getElementById("menu"),btn=document.querySelector(".open-menu"),closeB=menu.querySelector(".close");
@@ -411,59 +427,13 @@ SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button">
   addEventListener("scroll",function(){if(!running){running=true;requestAnimationFrame(tick)}},{passive:true});
  }
 
- /* personnages croqués : ils font du cirque quand la page bouge (à la place des engrenages)
-    mono : la roue tourne, la voltigeuse est lancée et fait un salto · tour : le porteur soulève
-    seau : l'équilibriste rattrape son équilibre selon la vitesse · duo : ils dansent
-    velo : le monocycle roule · .roule : le personnage traverse sa piste en suivant le défilement */
- var persos=[].slice.call(document.querySelectorAll("main .perso,.foot .perso")),vis=new Set();
- if(persos.length&&!reduce){
-  var io=new IntersectionObserver(function(es){es.forEach(function(e){e.isIntersecting?vis.add(e.target):vis.delete(e.target)});kick()},{rootMargin:"80px"});
-  persos.forEach(function(p,i){p._k=i*.37;p._a=0;p._v=0;p._parts={};[].forEach.call(p.querySelectorAll(".pz"),function(z){p._parts[z.classList[1]]=z});io.observe(p)});
-  var lastY=scrollY,vel=0,on=false;
-  function frame(){
-   var y=scrollY,dy=y-lastY;lastY=y;vel=vel*.75+dy*.25;var busy=Math.abs(vel)>.05;
-   vis.forEach(function(p){
-    var P=p._parts,k=p._k,w=p.offsetWidth,dx=0;
-    if(p.classList.contains("roule")){ /* position sur la piste = position de la piste dans l'écran */
-     var r=p.parentElement.getBoundingClientRect(),t=Math.max(0,Math.min(1,(innerHeight-r.top)/(innerHeight+r.height)));
-     dx=t*(p.parentElement.offsetWidth-w);p.style.transform="translateX("+dx.toFixed(1)+"px)";}
-    var g=y+k*900;
-    switch(p.dataset.p){
-     case "mono":
-      var roll=p.classList.contains("roule")?dx:g*.35;
-      P.roue.style.transform="rotate("+(roll/(w*.095)*57.3).toFixed(1)+"deg)";
-      var ph=(g*.0022)%1,h=4*ph*(1-ph);
-      P.voltige.style.transform="translateY("+(-h*w*.32).toFixed(1)+"px) rotate("+(ph*360).toFixed(1)+"deg)";
-      P.cycliste.style.transform="rotate("+(Math.sin(g*.01)*3).toFixed(2)+"deg)";break;
-     case "velo":
-      var rv=p.classList.contains("roule")?dx:g*.35;
-      P.roue.style.transform="rotate("+(rv/(w*.49)*57.3).toFixed(1)+"deg)";
-      P.cadre.style.transform="rotate("+(Math.sin(g*.012)*4).toFixed(2)+"deg)";break;
-     case "tour":
-      var s1=Math.sin(g*.006);
-      P.haut.style.transform="translateY("+(-Math.abs(s1)*w*.09).toFixed(1)+"px) rotate("+(s1*7).toFixed(2)+"deg)";
-      P.bas.style.transform="scaleY("+(1-Math.abs(s1)*.03).toFixed(3)+")";break;
-     case "seau": /* ressort : l'équilibriste penche avec la vitesse puis se rattrape */
-      var target=Math.max(-28,Math.min(28,vel*1.6));p._v+=(target-p._a)*.07;p._v*=.86;p._a+=p._v;
-      if(Math.abs(p._v)>.02||Math.abs(p._a)>.05)busy=true;
-      P.perso.style.transform="rotate("+p._a.toFixed(2)+"deg)";break;
-     case "duo":
-      P.duo.style.transform="rotate("+(Math.sin(g*.004)*9).toFixed(2)+"deg) translateY("+(-Math.abs(Math.sin(g*.008))*w*.03).toFixed(1)+"px)";break;
-    }
-   });
-   if(busy)requestAnimationFrame(frame);else on=false;
-  }
-  function kick(){if(!on){on=true;requestAnimationFrame(frame)}}
-  addEventListener("scroll",kick,{passive:true});addEventListener("resize",kick);
-  var oursin=document.querySelector(".oursin");
-  if(oursin)addEventListener("scroll",function(){oursin.style.transform="rotate("+(scrollY*.12).toFixed(1)+"deg)"},{passive:true});
- }
-
  /* visionneuse photo */
  var lb=document.querySelector(".lightbox"),li=lb.querySelector("img"),set=[],cur=0;
  function show(i){cur=(i+set.length)%set.length;li.src=set[cur].dataset.full;li.alt=set[cur].querySelector("img").alt;}
  document.addEventListener("click",function(e){
   var g=e.target.closest(".gal button");if(g){set=[].slice.call(g.parentElement.children);show(set.indexOf(g));lb.hidden=false;lb.querySelector(".lb-close").focus();return;}
+  var gi=e.target.closest(".g-item");if(gi){set=[].slice.call(gi.closest(".h-gal-track").querySelectorAll(".g-item"));show(set.indexOf(gi));lb.hidden=false;lb.querySelector(".lb-close").focus();return;}
+  var ga=e.target.closest(".g-arrow");if(ga){var t=ga.parentElement.querySelector(".h-gal-track");t.scrollBy({left:(ga.classList.contains("next")?1:-1)*t.clientWidth*.7,behavior:"smooth"});return;}
   if(e.target===lb||e.target.closest(".lb-close")){lb.hidden=true;li.src="";if(set[cur])set[cur].focus();}
   if(e.target.closest(".lb-prev"))show(cur-1);if(e.target.closest(".lb-next"))show(cur+1);
   var c=e.target.closest(".copy");if(c&&navigator.clipboard){navigator.clipboard.writeText(c.dataset.copy).then(function(){c.textContent="Copié !";setTimeout(function(){c.textContent="Copier"},1800)},function(){})}
@@ -473,6 +443,43 @@ SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button">
   if(!lb.hidden&&e.key==="ArrowLeft")show(cur-1);if(!lb.hidden&&e.key==="ArrowRight")show(cur+1);
  });
 })();
+</script><script src="pantins.js" defer></script>"""
+
+
+# ---------------------------------------------------------------- page d'essais (cachée : pas dans le menu ni dans le plan du site)
+
+ESSAIS = [  # (pantin, titre, d'après quoi)
+    ("mono", "Monocycle", "Inventé"),
+    ("jongle", "Jongleur", "Inventé · rattrape ses balles à la pause"),
+    ("porte", "Main à main", "Inventé"),
+    ("cannes", "Équilibre sur cannes", "Inventé"),
+    ("salto", "Salto", "Inventé"),
+    ("video1", "Main à main", "D'après ta vidéo du 19 octobre : appui, montée en équilibre, équilibre bras tendus, le porteur descend et marche, descente devant, salut"),
+    ("colonne", "Colonne à trois qui marche", "D'après ta photo du 19 octobre"),
+    ("video2", "Lancer en main à main", "D'après ta 2e vidéo : face à face, flexion, lancer direct en équilibre, tenue, puis assise sur les épaules"),
+    ("pirouette", "Pirouettes en monocycle", "D'après ta 3e vidéo (jusqu'à 17 s) : arrivée, bras ouverts, tours de plus en plus rapides, sortie"),
+    ("monocolonne","Colonne à deux en monocycle","D'après ta photo du 20 octobre : il pédale de profil et lui tient les chevilles au-dessus de sa tête, elle ouvre les bras en diagonale"),
+    ("pirouette2", "Pirouettes lentes", "D'après ta 4e vidéo : il tourne sur place, bras pliés devant lui, un bras s'ouvre par moments"),
+  ("couch","Couch-couch","D'après ta 5e vidéo : il recule sur la roue sans pédaler, à coups de pied sur le pneu, bras ouverts"),
+  ("monoporte","Porté en monocycle","D'après ta 6e vidéo : elle saute dans ses bras, ils tournent ensemble sur la roue, elle se renverse bras ouverts"),
+]
+
+
+def page_essais():
+    cards = "".join(
+        f"""<article class="es-card"><div class="es-scene">{perso(k, 230).replace('<span class="pantin ', '<span data-horloge class="pantin ', 1)}</div>
+<h2>{E(t)}</h2><p class="es-src">{E(src)}</p>
+<div class="es-ctl"><button type="button" class="es-pause">Pause</button>
+<label>Vitesse <select class="es-vit"><option value=".25">× 0,25</option><option value=".5">× 0,5</option><option value="1" selected>× 1</option><option value="2">× 2</option></select></label></div></article>"""
+        for k, t, src in ESSAIS)
+    return f"""<main class="essais"><section class="ph-title"><h1>Essais <i>d'animation</i></h1></section>
+<section class="es-intro"><p>Ici, je teste les pantins avant de les mettre sur le site. Envoie une vidéo courte d'un numéro dans le fil de discussion : j'en tire les poses et l'essai apparaît sur cette page, à côté des pantins inventés.</p>
+<p class="es-note">Page cachée : elle n'est ni dans le menu ni dans Google.</p></section>
+<section class="es-grid">{cards}</section></main>
+<script>
+document.addEventListener("click",function(e){{var b=e.target.closest(".es-pause");if(!b)return;var p=b.closest(".es-card").querySelector(".pantin");
+if(p.hasAttribute("data-pause")){{p.removeAttribute("data-pause");b.textContent="Pause";}}else{{p.setAttribute("data-pause","");b.textContent="Lecture";}}if(window.pantinsKick)pantinsKick();}});
+document.addEventListener("change",function(e){{if(!e.target.classList.contains("es-vit"))return;e.target.closest(".es-card").querySelector(".pantin").dataset.vitesse=e.target.value;}});
 </script>"""
 
 
@@ -499,6 +506,11 @@ def build():
     shutil.copy(os.path.join(HERE, "style.css"), DIST)
     shutil.copy(os.path.join(ROOT, "logo.svg"), DIST)
     shutil.copytree(os.path.join(HERE, "dessins"), os.path.join(DIST, "dessins"))
+    shutil.copy(os.path.join(HERE, "pantins.js"), DIST)
+    sys.path.insert(0, HERE)
+    import wixcss
+    with open(os.path.join(DIST, "wx.css"), "w", encoding="utf-8") as f:
+        f.write(wixcss.scoped(os.path.join(ROOT, "versions", "wix", "style.css")))
     with open(os.path.join(DIST, "favicon.svg"), "w") as f:
         f.write('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="6" fill="#281467"/><path d="M8 32 20 6l12 26z" fill="#9781FF" transform="rotate(-6 20 20)"/></svg>')
     for slug, title, desc, fn, og in pages():
@@ -509,6 +521,8 @@ def build():
         f.write(head("Page introuvable", "", "404") + header("") + page_404() + footer() + SCRIPT + "</body></html>")
     with open(os.path.join(DIST, "_redirects"), "w") as f:
         f.write("\n".join(f"{a}  {b}  301" for a, b in REDIRECTS.items()) + "\n")
+    with open(os.path.join(DIST, "essais.html"), "w") as f:
+        f.write(head("Essais d'animation", "", "essais").replace("<head>", '<head><meta name="robots" content="noindex">', 1) + header("") + page_essais() + footer() + SCRIPT + "</body></html>")
     urls = "".join(f"<url><loc>{SITE['url']}/{'' if s == 'index' else s}</loc></url>" for s, *_ in pages())
     with open(os.path.join(DIST, "sitemap.xml"), "w") as f:
         f.write(f'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>')
