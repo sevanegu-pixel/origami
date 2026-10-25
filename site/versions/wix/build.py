@@ -327,7 +327,40 @@ def page_spectacles():
 <section class="bg-violet slant-top band"><div class="wrap"><h2 class="sec-title">Anciens spectacles</h2><div class="cards">{''.join(card(s) for s in archive)}</div></div></section></main>"""
 
 
+def page_seum(s):
+    """Des pâtes au seum : contenu repris du dossier de création (couverture papier avec le titre dessiné, intention, étapes, duo), mise en page du Wix."""
+    d = s["dossier"]
+    ph = d["photos"]
+    body = "".join(f"<p>{p}</p>" for p in s["body"])
+    etapes = "".join(f'<li class="date"><span class="d-when">{E(t)}</span><p class="d-place">{E(x)}</p></li>' for t, x in d["etapes"])
+    duo = "".join(f"<p>{E(p)}</p>" for p in d["duo"])
+    gal_ids = [ph[0], ph[4], ph[5], ph[7], ph[8], ph[9], ph[10]] + s["gallery"]
+    up = [x for x in s["dates"] if x[0] >= TODAY][::-1]
+    dates = f'<ul class="dates">{"".join(date_row(*x) for x in up)}</ul>' if up else '<p class="muted">Pas de nouvelle date annoncée pour le moment.</p>'
+    return f"""<main class="seum">
+<section class="sm-cover"><div class="wrap sm-cover-in"><div class="sm-l"><a class="back" href="spectacles.html">← Spectacles</a>
+<h1 class="sm-titre"><span class="sr">{E(s['title'])}</span><img src="dessins/seum-titre.png" alt="" width="1288" height="451"></h1>
+<img class="oursin" src="dessins/seum-oursin.png" alt="" width="522" height="460"></div>
+<div class="sm-r"><p class="sm-pres">La compagnie Origami présente</p><p class="sm-big">Des pâtes au seum</p>
+<p class="sm-pres">Un projet de création par Ella Beerli et Sévane Gurunlian</p><span class="tag">{E(s['status'])}</span>
+<div class="sm-photo">{pic(ph[1], s['title'], 1400, eager=True)}</div></div></div></section>
+<section class="bg-violet band"><div class="wrap sm-split"><div class="sm-ph">{pic(ph[3], s['title'] + " – portés", 1100)}</div>
+<div class="show-text"><h2 class="sec-title">Intention</h2>{body}</div></div></section>
+<section class="band"><div class="wrap sm-split r"><div><h2 class="sec-title">Premières étapes</h2><ul class="dates sm-etapes">{etapes}</ul></div>
+<div class="sm-ph">{pic(ph[2], s['title'] + " – équilibre", 1100)}</div></div></section>
+<section class="bg-violet band"><div class="wrap"><h2 class="sec-title">Le duo</h2><div class="sm-split"><div class="show-text"><p class="sm-enbref">En bref !</p>{duo}</div>
+<div class="sm-ph">{pic(ph[6], "Ella Beerli et Sévane Gurunlian", 1400)}</div></div></div></section>
+<section class="band"><div class="wrap"><h2 class="sec-title">Photos</h2><div class="gallery">{gallery(gal_ids, s['title'])}</div></div></section>
+<section class="band"><div class="wrap links">
+<div><h2>Équipe</h2><p class="credits-txt">{E(s['credits'])}</p></div>
+<div><h2>Pour accueillir ce spectacle</h2><a class="pill" href="contact.html">Dossier sur demande</a><p>{SITE['email']} · {SITE['phone']}</p></div>
+</div></section>
+<section class="bg-grey band dates-sec"><div class="wrap narrow"><h2>Dates</h2>{dates}</div></section></main>"""
+
+
 def page_show(s):
+    if s.get("dossier"):
+        return page_seum(s)
     if s["slug"] == "la-petite-fille-dans-la-poubelle":
         return page_lpfdlp(s)
     body = "".join(f"<p>{p}</p>" for p in s["body"])
@@ -714,6 +747,7 @@ def build():
     os.makedirs(DIST)
     shutil.copy(os.path.join(HERE, "style.css"), DIST)
     shutil.copy(os.path.join(ROOT, "logo.svg"), DIST)
+    shutil.copytree(os.path.join(ROOT, "versions", "croquis", "dessins"), os.path.join(DIST, "dessins"))  # dessins du dossier (Des pâtes au seum)
     with open(os.path.join(DIST, "favicon.svg"), "w") as f:
         f.write('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="6" fill="#281467"/><path d="M20 5C21 14 26 19 35 20C26 21 21 26 20 35C19 26 14 21 5 20C14 19 19 14 20 5Z" fill="#fff"/></svg>')
     script = SCRIPT.replace("%PREVIEW%", "")

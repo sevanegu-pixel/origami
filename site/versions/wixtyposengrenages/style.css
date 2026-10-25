@@ -964,3 +964,27 @@ p{margin:0 0 1.35em}
 .h-eye.wheel{width:124px;height:124px;left:calc(22 * var(--u));top:calc(140 * var(--u))}
 @media (min-width:1101px){.h-eye.wheel{width:calc(124 * var(--u));height:calc(124 * var(--u))}}
 @media (max-width:760px){.h-eye.wheel{width:calc(62 * var(--m))!important;height:calc(62 * var(--m))!important}}
+
+/* dates : ombre hachurée qui se décale au survol, comme sur les autres versions */
+.date,.lp-list li{position:relative;z-index:0;transition:transform .25s}
+.date::after,.lp-list li::after{content:"";position:absolute;inset:0;z-index:-1;opacity:0;pointer-events:none;transition:transform .25s,opacity .25s;background:repeating-linear-gradient(-45deg,#9781FF 0 1px,transparent 1px 6px)}
+.date:hover::after,.lp-list li:hover::after{opacity:1;transform:translate(8px,8px);animation:hach 1.2s linear infinite}
+@keyframes hach{to{background-position:24px 0}}
+@media (prefers-reduced-motion:reduce){.date:hover::after,.lp-list li:hover::after{animation:none}}
+
+/* Des pâtes au seum : couverture « papier » reprise du dossier de création */
+.sm-cover{background:#F4E4F4;color:#000;padding:clamp(28px,5vw,60px) 0}
+.sm-cover .back{color:#000}
+.sm-cover-in{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(20px,4vw,56px);align-items:center}
+.sm-titre{margin:10px 0 0}.sm-titre img{width:100%;height:auto;max-width:520px;transform:rotate(-2deg)}
+.oursin{height:auto;width:min(240px,55%);margin:24px 0 0 10%}
+.sm-pres{margin:0;letter-spacing:.25em;text-transform:uppercase;font-size:.8rem}
+.sm-big{margin:.3rem 0;letter-spacing:.2em;text-transform:uppercase;font-size:1.4rem;font-weight:600}
+.sm-r .tag{display:inline-block;margin:.8rem 0 1rem}
+.sm-photo img{width:100%;height:auto;display:block}
+.sm-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(24px,4vw,56px);align-items:center}
+.sm-ph img{width:100%;height:auto;display:block}
+.sm-etapes .date{grid-template-columns:minmax(0,.7fr) minmax(0,1.3fr)}
+.sm-enbref{font-weight:600;font-size:1.2rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+@media (max-width:760px){.sm-cover-in,.sm-split{grid-template-columns:1fr}.sm-split.r>div:last-child{order:-1}}
