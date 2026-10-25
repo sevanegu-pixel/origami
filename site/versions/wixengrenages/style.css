@@ -359,3 +359,7 @@ details.past summary{cursor:pointer;font:400 15px var(--type);color:var(--lav)}
 /* pages souvenirs sans photo */
 .s-hero.no-pic{min-height:min(48vh,440px)}
 .s-info .plain{columns:2 260px;column-gap:32px}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(12px,3vw,40px);max-width:960px;margin:40px auto 60px;padding:0 var(--gut)}
+.trio figure{margin:0;text-align:center}
+.trio img{width:100%;height:auto;filter:grayscale(1)}
+.trio figcaption{margin-top:10px;font:400 clamp(24px,3vw,34px)/1 var(--title)}
