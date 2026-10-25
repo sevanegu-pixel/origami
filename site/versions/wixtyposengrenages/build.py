@@ -258,6 +258,15 @@ def gal_track(ids, title):
     return "".join(cols)
 
 
+# fonds vidéo de l'accueil Wix (vidéos d'ambiance floues, en boucle)
+BG_HERO, BG_TITLE, BG_BLOCK = "11062b_9031f0ce7e144b5594038c613aebc40c", "11062b_d10ac8acd118411e90414446d5069f3c", "11062b_cfe484aa19ac4d1f88f1dd673053d7eb"
+
+
+def bgvid(vid):
+    return (f'<video class="bgvid" autoplay muted loop playsinline preload="auto" poster="{video(vid)[:-4]}.jpg" aria-hidden="true">'
+            f'<source src="{video(vid)}" type="video/mp4"></video>')
+
+
 def page_index():
     items = "".join(f'<li><a href="{href(sl)}">{E(SHOW_BY_SLUG[sl]["title"])}</a></li>' for sl in HOME_ORDER)
     nxt = upcoming()
@@ -265,7 +274,7 @@ def page_index():
     if nxt:
         iso, label, place, sh = nxt[0]
         nxt_html = f'<a class="h-next" href="agenda.html"><span class="h-next-tag">Prochaine date</span><span class="h-next-txt">{E(label)} · {E(sh["title"])} · {E(place)}</span></a>'
-    hero = f"""<section class="h-hero"><span class="h-hero-bg" aria-hidden="true"></span>
+    hero = f"""<section class="h-hero"><span class="h-hero-bg" aria-hidden="true">{bgvid(BG_HERO)}</span>
 {dv("tl", "#ED11FF", 20, .17, True)}{dv("br", "#ED11FF", 304, .17, True)}
 <div class="stage">
 <div class="h-frame f1"><h1 class="h-ft">Bienvenue dans l'univers<br>de la cie Origami</h1>
@@ -277,7 +286,7 @@ def page_index():
     for B in BLOCKS:
         sh = SHOW_BY_SLUG[B["slug"]]
         tdv = "".join(dv(k, c, h, o) for k, c, h, o in B["title_dv"])
-        out += f'<section class="h-title" style="--sh:{B["title_h"]}"><span class="h-title-bg" aria-hidden="true"></span>{tdv}<div class="stage"><h2>{E(sh["title"])}</h2></div></section>'
+        out += f'<section class="h-title" style="--sh:{B["title_h"]}"><span class="h-title-bg" aria-hidden="true">{bgvid(BG_TITLE)}</span>{tdv}<div class="stage"><h2>{E(sh["title"])}</h2></div></section>'
         bdv = "".join(dv(k, c, h, o) for k, c, h, o in B["dvs"])
         side = ""
         if B["left"]:
@@ -291,13 +300,13 @@ def page_index():
             px, pw, pl, ph = B["pill"]
             ext = ' rel="noopener"' if ph.startswith("http") else ""
             pill = f'<a class="h-pill" href="{ph}"{ext} style="--dx:{px - B["tx"]};--w:{pw}">{E(pl)}</a>'
-        out += f"""<section class="h-block" style="--sh:{B['h']}"><span class="h-block-bg" aria-hidden="true"></span>{bdv}<div class="stage">{side}{tag}
+        out += f"""<section class="h-block" style="--sh:{B['h']}"><span class="h-block-bg" aria-hidden="true">{bgvid(BG_BLOCK)}</span>{bdv}<div class="stage">{side}{tag}
 <div class="h-txt" style="--x:{B['tx']};--w:{B['tw']};--y:{B['ty']}"><h3 style="--fs:{B['subsize']}">{E(B['sub'])}</h3><p class="h-by">{E(B['by'])}</p>{paras}{pill}</div></div></section>"""
         wm, wh, wdv = B["wide"]
         out += f'<section class="h-wide" style="--sh:{wh}"><div class="h-wide-img">{media(wm, sh["title"], 1920)}</div>{"".join(dv(k, c, h, o, sf) for k, c, h, o, sf in wdv)}</section>'
         if B["gal"]:
             gh, gids, gx, gb = B["gal"]
-            out += f"""<section class="h-gal" style="--sh:{gh}"><span class="h-gal-bg" aria-hidden="true"></span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", gb, 1)}
+            out += f"""<section class="h-gal" style="--sh:{gh}"><span class="h-gal-bg" aria-hidden="true">{bgvid(BG_BLOCK)}</span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", gb, 1)}
 <div class="h-gal-wrap"><button class="g-arrow prev" type="button" aria-label="Photos précédentes">‹</button><div class="h-gal-track" style="--gx:{gx}">{gal_track(gids, sh['title'])}</div><button class="g-arrow next" type="button" aria-label="Photos suivantes">›</button></div></section>"""
         if B["star_op"] is not None:
             out += f'<section class="h-starband">{dv("bl", "#ED11FF", 76, B["star_op"])}<div class="stage">{STAR_O}</div></section>'

@@ -954,3 +954,8 @@ p{margin:0 0 1.35em}
 
 /* ligne pointillée de séparation au-dessus des bandeaux titres, comme sur le Wix */
 .h-title{border-top:1px dashed rgba(255,255,255,.7)}
+
+/* fonds vidéo (comme sur le Wix) : la vidéo remplace le dégradé animé */
+.bgvid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.home .h-hero-bg,.home .h-title-bg,.home .h-block-bg,.home .h-gal-bg{animation:none;background:#04040a;inset:0;opacity:1;transform:none;filter:none}
+.home .h-title-bg::after{display:none}
