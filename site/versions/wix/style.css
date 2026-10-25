@@ -940,9 +940,14 @@ p{margin:0 0 1.35em}
 .souv-gal .g-item:nth-child(5n+1){grid-row:auto}
 
 /* ligne pointillée de séparation au-dessus des bandeaux titres, comme sur le Wix */
-.h-title{border-top:1px dashed rgba(255,255,255,.7)}
+.h-title{border-top:2px dashed #ECCB7D}
 
 /* fonds vidéo (comme sur le Wix) : la vidéo remplace le dégradé animé */
 .bgvid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none}
 .home .h-hero-bg,.home .h-title-bg,.home .h-block-bg,.home .h-gal-bg{animation:none;background:#04040a;inset:0;opacity:1;transform:none;filter:none}
 .home .h-title-bg::after{display:none}
+
+/* roue de monocycle à la place de l'œil : carrée */
+.h-eye.wheel{width:124px;height:124px;left:calc(22 * var(--u));top:calc(140 * var(--u))}
+@media (min-width:1101px){.h-eye.wheel{width:calc(124 * var(--u));height:calc(124 * var(--u))}}
+@media (max-width:760px){.h-eye.wheel{width:calc(62 * var(--m))!important;height:calc(62 * var(--m))!important}}
