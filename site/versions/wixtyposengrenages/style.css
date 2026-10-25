@@ -951,3 +951,6 @@ p{margin:0 0 1.35em}
  .h-next-txt{font-size:calc(14 * var(--m))}
  .h-title h2{font-size:calc(22 * var(--m))!important}
 }
+
+/* ligne pointillée de séparation au-dessus des bandeaux titres, comme sur le Wix */
+.h-title{border-top:1px dashed rgba(255,255,255,.7)}
