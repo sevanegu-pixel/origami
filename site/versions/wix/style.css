@@ -930,3 +930,11 @@ p{margin:0 0 1.35em}
  .q-cie .q-in{padding:48px 24px 80px}
  .q-artist .q-in,.q-artist.right .q-in{padding:56px 24px 80px}
 }
+
+/* pages souvenirs (L'Homme bande passante, Origami Circus) */
+.souv-trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(12px,3vw,40px);max-width:960px}
+.souv-trio figure{margin:0;text-align:center}
+.souv-trio img{width:100%;height:auto;filter:grayscale(1)}
+.souv-trio figcaption{margin-top:10px;font:400 clamp(1.8rem,3vw,2.4rem)/1 var(--f-title)}
+.souv-gal{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));grid-auto-rows:300px}
+.souv-gal .g-item:nth-child(5n+1){grid-row:auto}

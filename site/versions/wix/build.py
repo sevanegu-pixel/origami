@@ -476,6 +476,8 @@ def page_qui():
         parts.append(band(i + 1))
     hist_rows = ""
     for y, t, sub, l in HISTORY:
+        if not l and y in SOUV_BY_YEAR:
+            l = SOUV_BY_YEAR[y]["slug"]
         btn = f'<a class="q-hbtn" href="{href(l)}">en savoir plus {ARROW}</a>' if l else ""
         subp = f"<p>{E(sub)}</p>" if sub else ""
         hist_rows += (f'<li><span class="q-year">{y}</span><span class="q-dot" aria-hidden="true"></span>'
@@ -505,6 +507,70 @@ def page_qui():
 <h2 class="q-htitle">Historique</h2><ol class="q-hlist">{hist_rows}</ol></div></section>
 <div class="q-starrow last">{QSTAR}</div>
 </div></section></main>"""
+
+
+# ---------------------------------------------------------------- pages souvenirs (liées depuis l'historique)
+
+SOUVENIRS = [
+    dict(slug="lhbp", year="2018", title="L'Homme bande passante", status="Création 2018", by="De et par Sévane Gurunlian",
+         meta="Comédie · Expérimentation sonore, monocycle et acrobatie · 30 minutes", hero="4d47d3_85bf461adcdc4b2fad9eed0058d62a9f~mv2.jpg",
+         portraits=[], gallery=["4d47d3_6dbdde03aab3458b87f1d93f37472ae2~mv2.jpg", "4d47d3_fef26f5c5fcc4ef58ee563ecf362b59c~mv2.jpg"],
+         quote="On crée, on imagine et on compose des univers à l'aide de tout ce qui nous entoure.",
+         body=["Un spectacle de mime et de son, sans une parole. Sur une scène presque vide, quatre enceintes et un interprète suffisent à faire naître tout un univers.",
+               "Le personnage, un peu clownesque, raconte son monde par le geste et par les sons, à travers des situations du quotidien… et des gaffes qui finissent toujours par le rattraper.",
+               "Et la « bande passante » ? En électronique, c'est une histoire de fréquences. Ici, ça n'a absolument rien à voir."],
+         credits="Création et interprétation : Sévane Gurunlian",
+         dates_title="Dates 2019",
+         dates=[("2019-03-15", "15 mars 2019", "La Griotte (sortie de résidence)"), ("2019-03-29", "29 mars 2019", "BuroSpace (sortie de résidence)"),
+                ("2019-05-11", "11 mai 2019", "Dôme de la bulle d'art"), ("2019-05-18", "18 mai 2019", "École de cirque Taj'um"),
+                ("2019-06-01", "1er juin 2019", "Centre culturel de Porteous"), ("2019-06-15", "15 juin 2019", "Festiv'art"),
+                ("2019-07-03", "3 juillet 2019", "Festival Chatôbruyant"), ("2019-07-07", "7 juillet 2019", "Festival Chatôbruyant"), ("2019-07-10", "10 juillet 2019", "Festival Chatôbruyant"),
+                ("2019-10-05", "5 octobre 2019", "Festival du Théâtre-Cirqule"), ("2019-10-06", "6 octobre 2019", "Festival du Théâtre-Cirqule"),
+                ("2019-12-06", "6 décembre 2019", "Salle communale de Veyrier"), ("2019-12-14", "14 décembre 2019", "La Cantine")]),
+    dict(slug="oc", year="2020", title="Origami Circus", status="Tournée été 2020", by="Avec Anouck Simon, Teddy Marguerat et Sévane Gurunlian",
+         meta="Comédie · Spectacle pluridisciplinaire · 45 minutes", hero="4d47d3_6533ecdcc47345d0a8cb6434203bbc87~mv2.jpg", quote="",
+         portraits=[("4d47d3_a984ef424ec4424d9d76f26af0bd4ceb~mv2.png", "Anouck Simon"), ("4d47d3_a4c8e32a82814017912117e20249a331~mv2.png", "Teddy Marguerat"),
+                    ("4d47d3_2cf6ce7081444099ad0815e75b537a76~mv2.png", "Sévane Gurunlian")],
+         gallery=["4d47d3_502699986c444ebcb5dc515e71348082~mv2.png", "4d47d3_b5cf5a86e60e4279b7c98e16e8badbf1~mv2.jpg",
+                  "4d47d3_a6d1c4660e884350bf321d156d09a27ef000.jpg", "4d47d3_828d24fe9cfa450ab742657d3ad83627~mv2.png"],
+         body=["Trois saltimbanques aux caractères (très) explosifs, et une histoire qui les pousse à se demander qui ils sont, et comment ils s'y prennent.",
+               "Clown, danse, jonglage, équilibres sur cannes, effets magiques et monocycle : un spectacle pluridisciplinaire de 45 minutes, joué tout l'été 2020 en France."],
+         credits="Anouck Simon, Teddy Marguerat et Sévane Gurunlian",
+         dates_title="La tournée de l'été 2020",
+         dates=[(f"2020-{m:02d}-{d:02d}", f"{d} {'juillet' if m == 7 else 'août'} 2020", w) for m, d, w in [
+             (7, 6, "Talaris, Lacanau"), (7, 9, "Colvert, Vielle-Saint-Girons"), (7, 13, "Soubeyranne, Remoulins"), (7, 14, "Regnière, Villette-d'Anthon"),
+             (7, 16, "Le Gibanel, Argentat-sur-Dordogne"), (7, 19, "Pineda, La Teste-de-Buch"), (7, 20, "Roumingue, Lanton"), (7, 21, "Bazas"),
+             (7, 23, "Colvert, Vielle-Saint-Girons"), (7, 26, "Séquoia, Saint-Just-Luzac"), (7, 27, "Bois Soleil"), (7, 28, "La Loubine, Olonne-sur-Mer"),
+             (7, 29, "Émeraude, Saint-Briac-sur-Mer"), (8, 3, "Roumingue, Lanton"), (8, 4, "Pineda, La Teste-de-Buch"), (8, 5, "Le Gibanel, Argentat-sur-Dordogne"),
+             (8, 10, "Colvert, Vielle-Saint-Girons"), (8, 11, "Bois Soleil"), (8, 12, "Les Huttes, Saint-Denis-d'Oléron"), (8, 13, "Les Chênes, Médis"),
+             (8, 14, "Céleste, Breuillet"), (8, 16, "Bazas"), (8, 17, "Roumingue, Lanton"), (8, 18, "Talaris, Lacanau"), (8, 19, "Le Trianon, Les Sables-d'Olonne"),
+             (8, 20, "Vikings, Saint-Jean-de-la-Rivière"), (8, 25, "Émeraude, Saint-Briac-sur-Mer")]]),
+]
+SOUV_BY_YEAR = {d["year"]: d for d in SOUVENIRS}
+
+
+def page_souvenir(d):
+    body = "".join(f"<p>{p}</p>" for p in d["body"])
+    meta = "".join(f"<span>{E(m)}</span>" for m in d["meta"].split(" · "))
+    quote = f'<blockquote class="show-quote"><p>« {E(d["quote"])} »</p></blockquote>' if d["quote"] else ""
+    trio = ""
+    if d["portraits"]:
+        figs = "".join(f'<figure>{pic(m, n, 500)}<figcaption>{E(n)}</figcaption></figure>' for m, n in d["portraits"])
+        trio = f'<section class="band"><div class="wrap souv-trio">{figs}</div></section>'
+    gal = ""
+    if d["gallery"]:
+        gal = f'<section class="band"><div class="wrap"><div class="gallery souv-gal">{gallery(d["gallery"], d["title"])}</div></div></section>'
+    dates = f'<ul class="dates">{"".join(date_row(*x) for x in d["dates"])}</ul>'
+    return f"""<main>
+<section class="show-hero">{pic(d['hero'], d['title'], 2000, eager=True)}<div class="wrap">
+<a class="back" href="quisommesnous.html">← Qui sommes nous</a><div class="show-status"><span class="tag">{E(d['status'])}</span></div>
+<h1>{E(d['title'])}</h1><p class="who">{E(d['by'])}</p><div class="show-meta">{meta}</div></div></section>
+<section class="bg-violet band"><div class="wrap narrow show-text justify">{body}{quote}</div></section>{trio}
+<section class="band"><div class="wrap links">
+<div><h2>Équipe</h2><p class="credits-txt">{E(d['credits'])}</p></div>
+<div><h2>Contact</h2><p>Pour toute question : <span class="sel">{SITE['email']}</span> · <span class="sel">{SITE['phone']}</span></p></div>
+</div></section>{gal}
+<section class="bg-grey band dates-sec"><div class="wrap narrow"><h2>{E(d['dates_title'])}</h2>{dates}</div></section></main>"""
 
 
 def page_collabs():
@@ -616,10 +682,14 @@ def pages():
           ("contact", "Contact", "Nous contacter !", page_contact, None)]
     for s in SHOWS:
         ps.append((s["slug"], s["title"], f"{s['title']} – {s['genre']}. {s['teaser']}", (lambda s=s: page_show(s)), s["hero"]))
+    for d in SOUVENIRS:
+        ps.append((d["slug"], d["title"], f"{d['title']} ({d['year']}) – {d['status']} de la Cie Origami.", (lambda d=d: page_souvenir(d)), d["hero"]))
     return ps
 
 
 def active_for(slug):
+    if slug in {d["slug"] for d in SOUVENIRS}:
+        return "quisommesnous"
     return "spectacles" if slug in SHOW_BY_SLUG else slug
 
 

@@ -24,6 +24,7 @@ VERSIONS = [
     ("psyche", "Surprise · Psyché"),
     ("wix", "Copie du Wix · oct. 2026"),
     ("wixengrenages", "Engrenages · typos du Wix · oct. 2026"),
+    ("wixtyposengrenages", "Copie du Wix · typos Engrenages · oct. 2026"),
 ]
 DEFAULT = VERSIONS[0][0]
 
