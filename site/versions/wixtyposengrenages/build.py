@@ -219,6 +219,8 @@ BLOCKS = [
 ]
 
 EYE_SVG = '<svg class="h-eye" viewBox="20 39.5 160 121" aria-hidden="true"><path fill="#FFE0D9" d="M176 100.6l.3-.6C160.1 64.8 131 42.9 100 42.9S39.9 64.8 23.8 100l.3.6c.1.1.1.2.2.3 16.2 34.7 45 56.1 75.8 56.1 30.8 0 59.6-21.4 75.8-56.1 0-.1 0-.2.1-.3z"/><path fill="#041354" d="M100.3 135.1c19.4 0 35.1-15.8 35.1-35.1s-15.7-35.1-35.1-35.1-35.1 15.6-35.1 35 15.8 35.2 35.1 35.2zm0-63.4c15.6 0 28.2 12.7 28.2 28.3s-12.7 28.3-28.2 28.3-28.2-12.7-28.2-28.3c0-15.7 12.7-28.3 28.2-28.3z"/><path fill="#041354" d="M179.8 100.3c.1-.1.1-.2.2-.3-16-36.2-45.8-60.5-80-60.5S36 63.8 20 100c.1.1.1.2.2.3-.1.1-.1.2-.2.3.4.7.8 1.3 1.2 1.9 16.3 34.8 45.5 58 78.8 58s62.6-23.2 78.8-58c.4-.6.8-1.3 1.2-1.9-.1-.1-.1-.2-.2-.3zM57.4 61.6C70.3 51.7 85 46.4 100 46.4s29.7 5.3 42.6 15.3c3.8 2.9 7.3 6.2 10.7 9.8-15.1-10.7-33.5-16.9-53.3-16.9s-38.3 6.3-53.3 16.9c3.4-3.7 6.9-7 10.7-9.9zm84.9 38.3c0 23.2-18.8 42-42 42s-42-18.8-42-42 18.8-42 42-42 42 18.8 42 42zm-114.2.7c8.3-12.8 19.8-23.1 33.1-29.9-6.3 8.4-9.7 18.7-9.7 29.2 0 12 4.3 22.9 11.4 31.4-14-6.7-26.2-17.3-34.8-30.7zm114.5 37.8c-12.9 10-27.7 15.3-42.6 15.3-15 0-29.7-5.3-42.6-15.3-2.5-1.9-4.9-4-7.1-6.2 14.4 9.2 31.4 14.5 49.7 14.5s35.4-5.3 49.7-14.5c-2.2 2.2-4.6 4.2-7.1 6.2zm-4.4-7.6c6.9-8.4 11-19.2 11-30.9 0-10.3-3.2-20.3-9.2-28.6 12.8 6.8 23.9 16.8 32 29.3-8.5 13-20.2 23.4-33.8 30.2z"/><path fill="#041354" d="M100.3 114.9c4.5 0 8.6-2 11.4-5.1-3.8-.3-7.3-2.7-8.7-6.5-2.1-5.3.6-11.2 5.8-13.3.9-.4 1.9-.6 2.9-.7-2.8-3.1-6.9-5.1-11.4-5.1-8.5 0-15.3 6.9-15.3 15.3s6.9 15.4 15.3 15.4z"/><path fill="#041354" d="M108.8 95.7c-2.2.8-3.2 3.3-2.4 5.4.8 2.2 3.3 3.2 5.4 2.4 2.2-.8 3.2-3.3 2.4-5.4-.8-2.2-3.2-3.3-5.4-2.4z"/></svg>'
+# roue de monocycle 20 pouces (48 rayons, manivelles et pédales), à la place de l'œil de l'accueil
+WHEEL_SVG = '<svg class="h-eye wheel" viewBox="0 0 200 200" aria-hidden="true"><circle cx="100" cy="100" r="89" fill="none" stroke="#041354" stroke-width="12"/><circle cx="100" cy="100" r="95.5" fill="none" stroke="#FFE0D9" stroke-width="2.5"/><circle cx="100" cy="100" r="89" fill="none" stroke="#2a2f6e" stroke-width="2" stroke-dasharray="3 5"/><circle cx="100" cy="100" r="81" fill="none" stroke="#FFE0D9" stroke-width="5"/><path d="M109.0 100.0L158.0 47.8M108.9 101.2L150.7 159.3M108.7 102.3L169.5 64.6M108.3 103.4L133.6 170.4M107.8 104.5L176.3 83.8M107.1 105.5L114.2 176.7M106.4 106.4L177.9 104.1M105.5 107.1L93.9 177.8M104.5 107.8L174.2 124.1M103.4 108.3L74.0 173.5M102.3 108.7L165.4 142.5M101.2 108.9L55.8 164.3M100.0 109.0L152.2 158.0M98.8 108.9L40.7 150.7M97.7 108.7L135.4 169.5M96.6 108.3L29.6 133.6M95.5 107.8L116.2 176.3M94.5 107.1L23.3 114.2M93.6 106.4L95.9 177.9M92.9 105.5L22.2 93.9M92.2 104.5L75.9 174.2M91.7 103.4L26.5 74.0M91.3 102.3L57.5 165.4M91.1 101.2L35.7 55.8M91.0 100.0L42.0 152.2M91.1 98.8L49.3 40.7M91.3 97.7L30.5 135.4M91.7 96.6L66.4 29.6M92.2 95.5L23.7 116.2M92.9 94.5L85.8 23.3M93.6 93.6L22.1 95.9M94.5 92.9L106.1 22.2M95.5 92.2L25.8 75.9M96.6 91.7L126.0 26.5M97.7 91.3L34.6 57.5M98.8 91.1L144.2 35.7M100.0 91.0L47.8 42.0M101.2 91.1L159.3 49.3M102.3 91.3L64.6 30.5M103.4 91.7L170.4 66.4M104.5 92.2L83.8 23.7M105.5 92.9L176.7 85.8M106.4 93.6L104.1 22.1M107.1 94.5L177.8 106.1M107.8 95.5L124.1 25.8M108.3 96.6L173.5 126.0M108.7 97.7L142.5 34.6M108.9 98.8L164.3 144.2" stroke="#FFE0D9" stroke-width="1.1" stroke-linecap="round" fill="none"/><circle cx="100" cy="100" r="12" fill="#041354" stroke="#FFE0D9" stroke-width="2"/><path d="M100 100L123.0 60.2" stroke="#041354" stroke-width="9" stroke-linecap="round"/><path d="M100 100L123.0 60.2" stroke="#9781FF" stroke-width="4" stroke-linecap="round"/><g transform="translate(123.0 60.2)"><rect x="-15" y="-6" width="30" height="12" rx="2" fill="#041354" stroke="#FFE0D9" stroke-width="1.5"/><path d="M-10 -6V6M-5 -6V6M0 -6V6M5 -6V6M10 -6V6" stroke="#FFE0D9" stroke-width=".8"/><circle r="2.2" fill="#FFE0D9"/></g><path d="M100 100L77.0 139.8" stroke="#041354" stroke-width="9" stroke-linecap="round"/><path d="M100 100L77.0 139.8" stroke="#9781FF" stroke-width="4" stroke-linecap="round"/><g transform="translate(77.0 139.8)"><rect x="-15" y="-6" width="30" height="12" rx="2" fill="#041354" stroke="#FFE0D9" stroke-width="1.5"/><path d="M-10 -6V6M-5 -6V6M0 -6V6M5 -6V6M10 -6V6" stroke="#FFE0D9" stroke-width=".8"/><circle r="2.2" fill="#FFE0D9"/></g><circle cx="100" cy="100" r="4" fill="#FFE0D9"/></svg>'
 STAR_O = '<svg class="h-star-svg" viewBox="20 20 160 160" aria-hidden="true"><path fill="#fff" d="M20 100.002c41.21 6.266 54.993 20.886 54.993 20.886C92.289 135.827 99.952 180 99.952 180h.097s7.896-44.037 24.958-59.111c0 0 13.783-14.62 54.993-20.886v-.005c-41.21-6.266-54.993-20.886-54.993-20.886C107.944 64.037 100.048 20 100.048 20h-.097s-7.663 44.173-24.958 59.111c0 0-13.783 14.62-54.993 20.886"/></svg>'
 
 
@@ -258,6 +260,15 @@ def gal_track(ids, title):
     return "".join(cols)
 
 
+# fonds vidéo de l'accueil Wix (vidéos d'ambiance floues, en boucle)
+BG_HERO, BG_TITLE, BG_BLOCK = "11062b_9031f0ce7e144b5594038c613aebc40c", "11062b_d10ac8acd118411e90414446d5069f3c", "11062b_cfe484aa19ac4d1f88f1dd673053d7eb"
+
+
+def bgvid(vid):
+    return (f'<video class="bgvid" autoplay muted loop playsinline preload="auto" poster="{video(vid)[:-4]}.jpg" aria-hidden="true">'
+            f'<source src="{video(vid)}" type="video/mp4"></video>')
+
+
 def page_index():
     items = "".join(f'<li><a href="{href(sl)}">{E(SHOW_BY_SLUG[sl]["title"])}</a></li>' for sl in HOME_ORDER)
     nxt = upcoming()
@@ -265,19 +276,19 @@ def page_index():
     if nxt:
         iso, label, place, sh = nxt[0]
         nxt_html = f'<a class="h-next" href="agenda.html"><span class="h-next-tag">Prochaine date</span><span class="h-next-txt">{E(label)} · {E(sh["title"])} · {E(place)}</span></a>'
-    hero = f"""<section class="h-hero"><span class="h-hero-bg" aria-hidden="true"></span>
+    hero = f"""<section class="h-hero"><span class="h-hero-bg" aria-hidden="true">{bgvid(BG_HERO)}</span>
 {dv("tl", "#ED11FF", 20, .17, True)}{dv("br", "#ED11FF", 304, .17, True)}
 <div class="stage">
 <div class="h-frame f1"><h1 class="h-ft">Bienvenue dans l'univers<br>de la cie Origami</h1>
 <p>Depuis 2018, la Cie Origami tisse des spectacles aux formes multiples, nés d’une passion commune : celle de créer, de raconter, de surprendre.</p>
 <p>Chaque projet réunit des artistes de cirque aux univers singuliers, pour donner vie à des œuvres tantôt drôles, tantôt poétiques, toujours sensibles. La compagnie s’adresse à tous les publics ( petits, grands ou avertis ) avec le désir d’offrir des instants forts et partagés. Aujourd’hui, de nouveaux projets prennent forme… Ils sont à découvrir juste ici !</p></div>
-<div class="h-frame f2"><h2 class="h-ft">Nos projets en un coup d'œil</h2>{EYE_SVG}<ul class="h-bullets">{items}</ul></div>
+<div class="h-frame f2"><h2 class="h-ft">Nos projets en un coup d'œil</h2>{WHEEL_SVG}<ul class="h-bullets">{items}</ul></div>
 {nxt_html}</div></section>"""
     out = hero
     for B in BLOCKS:
         sh = SHOW_BY_SLUG[B["slug"]]
         tdv = "".join(dv(k, c, h, o) for k, c, h, o in B["title_dv"])
-        out += f'<section class="h-title" style="--sh:{B["title_h"]}"><span class="h-title-bg" aria-hidden="true"></span>{tdv}<div class="stage"><h2>{E(sh["title"])}</h2></div></section>'
+        out += f'<section class="h-title" style="--sh:{B["title_h"]}"><span class="h-title-bg" aria-hidden="true">{bgvid(BG_TITLE)}</span>{tdv}<div class="stage"><h2>{E(sh["title"])}</h2></div></section>'
         bdv = "".join(dv(k, c, h, o) for k, c, h, o in B["dvs"])
         side = ""
         if B["left"]:
@@ -291,13 +302,13 @@ def page_index():
             px, pw, pl, ph = B["pill"]
             ext = ' rel="noopener"' if ph.startswith("http") else ""
             pill = f'<a class="h-pill" href="{ph}"{ext} style="--dx:{px - B["tx"]};--w:{pw}">{E(pl)}</a>'
-        out += f"""<section class="h-block" style="--sh:{B['h']}"><span class="h-block-bg" aria-hidden="true"></span>{bdv}<div class="stage">{side}{tag}
+        out += f"""<section class="h-block" style="--sh:{B['h']}"><span class="h-block-bg" aria-hidden="true">{bgvid(BG_BLOCK)}</span>{bdv}<div class="stage">{side}{tag}
 <div class="h-txt" style="--x:{B['tx']};--w:{B['tw']};--y:{B['ty']}"><h3 style="--fs:{B['subsize']}">{E(B['sub'])}</h3><p class="h-by">{E(B['by'])}</p>{paras}{pill}</div></div></section>"""
         wm, wh, wdv = B["wide"]
         out += f'<section class="h-wide" style="--sh:{wh}"><div class="h-wide-img">{media(wm, sh["title"], 1920)}</div>{"".join(dv(k, c, h, o, sf) for k, c, h, o, sf in wdv)}</section>'
         if B["gal"]:
             gh, gids, gx, gb = B["gal"]
-            out += f"""<section class="h-gal" style="--sh:{gh}"><span class="h-gal-bg" aria-hidden="true"></span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", gb, 1)}
+            out += f"""<section class="h-gal" style="--sh:{gh}"><span class="h-gal-bg" aria-hidden="true">{bgvid(BG_BLOCK)}</span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", gb, 1)}
 <div class="h-gal-wrap"><button class="g-arrow prev" type="button" aria-label="Photos précédentes">‹</button><div class="h-gal-track" style="--gx:{gx}">{gal_track(gids, sh['title'])}</div><button class="g-arrow next" type="button" aria-label="Photos suivantes">›</button></div></section>"""
         if B["star_op"] is not None:
             out += f'<section class="h-starband">{dv("bl", "#ED11FF", 76, B["star_op"])}<div class="stage">{STAR_O}</div></section>'
@@ -316,7 +327,40 @@ def page_spectacles():
 <section class="bg-violet slant-top band"><div class="wrap"><h2 class="sec-title">Anciens spectacles</h2><div class="cards">{''.join(card(s) for s in archive)}</div></div></section></main>"""
 
 
+def page_seum(s):
+    """Des pâtes au seum : contenu repris du dossier de création (couverture papier avec le titre dessiné, intention, étapes, duo), mise en page du Wix."""
+    d = s["dossier"]
+    ph = d["photos"]
+    body = "".join(f"<p>{p}</p>" for p in s["body"])
+    etapes = "".join(f'<li class="date"><span class="d-when">{E(t)}</span><p class="d-place">{E(x)}</p></li>' for t, x in d["etapes"])
+    duo = "".join(f"<p>{E(p)}</p>" for p in d["duo"])
+    gal_ids = [ph[0], ph[4], ph[5], ph[7], ph[8], ph[9], ph[10]] + s["gallery"]
+    up = [x for x in s["dates"] if x[0] >= TODAY][::-1]
+    dates = f'<ul class="dates">{"".join(date_row(*x) for x in up)}</ul>' if up else '<p class="muted">Pas de nouvelle date annoncée pour le moment.</p>'
+    return f"""<main class="seum">
+<section class="sm-cover"><div class="wrap sm-cover-in"><div class="sm-l"><a class="back" href="spectacles.html">← Spectacles</a>
+<h1 class="sm-titre"><span class="sr">{E(s['title'])}</span><img src="dessins/seum-titre.png" alt="" width="1288" height="451"></h1>
+<img class="oursin" src="dessins/seum-oursin.png" alt="" width="522" height="460"></div>
+<div class="sm-r"><p class="sm-pres">La compagnie Origami présente</p><p class="sm-big">Des pâtes au seum</p>
+<p class="sm-pres">Un projet de création par Ella Beerli et Sévane Gurunlian</p><span class="tag">{E(s['status'])}</span>
+<div class="sm-photo">{pic(ph[1], s['title'], 1400, eager=True)}</div></div></div></section>
+<section class="bg-violet band"><div class="wrap sm-split"><div class="sm-ph">{pic(ph[3], s['title'] + " – portés", 1100)}</div>
+<div class="show-text"><h2 class="sec-title">Intention</h2>{body}</div></div></section>
+<section class="band"><div class="wrap sm-split r"><div><h2 class="sec-title">Premières étapes</h2><ul class="dates sm-etapes">{etapes}</ul></div>
+<div class="sm-ph">{pic(ph[2], s['title'] + " – équilibre", 1100)}</div></div></section>
+<section class="bg-violet band"><div class="wrap"><h2 class="sec-title">Le duo</h2><div class="sm-split"><div class="show-text"><p class="sm-enbref">En bref !</p>{duo}</div>
+<div class="sm-ph">{pic(ph[6], "Ella Beerli et Sévane Gurunlian", 1400)}</div></div></div></section>
+<section class="band"><div class="wrap"><h2 class="sec-title">Photos</h2><div class="gallery">{gallery(gal_ids, s['title'])}</div></div></section>
+<section class="band"><div class="wrap links">
+<div><h2>Équipe</h2><p class="credits-txt">{E(s['credits'])}</p></div>
+<div><h2>Pour accueillir ce spectacle</h2><a class="pill" href="contact.html">Dossier sur demande</a><p>{SITE['email']} · {SITE['phone']}</p></div>
+</div></section>
+<section class="bg-grey band dates-sec"><div class="wrap narrow"><h2>Dates</h2>{dates}</div></section></main>"""
+
+
 def page_show(s):
+    if s.get("dossier"):
+        return page_seum(s)
     if s["slug"] == "la-petite-fille-dans-la-poubelle":
         return page_lpfdlp(s)
     body = "".join(f"<p>{p}</p>" for p in s["body"])
@@ -640,8 +684,12 @@ SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button" 
  var hd=document.querySelectorAll('.site-head');function hs(){var on=scrollY>60;hd.forEach(function(h){h.classList.toggle('scrolled',on)})}addEventListener('scroll',hs,{passive:true});hs();
  /* œil et étoiles : un tour complet (-180° → +180°) et réduction à 70 % pendant la traversée de l'écran, comme sur le site original */
  var spinReduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
- function spin(){if(spinReduce)return;var h=innerHeight;document.querySelectorAll('.h-eye,.h-star-svg,.star svg,.q-star').forEach(function(el){if(!el.getClientRects().length)return;var r=el.getBoundingClientRect();var p=(h-r.top)/(h+r.height);p=Math.max(0,Math.min(1,p));el.style.setProperty('--rot',(-180+360*p).toFixed(1)+'deg');el.style.setProperty('--sc',(1-0.3*p).toFixed(3));});}
+ function spin(){if(spinReduce)return;var h=innerHeight;document.querySelectorAll('.h-eye:not(.wheel),.h-star-svg,.star svg,.q-star').forEach(function(el){if(!el.getClientRects().length)return;var r=el.getBoundingClientRect();var p=(h-r.top)/(h+r.height);p=Math.max(0,Math.min(1,p));el.style.setProperty('--rot',(-180+360*p).toFixed(1)+'deg');el.style.setProperty('--sc',(1-0.3*p).toFixed(3));});}
  var spinTick=false;addEventListener('scroll',function(){if(!spinTick){spinTick=true;requestAnimationFrame(function(){spinTick=false;spin();});}},{passive:true});addEventListener('resize',spin);addEventListener('hashchange',function(){setTimeout(spin,60)});spin();
+ /* roue de monocycle : tourne avec le défilement et s'arrête progressivement (inertie) */
+ var wh=document.querySelectorAll('.h-eye.wheel'),wa=0,wv=0,wy=scrollY,wrun=false;
+ function wstep(){wa+=wv;wv*=0.95;wh.forEach(function(w){w.style.setProperty('--rot',wa.toFixed(2)+'deg')});if(Math.abs(wv)>0.03){requestAnimationFrame(wstep)}else{wrun=false}}
+ if(wh.length&&!spinReduce)addEventListener('scroll',function(){var d=scrollY-wy;wy=scrollY;wv=Math.max(-25,Math.min(25,wv+d*0.07));if(!wrun){wrun=true;requestAnimationFrame(wstep)}},{passive:true});
  /* effets : apparitions au défilement + parallaxe (inspirés du site original) */
  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
  if(!reduce&&'IntersectionObserver' in window){
@@ -699,6 +747,7 @@ def build():
     os.makedirs(DIST)
     shutil.copy(os.path.join(HERE, "style.css"), DIST)
     shutil.copy(os.path.join(ROOT, "logo.svg"), DIST)
+    shutil.copytree(os.path.join(ROOT, "versions", "croquis", "dessins"), os.path.join(DIST, "dessins"))  # dessins du dossier (Des pâtes au seum)
     with open(os.path.join(DIST, "favicon.svg"), "w") as f:
         f.write('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="6" fill="#281467"/><path d="M20 5C21 14 26 19 35 20C26 21 21 26 20 35C19 26 14 21 5 20C14 19 19 14 20 5Z" fill="#fff"/></svg>')
     script = SCRIPT.replace("%PREVIEW%", "")
