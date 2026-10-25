@@ -1,24 +1,34 @@
 # -*- coding: utf-8 -*-
-"""Génère la version « Wix × textes Engrenages » de la Cie Origami (oct. 2026) :
-le visuel et les typos de la copie du Wix, avec les textes de la version Engrenages au crayon.
+"""Génère le site statique de la Cie Origami (direction « Engrenages », octobre 2026),
+avec les typos du site Wix (Amatic SC, Barlow, Bodoni Moda) : seules les polices changent.
 
-    python3 build.py            -> dossier dist/ (le site à mettre en ligne)
-    python3 build.py --preview  -> aussi preview.html (tout le site en une page, pour l'aperçu)
+    python3 build.py   -> dossier dist/ (le site à mettre en ligne)
 
-Photos, vidéos et PDF : servis depuis le site (voir medias.py à la racine de site/).
+De vieux engrenages dessinés au crayon, qui tournent quand la page défile.
+Tous les mécanismes sont du dessin géométrique calculé ici (aucune image) :
+les roues engrenées ont le même pas, tournent en sens inverse, et leur vitesse
+dépend du nombre de dents (même vitesse au cercle primitif partout sur le site).
+
+Les textes et données sont dans content.py, le design dans style.css.
 """
-import base64, html, os, re, shutil, sys, datetime
+import html, os, re, shutil, sys, datetime, math, random
 
 TODAY = datetime.date.today().isoformat()
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))  # dossier site/ : content.py et logo.svg communs
 sys.path.insert(0, ROOT)
-from content import SITE, SHOWS, ARTISTS, HISTORY, COMMITTEE, COLLABS, SUPPORTERS, PARTNER_LOGOS, REDIRECTS
+from content import SITE, SHOWS, ARTISTS, HISTORY, COMMITTEE, COLLABS, SUPPORTERS, REDIRECTS
 from medias import photo, video
 DIST = os.path.join(HERE, "dist")
 E = html.escape
-FONTS = "https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Barlow:ital,wght@0,200;0,300;0,400;0,500;0,600;0,700;1,200;1,300;1,400&family=Bodoni+Moda:ital,wght@0,400;1,400&family=Chelsea+Market&family=Inknut+Antiqua:wght@400&display=swap"
-LOGO_SRC = "logo.svg"  # logo original (vectoriel), remplacé par une data: URI dans l'aperçu
+FONTS = ("https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Barlow:ital,wght@0,200;0,300;0,400;0,500;1,300"
+         "&family=Bodoni+Moda:ital,wght@0,400;1,400&display=swap")
+
+_LOGO = open(os.path.join(ROOT, "logo.svg")).read()
+LOGO_SVG = re.sub(r'fill="#[0-9A-Fa-f]+"', 'fill="currentColor" role="img" aria-label="Compagnie Origami"', _LOGO, count=1)
+
+# vitesse commune au cercle primitif : px de denture parcourus par px défilé
+V = 0.17
 
 
 def img(mid, w=1400):
@@ -29,9 +39,12 @@ def pic(mid, alt, w=1400, eager=False):
     return f'<img src="{img(mid, w)}" alt="{E(alt)}" loading="{"eager" if eager else "lazy"}" decoding="async">'
 
 
-SHOW_BY_SLUG = {s["slug"]: s for s in SHOWS}
+def href(slug):
+    return "index.html" if slug in ("", "index") else f"{slug}.html"
 
-# Étiquettes en dégradé de l'accueil (comme sur le site original)
+
+SHOW_BY_SLUG = {s["slug"]: s for s in SHOWS}
+HOME_ORDER = ["commeunpoint", "la-petite-fille-dans-la-poubelle", "caborigamique", "edmd", "oups-vache", "des-pates-au-seum"]
 HOME_TAG = {
     "commeunpoint": "Création 2026 · Rue",
     "la-petite-fille-dans-la-poubelle": "En tournée · Rue & salle",
@@ -40,77 +53,472 @@ HOME_TAG = {
     "oups-vache": "En création jusqu'en l'an 2250",
     "des-pates-au-seum": "Création en devenir · 2027",
 }
-HOME_ORDER = ["commeunpoint", "la-petite-fille-dans-la-poubelle", "caborigamique", "edmd", "oups-vache", "des-pates-au-seum"]
-LIST_ORDER = ["commeunpoint", "edmd", "des-pates-au-seum", "la-petite-fille-dans-la-poubelle", "caborigamique", "oups-vache"]
-
-STAR = '<div class="star" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 0C21 12 28 19 40 20C28 21 21 28 20 40C19 28 12 21 0 20C12 19 19 12 20 0Z"/></svg></div>'
-EYE = '<svg class="eye" viewBox="0 0 64 64" aria-hidden="true"><path d="M4 32C12 18 22 12 32 12S52 18 60 32C52 46 42 52 32 52S12 46 4 32Z" fill="#F4E4F4" stroke="#281467" stroke-width="3"/><circle cx="32" cy="32" r="13" fill="#5A4BC8" stroke="#281467" stroke-width="3"/><circle cx="32" cy="32" r="5" fill="#fff"/><circle cx="36" cy="28" r="2.5" fill="#fff"/><path d="M8 20L4 14M18 12L16 5M32 9V2M46 12L48 5M56 20L60 14" stroke="#F4E4F4" stroke-width="3" stroke-linecap="round"/></svg>'
-
-# ---------------------------------------------------------------- layout
-
-NAV = [("spectacles", "Spectacles"), ("agenda", "Agenda"), ("quisommesnous", "Compagnie"), ("collabs", "Collaborations"), ("contact", "Contact")]
+MENU = [("spectacles", "Spectacles"), ("agenda", "Agenda"), ("quisommesnous", "Compagnie"), ("collabs", "Collaborations"), ("contact", "Contact")]
 
 
-def href(slug):
-    return "index.html" if slug in ("", "index") else f"{slug}.html"
+# ================================================================ dessin au crayon
+
+_N = [0]
 
 
-NAV_MAIN = NAV
+def nid(p):
+    _N[0] += 1
+    return f"{p}{_N[0]}"
 
 
-def header(active):
-    cur = ' aria-current="page"'
-    sub = "".join(f'<li><a href="{href(x["slug"])}">{E(x["title"])}</a></li>' for x in SHOWS if x["status"] != "Répertoire")
-    items = ""
-    for k, v in NAV_MAIN:
-        a = cur if (k == active or (k == "spectacles" and active == "spectacles")) else ""
-        if k == "spectacles":
-            items += f'<li class="has-sub"><a href="{href(k)}"{a}>{v}</a><ul class="sub">{sub}</ul></li>'
+def fm(x):
+    """Coordonnée arrondie au demi-pixel (fichiers plus légers)."""
+    v = round(x * 2) / 2
+    return str(int(v)) if v == int(v) else str(v)
+
+
+def d_of(pts, closed=False):
+    return "M" + "L".join(fm(x) + " " + fm(y) for x, y in pts) + ("Z" if closed else "")
+
+
+class Pen:
+    """Un crayon un peu tremblant (déterministe : même dessin à chaque build)."""
+
+    def __init__(self, seed):
+        self.r = random.Random(seed)
+
+    def u(self, a, b):
+        return self.r.uniform(a, b)
+
+    def wave(self, amp):
+        ph = [self.u(0, 6.3) for _ in range(3)]
+        k = [self.u(.5, 1) for _ in range(3)]
+        return lambda t: amp * (math.sin(2 * t + ph[0]) * k[0] * .55 + math.sin(3 * t + ph[1]) * k[1] * .3 + math.sin(5 * t + ph[2]) * k[2] * .15)
+
+    def circle(self, cx, cy, r, amp=.7, over=.14):
+        w = self.wave(amp)
+        n = max(18, int(r * .7))
+        a0 = self.u(0, 6.3)
+        span = 2 * math.pi * (1 + self.u(.03, over))
+        dr = self.u(-1, 1) * min(2.0, r * .05)
+        pts = []
+        for i in range(n + 1):
+            t = i / n
+            a = a0 + span * t
+            rr = r + w(a) + dr * t
+            pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
+        return d_of(pts)
+
+    def line(self, x1, y1, x2, y2, amp=.6, ext=3):
+        dx, dy = x2 - x1, y2 - y1
+        L = math.hypot(dx, dy) or 1
+        ux, uy = dx / L, dy / L
+        nx, ny = -uy, ux
+        e1, e2 = self.u(-ext * .3, ext), self.u(-ext * .3, ext)
+        n = max(2, int(L / 22))
+        pts = []
+        for i in range(n + 1):
+            t = i / n
+            off = self.u(-amp, amp)
+            x = x1 - ux * e1 + (dx + ux * (e1 + e2)) * t + nx * off
+            y = y1 - uy * e1 + (dy + uy * (e1 + e2)) * t + ny * off
+            pts.append((x, y))
+        return d_of(pts)
+
+    def hatch(self, x0, y0, x1, y1, ang, gap, amp=.4):
+        """Hachures parallèles couvrant un rectangle (à découper par clipPath) ; traits courts, 3 points."""
+        a = math.radians(ang)
+        ux, uy = math.cos(a), math.sin(a)
+        nx, ny = -uy, ux
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        hw, hh = (x1 - x0) / 2 + 1, (y1 - y0) / 2 + 1
+        reach = abs(nx) * hw + abs(ny) * hh  # demi-étendue perpendiculaire
+        out = []
+        k = -reach
+        while k <= reach:
+            px, py = cx + nx * k, cy + ny * k
+            # longueur utile du trait dans le rectangle
+            ts = []
+            if abs(ux) > 1e-6:
+                ts += [(-hw - (px - cx)) / ux, (hw - (px - cx)) / ux]
+            if abs(uy) > 1e-6:
+                ts += [(-hh - (py - cy)) / uy, (hh - (py - cy)) / uy]
+            lo = max(min(ts[0], ts[1]), min(ts[2], ts[3])) if len(ts) == 4 else min(ts)
+            hi = min(max(ts[0], ts[1]), max(ts[2], ts[3])) if len(ts) == 4 else max(ts)
+            if hi > lo:
+                lo -= 1
+                hi += 1
+                m = (lo + hi) / 2
+                o = self.u(-amp, amp)
+                out.append(d_of([(px + ux * lo, py + uy * lo), (px + ux * m + nx * o, py + uy * m + ny * o), (px + ux * hi, py + uy * hi)]))
+            k += gap * self.u(.8, 1.2)
+        return "".join(out)
+
+
+def strokes(P, d1, d2):
+    return f'<path class="s1" pathLength="1" d="{d1}"/><path class="s2" pathLength="1" d="{d2}"/>'
+
+
+def circ2(P, cx, cy, r, fill=False):
+    f = f'<path class="f" d="{P.circle(cx, cy, r, .2, 0)}"/>' if fill else ""
+    return f + strokes(P, P.circle(cx, cy, r), P.circle(cx, cy, r * 1.012 + .4, .9))
+
+
+def line2(P, x1, y1, x2, y2):
+    return strokes(P, P.line(x1, y1, x2, y2), P.line(x1 + .6, y1 + .5, x2 + .4, y2 - .5, .9))
+
+
+def gear_outline(P, z, m, amp):
+    r = m * z / 2
+    ra, rf = r + m * .95, r - 1.2 * m
+    p = 2 * math.pi / z
+    w = P.wave(amp)
+    pts = []
+    for i in range(z):
+        c = i * p
+        for rad, off in ((rf, -.5), (rf, -.3), (ra, -.15), (ra, .15), (rf, .3)):
+            a = c + off * p
+            rr = rad + w(a) + P.u(-.25, .25)
+            pts.append((rr * math.cos(a), rr * math.sin(a)))
+    return d_of(pts, True)
+
+
+def gear_body(z, m, seed, kind="spokes", crank=0):
+    P = Pen(seed)
+    r = m * z / 2
+    rf = r - 1.2 * m
+    rh = max(6.0, r * .2)
+    out = []
+    prof = gear_outline(P, z, m, .8)
+    out.append(f'<path class="s1" pathLength="1" d="{prof}"/><path class="s2" pathLength="1" d="{gear_outline(P, z, m, 1.4)}"/>')
+    if z >= 14:
+        rr = rf - .9 * m
+        if kind == "web":
+            cid = nid("c")
+            out.append(f'<clipPath id="{cid}"><circle r="{rr:.1f}"/></clipPath>')
+            out.append(f'<path class="h" clip-path="url(#{cid})" d="{P.hatch(-rr, -rr, rr, rr, 40 + P.u(-8, 8), 5.5)}"/>')
+            nh = 6 if z > 22 else 4
+            rho, hr = (rr + rh) / 2, (rr - rh) * .3
+            a0 = P.u(0, 6.3)
+            for k in range(nh):
+                a = a0 + k * 2 * math.pi / nh
+                out.append(circ2(P, rho * math.cos(a), rho * math.sin(a), hr, True))
         else:
-            items += f'<li><a href="{href(k)}"{a}>{v}</a></li>'
-    mob = "".join(f'<li><a href="{href(k)}">{v}</a></li>' for k, v in NAV)
-    return f"""<a class="pin-logo" href="index.html"><img src="{LOGO_SRC}" alt="Compagnie Origami" width="313" height="56"></a>
-<header class="site-head"><div class="head-in">
-<nav class="nav-box" aria-label="Navigation principale"><ul>{items}</ul></nav>
-<details class="menu"><summary aria-label="Menu"><span></span><span></span><span></span></summary><nav><ul>{mob}</ul></nav></details>
-</div></header>"""
+            ns = 4 if z < 24 else 6
+            o = max(2.4, m * .55)
+            a0 = P.u(0, 6.3)
+            for k in range(ns):
+                a = a0 + k * 2 * math.pi / ns
+                ca, sa = math.cos(a), math.sin(a)
+                for s in (-1, 1):
+                    x1, y1 = (rh + 1) * ca - s * o * sa, (rh + 1) * sa + s * o * ca
+                    x2, y2 = (rr - 1) * ca - s * o * sa, (rr - 1) * sa + s * o * ca
+                    out.append(line2(P, x1, y1, x2, y2))
+        out.append(strokes(P, P.circle(0, 0, rr), P.circle(0, 0, rr + 1.2, 1)))
+    else:
+        out.append(f'<path class="s2" pathLength="1" d="{P.circle(0, 0, rf - .7 * m, .5)}"/>')
+    if crank:
+        a = 0
+        o = max(3.0, rh * .45)
+        out.append(line2(P, rh * .8, -o, crank, -o * .6))
+        out.append(line2(P, rh * .8, o, crank, o * .6))
+        out.append(circ2(P, crank, 0, 8, True))
+        out.append(f'<path class="s1" pathLength="1" d="{P.circle(crank, 0, 2.6, .3)}"/>')
+    hid = nid("c")
+    out.append(circ2(P, 0, 0, rh, True))
+    out.append(f'<clipPath id="{hid}"><circle r="{rh:.1f}"/></clipPath>')
+    out.append(f'<path class="h" clip-path="url(#{hid})" d="{P.hatch(-rh, -rh, rh, rh, -45, 2.6, .2)} {P.hatch(-rh, -rh, rh, rh, 45, 3.4, .2)}"/>')
+    out.append(circ2(P, 0, 0, rh * .45, True))
+    return prof, "".join(out)
 
 
-FB_ICON = '<svg viewBox="0 0 33 33" aria-hidden="true"><circle cx="16.5" cy="16.5" r="16.5" fill="#fff"/><path d="M18.2 26v-8.2h2.8l.4-3.2h-3.2v-2c0-.9.3-1.6 1.6-1.6h1.7V8.1c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2.4H12v3.2h2.8V26h3.4z" fill="#000"/></svg>'
-IG_ICON = '<svg viewBox="0 0 33 33" aria-hidden="true"><circle cx="16.5" cy="16.5" r="16.5" fill="#fff"/><rect x="9.5" y="9.5" width="14" height="14" rx="4" fill="none" stroke="#000" stroke-width="1.8"/><circle cx="16.5" cy="16.5" r="3.4" fill="none" stroke="#000" stroke-width="1.8"/><circle cx="20.6" cy="12.4" r="1" fill="#000"/></svg>'
+def gear_svg(cx, cy, z, m, ph, seed, kind="spokes", tone="", crank=0, w=None, k=None):
+    r = m * z / 2
+    R = max(r + m * 1.6, crank + 12) + 4
+    attrs = f' data-w="{w:.4f}"' if w is not None else ""
+    prof, body = gear_body(z, m, seed, kind, crank)
+    style = f"left:{cx - R:.1f}px;top:{cy - R:.1f}px"
+    if k is not None:
+        style += f";--k:{k:.4f}"
+    return (f'<svg class="g {tone}"{attrs} viewBox="{-R:.1f} {-R:.1f} {2 * R:.1f} {2 * R:.1f}" width="{2 * R:.0f}" height="{2 * R:.0f}" '
+            f'style="{style}" aria-hidden="true" focusable="false"><g transform="rotate({ph:.2f})"><path class="bg" d="{prof}"/>'
+            f'<g filter="url(#crayon)">{body}</g></g></svg>')
 
 
-def footer():
-    return f"""<footer class="site-foot"><div class="foot-in">
-<p class="foot-copy">© {datetime.date.today().year} Compagnie Origami</p>
-<ul class="foot-social"><li><a href="{SITE['facebook']}" rel="noopener" aria-label="Facebook">{FB_ICON}</a></li><li><a href="{SITE['instagram']}" rel="noopener" aria-label="Instagram">{IG_ICON}</a></li></ul>
-</div></footer>"""
+class Mech:
+    """Un petit mécanisme : roues engrenées, crémaillère, bielle, ressort."""
 
+    def __init__(self, W, H, seed, cls="", live=True, label=""):
+        self.W, self.H, self.cls, self.live, self.label = W, H, cls, live, label
+        self.P = Pen(seed)
+        self.seed = seed
+        self.gears = []
+        self.parts = []
+        self.static = []
+
+    def _speed(self, r, sign):
+        return sign * V / r * 180 / math.pi
+
+    def gear(self, z, m, cx=None, cy=None, after=None, ang=0, sign=1, kind="spokes", tone="", crank=0):
+        if after is not None:
+            g0 = self.gears[after]
+            d = m * (g0["z"] + z) / 2
+            t = math.radians(ang)
+            cx, cy = g0["cx"] + d * math.cos(t), g0["cy"] + d * math.sin(t)
+            u1 = ((t - math.radians(g0["ph"])) * g0["z"] / (2 * math.pi)) % 1
+            ph = math.degrees(t + math.pi - (.5 - u1) * 2 * math.pi / z)
+            w = -g0["w"] * g0["z"] / z
+        else:
+            ph = self.P.u(0, 360)
+            w = self._speed(m * z / 2, sign)
+        g = dict(z=z, m=m, cx=cx, cy=cy, ph=ph, w=w, kind=kind, tone=tone, crank=crank)
+        self.gears.append(g)
+        if after is not None:  # un axe dessiné entre les deux centres ? non : seulement le support
+            pass
+        return len(self.gears) - 1
+
+    def rack(self, y, x0, x1, m, gears):
+        """Crémaillère (ligne primitive y) ; gears = [(x, z, kind, tone)] posées dessus, tournant en sens horaire."""
+        p = math.pi * m
+        idx = []
+        for x, z, kind, tone in gears:
+            r = m * z / 2
+            frac = ((x0 - x) / p) % 1
+            g = dict(z=z, m=m, cx=x, cy=y - r, ph=90 - frac * 360 / z, w=self._speed(r, 1), kind=kind, tone=tone, crank=0)
+            self.gears.append(g)
+            idx.append(len(self.gears) - 1)
+        P = self.P
+        L, T = x0 - p, y - 1.6 * m
+        W, H = (x1 - x0) + 2 * p, 4.6 * m
+        root, tip, base = 1.25 * m + 1.6 * m, .6 * m, 3.9 * m
+        pts = []
+        k = 0
+        while True:
+            xt = p + (k + .5) * p  # local
+            if xt > W:
+                break
+            for dx, yy in ((-.5, root), (-.3, root), (-.16, tip), (.16, tip), (.3, root)):
+                pts.append((xt + dx * p + P.u(-.3, .3), yy + P.u(-.3, .3)))
+            k += 1
+        pts.append((W, root))
+        teeth = d_of(pts)
+        cid = nid("c")
+        body = (f'<path class="f" d="{teeth} L{W:.1f} {base:.1f} L0 {base:.1f}Z"/>'
+                + strokes(P, teeth, d_of([(x + .5, y_ + .6) for x, y_ in pts]))
+                + line2(P, 0, base, W, base)
+                + f'<clipPath id="{cid}"><rect x="0" y="{root + 1.5:.1f}" width="{W:.1f}" height="{base - root - 2:.1f}"/></clipPath>'
+                + f'<path class="h" clip-path="url(#{cid})" d="{P.hatch(0, root, W, base, 60, 4.5, .3)}"/>')
+        self.parts.append(f'<svg class="rk" data-v="{V}" data-p="{p:.4f}" width="{W:.0f}" height="{H:.0f}" viewBox="0 0 {W:.1f} {H:.1f}" '
+                          f'style="left:{L:.1f}px;top:{T:.1f}px" aria-hidden="true"><g filter="url(#crayon)">{body}</g></svg>')
+        return idx
+
+    def bielle(self, gi, R, L, xw):
+        """Bielle horizontale sur la roue gi (maneton à R), piston et ressort jusqu'au mur xw."""
+        g = self.gears[gi]
+        g["crank"] = R
+        cx, cy, P = g["cx"], g["cy"], self.P
+        B = 100.0
+        rod = (line2(P, 12, 8, L + 12, 9) + line2(P, 12, 16, L + 12, 15)
+               + circ2(P, 12, 12, 10, True) + circ2(P, L + 12, 12, 9, True)
+               + f'<path class="s1" pathLength="1" d="{P.circle(L + 12, 12, 3, .3)}"/>')
+        cid = nid("c")
+        pis = (f'<path class="f" d="M4 4 L58 4 L58 32 L4 32Z"/>'
+               + line2(P, 4, 4, 58, 4) + line2(P, 58, 4, 58, 32) + line2(P, 58, 32, 4, 32) + line2(P, 4, 32, 4, 4)
+               + f'<clipPath id="{cid}"><rect x="24" y="5" width="33" height="26"/></clipPath>'
+               + f'<path class="h" clip-path="url(#{cid})" d="{P.hatch(24, 4, 58, 32, -50, 3.5, .2)}"/>'
+               + circ2(P, 12, 18, 5, True))
+        zz = []
+        n = 9
+        for i in range(n + 1):
+            zz.append((B * i / n + P.u(-.8, .8), (11 if i % 2 else -11) + 12 + P.u(-.8, .8)))
+        spr = strokes(P, d_of([(0, 12)] + zz[1:-1] + [(B, 12)]), d_of([(1, 12.5)] + [(x + 1, y + .8) for x, y in zz[1:-1]] + [(B, 12.5)]))
+        # position au repos (défilement 0), recalculée par le script
+        a = math.radians(g["ph"])
+        px, py = cx + R * math.cos(a), cy + R * math.sin(a)
+        dy = cy - py
+        xs = px + math.sqrt(L * L - dy * dy)
+        th = math.degrees(math.atan2(dy, xs - px))
+        self.parts.append(
+            f'<div class="bl" data-cx="{cx:.1f}" data-cy="{cy:.1f}" data-r="{R}" data-l="{L}" data-ph="{g["ph"]:.2f}" data-cw="{g["w"]:.4f}" data-xw="{xw}" data-b="{B}">'
+            f'<svg class="rod" width="{L + 24}" height="24" viewBox="0 0 {L + 24} 24" style="transform:translate({px - 12:.1f}px,{py - 12:.1f}px) rotate({th:.2f}deg)" aria-hidden="true"><g filter="url(#crayon)">{rod}</g></svg>'
+            f'<svg class="pis" width="62" height="36" viewBox="0 0 62 36" style="transform:translate({xs - 12:.1f}px,{cy - 18:.1f}px)" aria-hidden="true"><g filter="url(#crayon)">{pis}</g></svg>'
+            f'<svg class="spr" width="{B:.0f}" height="24" viewBox="0 0 {B:.0f} 24" preserveAspectRatio="none" style="transform:translate({xs + 46:.1f}px,{cy - 12:.1f}px) scaleX({(xw - xs - 46) / B:.3f})" aria-hidden="true"><g filter="url(#crayon)">{spr}</g></svg></div>')
+        # glissière et mur, fixes
+        top, bot = cy - 21, cy + 21
+        x_lo = cx + L - R - 14
+        cid = nid("c")
+        self.static.append(line2(P, x_lo, top, xw, top) + line2(P, x_lo, bot, xw, bot)
+                           + line2(P, xw, cy - 46, xw, cy + 46)
+                           + f'<clipPath id="{cid}"><rect x="{xw}" y="{cy - 46}" width="16" height="92"/></clipPath>'
+                           + f'<path class="h" clip-path="url(#{cid})" d="{P.hatch(xw, cy - 46, xw + 16, cy + 46, -55, 4, .3)}"/>')
+
+    def support(self, gi, y_base):
+        """Petit chevalet sous l'axe d'une roue."""
+        g = self.gears[gi]
+        P = self.P
+        cx, cy = g["cx"], g["cy"]
+        self.static.append(line2(P, cx - 3, cy, cx - 22, y_base) + line2(P, cx + 3, cy, cx + 22, y_base))
+
+    def base(self, x1, x2, y):
+        P = self.P
+        cid = nid("c")
+        self.static.append(line2(P, x1, y, x2, y) + f'<clipPath id="{cid}"><rect x="{x1}" y="{y}" width="{x2 - x1}" height="9"/></clipPath>'
+                           + f'<path class="h" clip-path="url(#{cid})" d="{P.hatch(x1, y, x2, y + 9, -50, 5, .3)}"/>')
+
+    def html(self, style=""):
+        base = None
+        gs = []
+        for i, g in enumerate(self.gears):
+            if base is None:
+                base = abs(g["w"])
+            w = g["w"] if self.live else None
+            k = None if self.live else g["w"] / base
+            gs.append(gear_svg(g["cx"], g["cy"], g["z"], g["m"], g["ph"], self.seed * 31 + i, g["kind"], g["tone"], g["crank"], w, k))
+        st = ""
+        if self.static:
+            st = (f'<svg class="st" width="{self.W}" height="{self.H}" viewBox="0 0 {self.W} {self.H}" aria-hidden="true">'
+                  f'<g filter="url(#crayon)">{"".join(self.static)}</g></svg>')
+        lab = f'<span class="fig" aria-hidden="true">{E(self.label)}</span>' if self.label else ""
+        cls = self.cls + (" lv" if self.live else "")
+        return (f'<div class="mech {cls}" style="width:{self.W}px;height:{self.H}px;{style}" aria-hidden="true">'
+                f'{st}{"".join(gs)}{"".join(self.parts)}{lab}</div>')
+
+
+# ---------------------------------------------------------------- machines
+
+def machine_hero():
+    M = Mech(480, 410, 7, "hero-m", label="fig. 1")
+    a = M.gear(24, 7, 120, 290, kind="spokes")
+    b = M.gear(12, 7, after=a, ang=-60, tone="lav")
+    c = M.gear(20, 7, after=b, ang=-15, kind="web", tone="vio")
+    M.gear(10, 7, after=c, ang=-72)
+    M.bielle(a, 50, 170, 452)
+    M.support(a, 392)
+    M.base(10, 470, 392)
+    return M.html()
+
+
+def machine_title(seed):
+    """Petit train de roues pour le titre de chaque page."""
+    r = random.Random(seed)
+    M = Mech(300, 250, seed, "title-m", label=f"fig. {seed % 7 + 2}")
+    a = M.gear(18, 6, 90, 150, kind=r.choice(["spokes", "web"]))
+    b = M.gear(11, 6, after=a, ang=-35 + r.uniform(-6, 6), tone="lav")
+    c = M.gear(15, 6, after=b, ang=20 + r.uniform(-6, 6), kind="web" if r.random() < .5 else "spokes", tone="vio")
+    M.gear(8, 6, after=c, ang=-80 + r.uniform(-8, 8))
+    M.support(a, 236)
+    M.support(c, 236)
+    M.base(10, 290, 236)
+    return M.html()
+
+
+def divider(seed, cls=""):
+    """Bande entre deux sections : une crémaillère et des roues qui roulent dessus."""
+    r = random.Random(seed)
+    m = 5
+    M = Mech(1000, 190, seed, "rack-m")
+    sh = r.uniform(-25, 25)
+    on = M.rack(170, -230, 1230, m, [(35, 12, "plain", ""), (270 + sh, 20, "spokes", ""), (500 + sh * .3, 14, "web", "lav"),
+                                    (735 - sh, 24, "spokes", "vio"), (975, 16, "web", "")])
+    M.gear(9, m, after=on[2], ang=r.uniform(-130, -50))
+    M.gear(11, m, after=on[3], ang=r.uniform(-160, -135))
+    M.gear(10, m, after=on[1], ang=r.uniform(-60, -35))
+    return f'<div class="band-m {cls}" aria-hidden="true">{M.html()}</div>'
+
+
+def edge(seed, side="l"):
+    """Grande roue coupée par le bord de l'écran, avec sa petite voisine."""
+    r = random.Random(seed)
+    M = Mech(360, 420, seed, "edge-m")
+    a = M.gear(36, 8, 180, 240, kind=r.choice(["spokes", "web"]), sign=1 if side == "l" else -1)
+    ang = r.uniform(-80, -66) if side == "l" else r.uniform(-114, -100)
+    b = M.gear(13, 8, after=a, ang=ang, tone="lav")
+    M.gear(9, 8, after=b, ang=ang + (40 if side == "l" else -40))
+    return f'<div class="edge {side}" aria-hidden="true">{M.html()}</div>'
+
+
+def mini(seed, z=9, tone=""):
+    M = Mech(46, 46, seed, "mini")
+    M.gear(z, 3.2, 23, 23, tone=tone)
+    return M.html()
+
+
+def menu_cogs():
+    M = Mech(620, 620, 41, "menu-m", live=False)
+    a = M.gear(30, 15, 310, 310, kind="web")
+    M.gear(14, 13, after=a, ang=118, tone="lav")
+    return M.html()
+
+
+def loader_cogs():
+    M = Mech(250, 190, 53, "load-m", live=False)
+    a = M.gear(20, 6, 75, 95, kind="spokes")
+    b = M.gear(12, 6, after=a, ang=-8, tone="lav")
+    M.gear(8, 6, after=b, ang=60)
+    return M.html()
+
+
+DEFS = """<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute">
+<filter id="crayon" x="-6%" y="-6%" width="112%" height="112%" color-interpolation-filters="sRGB">
+<feTurbulence type="fractalNoise" baseFrequency=".05" numOctaves="2" seed="4" result="n"/>
+<feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="d"/>
+<feTurbulence type="fractalNoise" baseFrequency=".85" numOctaves="1" seed="9" result="g"/>
+<feColorMatrix in="g" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.4 0 0 0 -.45" result="gm"/>
+<feComposite in="d" in2="gm" operator="in"/>
+</filter></svg>"""
+
+
+# ---------------------------------------------------------------- gabarit
 
 def head(title, desc, path, og=None):
-    full = f"{title} | Cie Origami – Cirque" if title != SITE["name"] else "Compagnie Origami | Cirque"
+    full = "Compagnie Origami | Cirque contemporain, Genève" if title == SITE["name"] else f"{title} | Cie Origami"
     og = og or SITE["og_image"]
     return f"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{E(full)}</title><meta name="description" content="{E(desc)}">
 <link rel="canonical" href="{SITE['url']}/{path}">
-<meta property="og:type" content="website"><meta property="og:site_name" content="Cie Origami – Cirque">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Cie Origami">
 <meta property="og:title" content="{E(full)}"><meta property="og:description" content="{E(desc)}">
 <meta property="og:image" content="{photo(og, 1600, absolute=True)}"><meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#0d0b14">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<script>document.documentElement.classList.add("js");try{{if(sessionStorage.getItem("origami-vu"))document.documentElement.classList.add("seen")}}catch(e){{}}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{FONTS}"><link rel="stylesheet" href="style.css"></head><body>"""
 
 
+def header(active):
+    cur = ' aria-current="page"'
+    links = "".join(
+        f'<a href="{href(k)}" style="--i:{i}"{cur if k == active else ""}><span class="n">{i + 1}.</span>{v}</a>'
+        for i, (k, v) in enumerate(MENU))
+    shows = "".join(f'<li><a href="{href(s["slug"])}">{E(s["title"])}</a></li>' for s in SHOWS if s["status"] != "Répertoire")
+    return f"""{DEFS}<div class="loader" aria-hidden="true"><div class="ld">{loader_cogs()}<div class="ld-logo"><img src="logo.svg" alt=""></div></div></div>
+<a class="sr" href="#contenu">Aller au contenu</a>
+<header class="top"><a class="logo" href="index.html">{LOGO_SVG}</a>
+<button class="open-menu" type="button" aria-expanded="false" aria-controls="menu"><span class="cog">{mini(901, 10, "lav")}</span><span>Menu</span></button></header>
+<div class="menu" id="menu" role="dialog" aria-modal="true" aria-label="Menu"><div class="m-cogs" aria-hidden="true">{menu_cogs()}</div>
+<button class="close" type="button"><span class="x" aria-hidden="true">×</span> Fermer</button>
+<div class="menu-in"><nav class="main-links" aria-label="Rubriques">{links}</nav>
+<div class="side"><div><h2>Les spectacles</h2><ul>{shows}</ul></div>
+<div><h2>Nous écrire</h2><ul><li><a href="mailto:{SITE['email']}">{SITE['email']}</a></li><li><a href="{SITE['instagram']}" rel="noopener">Instagram</a> · <a href="{SITE['facebook']}" rel="noopener">Facebook</a></li></ul></div></div>
+</div></div><div id="contenu"></div>"""
+
+
+def footer():
+    nav = "".join(f'<a href="{href(k)}">{v}</a>' for k, v in MENU)
+    return f"""<footer class="foot">{divider(77, "foot-m")}<div class="in"><a class="flogo" href="index.html" aria-label="Accueil">{LOGO_SVG}</a><nav aria-label="Pied de page">{nav}</nav>
+<div><a href="{SITE['instagram']}" rel="noopener">Instagram</a> · <a href="{SITE['facebook']}" rel="noopener">Facebook</a><br><small>© {datetime.date.today().year} Compagnie Origami · Genève</small></div></div></footer>"""
+
+
+def sec_h(text, seed, tag="h2", cls=""):
+    c = f"sec-h {cls}".strip()
+    return f'<{tag} class="{c}">{mini(seed)}<span>{text}</span></{tag}>'
+
+
 # ---------------------------------------------------------------- blocs
 
-def meta_list(s):
-    return [x for x in (s["genre"], s["duration"], s["public"], s["venue"]) if x]
-
-
-def gallery(ids, title, limit=None):
-    ids = ids[:limit] if limit else ids
-    return "".join(f'<button class="g-item" type="button" data-full="{img(g, 1800)}">{pic(g, title + " – photo " + str(i+1), 700)}</button>' for i, g in enumerate(ids))
+def show_block(s, i, tag_text=None, h="h2"):
+    r = " r" if i % 2 else ""
+    meta = tag_text or " · ".join(x for x in (s["genre"], s["venue"], s["duration"]) if x)
+    ed = edge(300 + i, "r" if i % 2 else "l") if i % 2 == 0 or i == 3 else ""
+    return f"""<div class="show-w">{ed}<a class="show{r}" href="{href(s['slug'])}"><div class="pic frame">{pic(s['card'], s['title'], 1100)}</div>
+<div class="txt"><span class="meta">{E(meta)}</span><{h}>{E(s['title'])}</{h}><p class="teaser">{E(s['teaser'])}</p><span class="go">Découvrir <span aria-hidden="true">→</span></span></div></a></div>"""
 
 
 def all_dates():
@@ -123,273 +531,99 @@ def upcoming():
     return [r for r in all_dates() if r[0] >= TODAY][::-1]
 
 
-def date_row(iso, label, place, s=None):
-    show = f'<a class="d-show" href="{href(s["slug"])}">{E(s["title"])}</a>' if s else ""
-    return f'<li class="date"><time class="d-when" datetime="{iso}">{E(label)}</time><div><p class="d-place">{E(place)}</p>{show}</div></li>'
+def date_card(iso, label, place, s=None):
+    title = f'<b><a href="{href(s["slug"])}">{E(s["title"])}</a></b>' if s else ""
+    return f'<li class="d" data-iso="{iso}"><time class="when" datetime="{iso}">{E(label)}</time><span class="where">{title}{E(place)}</span></li>'
 
 
-def card(s):
-    return f"""<a class="card" href="{href(s['slug'])}">{pic(s['card'], s['title'], 900)}
-<div class="c-txt"><span class="tag">{E(s['status'])}</span><h3>{E(s['title'])}</h3><p>{E(s['teaser'])}</p></div></a>"""
+def date_line(iso, label, place, s=None):
+    title = f' · <a href="{href(s["slug"])}">{E(s["title"])}</a>' if s else ""
+    return f'<li><time class="when" datetime="{iso}">{E(label)}</time><span>{E(place)}{title}</span></li>'
+
+
+def dates_list(rows, empty="De nouvelles dates arrivent bientôt."):
+    items = "".join(date_card(*r) for r in rows)
+    return f'<ul class="dates">{items}</ul><p class="empty"{" hidden" if rows else ""}>{E(empty)}</p>'
+
+
+def newsletter():
+    return f"""<section class="nl" aria-labelledby="nl-t">{sec_h("Newsletter", 611, "h2", "big")}
+<p>De temps en temps, des nouvelles de nos créations et nos prochaines dates. Pas tous les deux jours, promis.</p>
+<form name="newsletter" method="POST" data-netlify="true" netlify-honeypot="bot-field">
+<input type="hidden" name="form-name" value="newsletter"><p hidden><label>Ne pas remplir <input name="bot-field"></label></p>
+<label class="sr" for="nl-mail">Ton adresse e-mail</label><input id="nl-mail" type="email" name="email" placeholder="ton adresse e-mail" required autocomplete="email">
+<button class="btn" type="submit">S'abonner</button></form></section>"""
+
+
+def title_block(h1, intro, seed, extra=""):
+    return f"""<section class="ph-title"><div class="t"><h1>{h1}</h1><p class="intro">{intro}</p>{extra}</div><div class="tm">{machine_title(seed)}</div></section>"""
 
 
 # ---------------------------------------------------------------- pages
 
-# ---------------------------------------------------------------- accueil (mesures relevées sur l'accueil original, largeur de référence 1265 px)
-
-def dv(kind, color, h, op, soft=False):
-    """Biseau en triangle, comme les « séparateurs de section » Wix.
-    kind : tl (haut-gauche), br (bas-droite), bl (bas-gauche)"""
-    if soft:
-        layers = [(h + 60, .25), (h + 40, 1/3), (h + 20, .5), (h, 1)]
-        inner = "".join(f'<i class="dv {kind}" style="--h:{hh};--o:{oo:.3f};--c:{color}"></i>' for hh, oo in layers)
-        return f'<span class="dvg" style="opacity:{op}">{inner}</span>'
-    return f'<span class="dvg" style="opacity:{op}"><i class="dv {kind}" style="--h:{h};--o:1;--c:{color}"></i></span>'
-
-
-FILES_HOME_CAB = "../fichiers/" + "4d47d3_fe143ae880844006b8f688c89b82b9b5.pdf"
-
-BLOCKS = [
-    dict(slug="commeunpoint", title_dv=[("br", "#3D9BE9", 20, .47)], title_h=96,
-         h=540, dvs=[("tl", "#9781FF", 212, .14), ("br", "#9781FF", 217, .3)],
-         tag=(95, 319, "Première le 17 mai 2026"), left=None, right=("4d47d3_110859d8bd9a4be3b6473e6fdfdaedb6~mv2.jpg", 835, 429),
-         tx=125, tw=572, ty=74, sub="Spectacle en rue", subsize=30, by="Par Ella Beerli et Julie Levrat",
-         paras=["Ella et Julie sont deux copines devenues artistes de cirque. Depuis petites, les deux rêvent du cirque avec des chapiteaux, des paillettes, du waow et des pop corn. En grandissant elles suivent des formations de cirque contemporain et apprécient raconter des histoires avec les mots et le corps, laissez la place à la sensibilité et à l’intimité créé entre les spectateurs.ices et les artistes.",
-                "Elles se retrouvent alors les deux, autour d’un café, à partager la réalité de leur rêve d’être artiste de cirque. Le spectacle n’est que la partie visible de leur art. Le quotidien, c’est aussi des entraînements, des montages, des ratés, des doutes, des fous rires, des stress, des ambitions toujours plus grandes…"],
-         pill=(516, 197, "en savoir plus", "commeunpoint.html"),
-         wide=("4d47d3_5cdf0d14077a4961b01f991d5ed284b2~mv2.jpg", 446, [("tl", "#281467", 133, .72, False), ("br", "#000000", 69, 1, False)]),
-         gal=(484, ["4d47d3_9b1dd66c824c463398f0243d13a7f170~mv2.jpg", "4d47d3_7064c3185f7a4317acdd4545694f817f~mv2.jpg", "4d47d3_54aff8fd388b49e7b3c34faba9c975ea~mv2.jpg", "4d47d3_146138bea4f64625bd13dfad3911df64~mv2.jpg", "4d47d3_50c4a4d59f3f43b694def81ab4f8d6b5~mv2.jpg", "4d47d3_5cdf0d14077a4961b01f991d5ed284b2~mv2.jpg", "4d47d3_591a784ed1b7410a84979bfbbc689e99~mv2.jpg", "4d47d3_725768fd411544058942c7e32542ccdd~mv2.jpg"], 135, 55),
-         star_op=.31),
-    dict(slug="la-petite-fille-dans-la-poubelle", title_dv=[("tl", "#9781FF", 20, .27), ("br", "#3D9BE9", 65, .15)], title_h=95,
-         h=690, dvs=[("tl", "#281467", 158, .26), ("br", "#9781FF", 252, .3)],
-         tag=None, left=("4d47d3_b5c9b051db074f408045866ec1342e33~mv2.jpg", 0, 281), right=("vid:4d47d3_984cf0258e974607b2bc0a2e35699c1b|4d47d3_984cf0258e974607b2bc0a2e35699c1bf000.jpg|50% 100%", 946, 318),
-         tx=441, tw=408, ty=58, sub="Cirque-Théâtre Surréaliste", subsize=21, by="Par Ella Beerli et Sévane Gurunlian",
-         paras=["<span class='strong'>L'histoire de Chiffon et Célestine contée façon cirque.</span>",
-                "Lui, c’est Chiffon. Il vit dans la rue. Célestine, la petite fille qui est avec lui, rêve de partir. Dans cette histoire contée façon cirque, ces deux-là se portent, s’envolent, se plient en deux, jonglent, tiennent en équilibre sur une roue. Ils évoluent dans un univers où les objets prennent vie et où le temps ne veut plus rien dire. Clownesques et punks, ils dédramatisent quelques petites cruelles réalités.",
-                "Dans cette tragédie teintée d’ironie, Chiffon et Célestine vivent hors du temps. Leur histoire semble être griffée par un punk sur du papier à dessin. Chiffon a un jour pris Célestine et l’a placée dans l’une des nombreuses poubelles de sa collection.",
-                "Dans une boucle temporelle, ils se portent, s’envolent, se plient en deux, jonglent et tiennent en équilibre."],
-         pill=(665, 155, "en savoir plus", "la-petite-fille-dans-la-poubelle.html"),
-         wide=("4d47d3_6c17a6290506436d80ac90a86d67766a~mv2.jpg", 456, [("tl", "#9781FF", 174, .19, False), ("br", "#000000", 75, 1, False)]),
-         gal=(566, ["4d47d3_efacd5ba32044c7c971ae948df4d23c0~mv2.jpg", "4d47d3_51555e1022384dbcb66b25811d15f1f2~mv2.jpg", "4d47d3_d4eea29000db4cc895354e43ee355a25~mv2.jpg", "4d47d3_efa72519cffa424baa816e2766a487bf~mv2.jpeg", "4d47d3_febb7774debd4ca0a2fcd981ebbe9c59~mv2.jpg", "4d47d3_6bfcb49348ee4ab4a1e0d2260e4bda21~mv2.jpg", "4d47d3_4eb7ca1b0a7f41e4ba2b057fd857e0d2~mv2.jpg", "4d47d3_52678f0d63094b82b531ba521561d711~mv2.jpg", "4d47d3_c30f75a407534412b7c761860516c3fa~mv2.jpg"], 25, 46),
-         star_op=.38),
-    dict(slug="caborigamique", title_dv=[("tl", "#9781FF", 20, .27), ("br", "#3D9BE9", 65, .15)], title_h=95,
-         h=747, dvs=[("tl", "#281467", 158, .26), ("br", "#9781FF", 252, .3)],
-         tag=None, left=("4d47d3_961237f0dea8435881e62aefd6b5da6e~mv2.jpg", 0, 280), right=("4d47d3_89e52ea6d1c942c0888a39b219c32a56~mv2.jpg", 946, 318),
-         tx=394, tw=427, ty=46, sub="Cabaret en rue", subsize=21, by="Par une équipe 100% Origamique",
-         paras=["<span class='strong big'>Un souffle de cirque, un grain de folie</span>",
-                "Le Cabaret Origamique, c’est un cabaret de rue… et d’ailleurs. Un moment suspendu, un assemblage délicat de numéros aux couleurs variées, comme un origami vivant déployé sous vos yeux.",
-                "Dans cet univers drôle et burlesque, les artistes partagent leurs petites histoires de scène, tissent des liens entre prouesse et poésie : jongleries, danses virevoltantes, acrobaties au sol et aériennes… et bien d'autres surprises encore.",
-                "<span class='strong'>Modulable et caméléon</span>",
-                "Ce cabaret s’adapte à tous les lieux de la petite place de village au grand espace en plein air et à tous les publics : enfants émerveillés l’après-midi, spectateurs curieux et complices lors d’un cabaret de soirée.",
-                "C’est un cirque vivant, joyeux, généreux. Un moment de rencontre, d’énergie et de rires, où l’art circassien se dévoile sous toutes ses formes."],
-         pill=(652, 190, "Infos technique et tarifs", FILES_HOME_CAB),
-         wide=("vid:4d47d3_15e461de7cd64c0d960b2db55be1136c|4d47d3_15e461de7cd64c0d960b2db55be1136cf000.jpg|50% 50%", 470, [("tl", "#9781FF", 174, .19, True), ("br", "#000000", 75, 1, True)]),
-         gal=(517, ["4d47d3_6ca6d652e105407cbfe20ff07618d290~mv2.jpg", "4d47d3_b5880f52a69c4b9abd631519ccf04d3c~mv2.jpg", "4d47d3_cca3cf8dbad340fe92529cd9b9e00595~mv2.jpg", "4d47d3_f305686a6f1f4bf49deacd2ec90ff8a0~mv2.jpg", "4d47d3_e4ec4d6cf300495bb04daa53c1f29916~mv2.jpg", "4d47d3_9159ae5406cd4e969ab8d5810c25a31e~mv2.jpg", "4d47d3_dc784fbb1c8548bfbb050cc51a35ee85~mv2.jpg", "4d47d3_3bfbbc4bc78b41b1bf66b3f6b97d4125~mv2.jpg"], 135, 55),
-         star_op=.43),
-    dict(slug="edmd", title_dv=[("br", "#3D9BE9", 20, .47)], title_h=96,
-         h=424, dvs=[("tl", "#281467", 158, .26), ("br", "#9781FF", 252, .3)],
-         tag=None, left=None, right=("4d47d3_61cc470ef1f845a8bdd6e7f9eae5e220~mv2.jpg", 855, 409),
-         tx=144, tw=548, ty=43, sub="Equilibrisme - Cirque intimiste", subsize=21, by="Une création original par Ella Beerli, équilibriste déséquilibrée.",
-         paras=["A l’aide de voix off, de diverses techniques d’équilibre, d’expressions corporelles et d’une touche de théâtralité.",
-                "Elle raconte sa relation avec cette discipline qui l’accompagne depuis son enfance. Elle se confie sur ses doutes, ses questionnements, son vécu, ses choix (...)"],
-         pill=(546, 176, "en savoir plus", "edmd.html"),
-         wide=("4d47d3_d90e5d70bd53421b94e5f34d1093fb0a~mv2.jpg", 456, [("tl", "#9781FF", 100, .19, False), ("br", "#000000", 75, 1, False)]),
-         gal=(496, ["4d47d3_a9165419f50b4f59b25d069cd3915c15~mv2.jpg", "4d47d3_6f6a2b36de3c4cfaaad28055a9f207ee~mv2.jpg", "4d47d3_a0fd4b80c2374e728258456b9a5ec8ee~mv2.jpg", "4d47d3_4a63b9830d1e44f3aeef376d6b5fd9d4~mv2.jpg", "4d47d3_e5a3af5c42f440b4bd69176509cbc5a2~mv2.jpg", "4d47d3_61cc470ef1f845a8bdd6e7f9eae5e220~mv2.jpg"], 135, 55),
-         star_op=.36),
-    dict(slug="oups-vache", title_dv=[("tl", "#9781FF", 20, .27), ("br", "#3D9BE9", 65, .15)], title_h=95,
-         h=465, dvs=[("tl", "#281467", 158, .26), ("br", "#9781FF", 252, .3)],
-         tag=(347, 280, "En création jusqu'en l'an 2250"), left=("4d47d3_f23199864ca348c98d1e40ca6511f944~mv2.jpg", 0, 261), right=("4d47d3_31190d3ef1754bbeab303dff657f28d7~mv2.jpg", 1004, 260),
-         tx=421, tw=412, ty=67, sub="Science-fiction-sonore et cirque", subsize=21, by="Une recherche par Sévane Gurunlian",
-         paras=["<span class='strong'>En deux mots</span>",
-                "En l’an 2250, Claude est commandant d’un vaisseau spatial. Cela fait dix ans qu’il est en mission, pendant que ses collègues capitaines explorent des planètes inconnues ou affrontent des créatures galactiques.. Claude, lui, travaille pour la poste intergalactique, effectuant des livraisons, isolé dans l’espace et coupé de sa planète.",
-                "Plus d'infos à venir..."],
-         pill=None,
-         wide=("4d47d3_830e4ea396e2432e98714c4f7616ea52~mv2.jpg", 456, [("tl", "#9781FF", 174, .19, True), ("br", "#000000", 75, 1, True)]),
-         gal=(485, ["4d47d3_5748ba7c10ea4e598cee212cad934d46~mv2.jpg", "4d47d3_589f3a129fdf48ab9dbe1e30bf052f3c~mv2.jpg", "4d47d3_a23d1e079630488eb8948451cc4687e8~mv2.jpg", "4d47d3_4e12b09d3ba247bba59ed0fef299abb9~mv2.jpg", "4d47d3_3fa859b8c41e406192365b41d8ef5b32~mv2.jpg", "4d47d3_475a1fee96e5494293e99aca0655fe3a~mv2.jpg", "4d47d3_830e4ea396e2432e98714c4f7616ea52~mv2.jpg"], 135, 55),
-         star_op=.35),
-    dict(slug="des-pates-au-seum", title_dv=[("tl", "#9781FF", 20, .27), ("br", "#3D9BE9", 65, .15)], title_h=95,
-         h=801, dvs=[("tl", "#281467", 158, .26), ("br", "#9781FF", 252, .3)],
-         tag=None, left=("4d47d3_b836be194f0e4334837ff1d665a57f21~mv2.jpg", 0, 261), right=("4d47d3_ad850f1c5a9d48d2af17d7d11891d568~mv2.jpg", 1004, 260),
-         tx=426, tw=412, ty=43, sub="Cirque, acrobaties et absurdités", subsize=21, by="Un projet de création par Ella Beerli et Sévane Gurunlian",
-         paras=["<span class='serif'>Création en devenir - 2027 -</span>",
-                "C’est un état qui nous traverse et qui, d’une façon à l’autre, traverse tout le monde. Une fatigue, une envie de ralentir, de ne plus répondre immédiatement. Est-ce que notre époque change simplement de visage ? Autour de nous, le monde déborde : les bruits de la ville, les écrans, les images, les injonctions permanente. Tout s’accumule. Alors il y a la flemme. Le retard. L’arrêt. La procrastination. Non pas comme un échec, mais peut-être comme un geste de survie. Une manière de se protéger lorsque le trop-plein devient trop lourd.",
-                "À travers cette nouvelle création, le duo interroge le repli sur soi, la cohabitation, l’épuisement quotidien, mais aussi la puissance poétique des micro-aventures. Un cirque poétique, parfois pour en rire, mais surtout pour raconter ce qui se joue dans l’inaction… et dans le trop-plein."],
-         pill=None,
-         wide=("4d47d3_403c14878a634a7d8c5becb8cc65d954~mv2.jpg", 568, [("tl", "#9781FF", 174, .19, True), ("br", "#000000", 75, 1, True)]),
-         gal=None, star_op=None),
-]
-
-EYE_SVG = '<svg class="h-eye" viewBox="20 39.5 160 121" aria-hidden="true"><path fill="#FFE0D9" d="M176 100.6l.3-.6C160.1 64.8 131 42.9 100 42.9S39.9 64.8 23.8 100l.3.6c.1.1.1.2.2.3 16.2 34.7 45 56.1 75.8 56.1 30.8 0 59.6-21.4 75.8-56.1 0-.1 0-.2.1-.3z"/><path fill="#041354" d="M100.3 135.1c19.4 0 35.1-15.8 35.1-35.1s-15.7-35.1-35.1-35.1-35.1 15.6-35.1 35 15.8 35.2 35.1 35.2zm0-63.4c15.6 0 28.2 12.7 28.2 28.3s-12.7 28.3-28.2 28.3-28.2-12.7-28.2-28.3c0-15.7 12.7-28.3 28.2-28.3z"/><path fill="#041354" d="M179.8 100.3c.1-.1.1-.2.2-.3-16-36.2-45.8-60.5-80-60.5S36 63.8 20 100c.1.1.1.2.2.3-.1.1-.1.2-.2.3.4.7.8 1.3 1.2 1.9 16.3 34.8 45.5 58 78.8 58s62.6-23.2 78.8-58c.4-.6.8-1.3 1.2-1.9-.1-.1-.1-.2-.2-.3zM57.4 61.6C70.3 51.7 85 46.4 100 46.4s29.7 5.3 42.6 15.3c3.8 2.9 7.3 6.2 10.7 9.8-15.1-10.7-33.5-16.9-53.3-16.9s-38.3 6.3-53.3 16.9c3.4-3.7 6.9-7 10.7-9.9zm84.9 38.3c0 23.2-18.8 42-42 42s-42-18.8-42-42 18.8-42 42-42 42 18.8 42 42zm-114.2.7c8.3-12.8 19.8-23.1 33.1-29.9-6.3 8.4-9.7 18.7-9.7 29.2 0 12 4.3 22.9 11.4 31.4-14-6.7-26.2-17.3-34.8-30.7zm114.5 37.8c-12.9 10-27.7 15.3-42.6 15.3-15 0-29.7-5.3-42.6-15.3-2.5-1.9-4.9-4-7.1-6.2 14.4 9.2 31.4 14.5 49.7 14.5s35.4-5.3 49.7-14.5c-2.2 2.2-4.6 4.2-7.1 6.2zm-4.4-7.6c6.9-8.4 11-19.2 11-30.9 0-10.3-3.2-20.3-9.2-28.6 12.8 6.8 23.9 16.8 32 29.3-8.5 13-20.2 23.4-33.8 30.2z"/><path fill="#041354" d="M100.3 114.9c4.5 0 8.6-2 11.4-5.1-3.8-.3-7.3-2.7-8.7-6.5-2.1-5.3.6-11.2 5.8-13.3.9-.4 1.9-.6 2.9-.7-2.8-3.1-6.9-5.1-11.4-5.1-8.5 0-15.3 6.9-15.3 15.3s6.9 15.4 15.3 15.4z"/><path fill="#041354" d="M108.8 95.7c-2.2.8-3.2 3.3-2.4 5.4.8 2.2 3.3 3.2 5.4 2.4 2.2-.8 3.2-3.3 2.4-5.4-.8-2.2-3.2-3.3-5.4-2.4z"/></svg>'
-STAR_O = '<svg class="h-star-svg" viewBox="20 20 160 160" aria-hidden="true"><path fill="#fff" d="M20 100.002c41.21 6.266 54.993 20.886 54.993 20.886C92.289 135.827 99.952 180 99.952 180h.097s7.896-44.037 24.958-59.111c0 0 13.783-14.62 54.993-20.886v-.005c-41.21-6.266-54.993-20.886-54.993-20.886C107.944 64.037 100.048 20 100.048 20h-.097s-7.663 44.173-24.958 59.111c0 0-13.783 14.62-54.993 20.886"/></svg>'
-
-
-def U(px):
-    return f"calc({px} * var(--u))"
-
-
-IMG_POS = {"4d47d3_b5c9b051db074f408045866ec1342e33~mv2.jpg": "0% 50%",
-           "4d47d3_110859d8bd9a4be3b6473e6fdfdaedb6~mv2.jpg": "50% 100%"}
-
-
-def media(m, alt, w=900):
-    """Photo, ou vidéo en boucle si m = "vid:ID|poster|position" (vidéos de la compagnie hébergées chez Wix)."""
-    if not m.startswith("vid:"):
-        out = pic(m, alt, w)
-        if m in IMG_POS:  # cadrage repris de l'original
-            out = out.replace("<img ", f'<img style="object-position:{IMG_POS[m]}" ', 1)
-        return out
-    vid, poster, pos = m[4:].split("|")
-    return (f'<video class="loopvid" autoplay muted loop playsinline preload="metadata" poster="{img(poster, w)}" '
-            f'style="object-position:{pos}" aria-label="{E(alt)}"><source src="{video(vid)}" type="video/mp4"></video>')
-
-
-def gal_track(ids, title):
-    # colonnes façon « collage » Wix : une haute, puis deux empilées, en alternance
-    cols, i, k = [], 0, 0
-    widths = [250, 167, 285, 253, 256, 200]
-    while i < len(ids):
-        w = widths[k % len(widths)]
-        if k % 3 == 1 and i + 1 < len(ids):
-            cells = ids[i:i + 2]; i += 2
-        else:
-            cells = ids[i:i + 1]; i += 1
-        inner = "".join(f'<button class="g-item" type="button" data-full="{img(c, 1800)}">{pic(c, title, 700)}</button>' for c in cells)
-        cols.append(f'<div class="g-col" style="--w:{w}">{inner}</div>')
-        k += 1
-    return "".join(cols)
-
-
 def page_index():
+    shows = ""
+    for i, sl in enumerate(HOME_ORDER):
+        shows += show_block(SHOW_BY_SLUG[sl], i, HOME_TAG.get(sl))
+        if i == 2:
+            shows += divider(120)
     nxt = upcoming()[:4]
-    rows = "".join(f'<li><a href="{href(sh["slug"])}"><b>{E(label)}</b> · {E(sh["title"])}<br><span>{E(place)}</span></a></li>' for iso, label, place, sh in nxt) \
-        or "<li>De nouvelles dates arrivent bientôt.</li>"
-    hero = f"""<section class="h-hero"><span class="h-hero-bg" aria-hidden="true"></span>
-{dv("tl", "#ED11FF", 20, .17, True)}{dv("br", "#ED11FF", 304, .17, True)}
-<div class="stage">
-<div class="h-frame f1"><h1 class="h-ft">Bienvenue dans l'univers<br>de la cie Origami</h1>
-<p>Depuis 2018, la Cie Origami tisse des spectacles aux formes multiples, nés d'une passion commune : celle de créer, de raconter, de surprendre.</p>
-<p>Chaque projet réunit des artistes de cirque aux univers singuliers, pour donner vie à des œuvres tantôt drôles, tantôt poétiques, toujours sensibles. La compagnie s'adresse à tous les publics (petits, grands ou avertis) avec le désir d'offrir des instants forts et partagés.</p></div>
-<div class="h-frame f2"><h2 class="h-ft">Prochaines dates</h2>{EYE_SVG}<ul class="h-bullets h-dates">{rows}</ul>
-<a class="h-all" href="agenda.html">Tout l'agenda <span aria-hidden="true">→</span></a></div>
-</div></section>"""
-    out = hero
-    for B in BLOCKS:
-        sh = SHOW_BY_SLUG[B["slug"]]
-        tdv = "".join(dv(k, c, h, o) for k, c, h, o in B["title_dv"])
-        out += f'<section class="h-title" style="--sh:{B["title_h"]}"><span class="h-title-bg" aria-hidden="true"></span>{tdv}<div class="stage"><h2>{E(sh["title"])}</h2></div></section>'
-        bdv = "".join(dv(k, c, h, o) for k, c, h, o in B["dvs"])
-        side = ""
-        if B["left"]:
-            m, x, w = B["left"]; side += f'<div class="h-img" style="--x:{x};--w:{w}">{media(m, sh["title"], 900)}</div>'
-        if B["right"]:
-            m, x, w = B["right"]; side += f'<div class="h-img" style="--x:{x};--w:{w}">{media(m, sh["title"], 900)}</div>'
-        tag = f'<span class="h-tag" style="--x:{B["tx"]};--w:{max(280, B["tw"] * .62):.0f}">{E(HOME_TAG[B["slug"]])}</span>'
-        out += f"""<section class="h-block" style="--sh:{min(B['h'], 470)}"><span class="h-block-bg" aria-hidden="true"></span>{bdv}<div class="stage">{side}{tag}
-<div class="h-txt" style="--x:{B['tx']};--w:{B['tw']};--y:{B['ty'] + 40}"><p class="h-teaser">{E(sh['teaser'])}</p>
-<a class="h-pill" href="{href(sh['slug'])}" style="--dx:0;--w:180">Découvrir →</a></div></div></section>"""
-        wm, wh, wdv = B["wide"]
-        out += f'<section class="h-wide" style="--sh:{wh}"><div class="h-wide-img">{media(wm, sh["title"], 1920)}</div>{"".join(dv(k, c, h, o, sf) for k, c, h, o, sf in wdv)}</section>'
-        if B["gal"]:
-            gh, gids, gx, gb = B["gal"]
-            out += f"""<section class="h-gal" style="--sh:{gh}"><span class="h-gal-bg" aria-hidden="true"></span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", gb, 1)}
-<div class="h-gal-wrap"><button class="g-arrow prev" type="button" aria-label="Photos précédentes">‹</button><div class="h-gal-track" style="--gx:{gx}">{gal_track(gids, sh['title'])}</div><button class="g-arrow next" type="button" aria-label="Photos suivantes">›</button></div></section>"""
-        if B["star_op"] is not None:
-            out += f'<section class="h-starband">{dv("bl", "#ED11FF", 76, B["star_op"])}<div class="stage">{STAR_O}</div></section>'
-    out += f"""<section class="h-end"><div class="h-end-img">{pic('4d47d3_67251316a3a54dba9197de01d6a0f823~mv2.jpg', 'La compagnie Origami', 1920)}</div>{dv("br", "#202020", 53, 1)}
-<div class="stage"><a class="h-end-box h-quote" href="quisommesnous.html"><span class="s1">Nous sommes nulle part et partout à la fois, autant dans la bêtise que dans la poésie. Nous sommes le problème et la solution à la fois !</span><span class="s2">Qui sommes-nous →</span></a></div></section>
-{newsletter()}"""
-    return f'<main class="home">{out}</main>'
-
-
-def newsletter():
-    return """<section class="band"><div class="wrap narrow"><form class="news" name="newsletter" method="POST" data-netlify="true" netlify-honeypot="bot-field">
-<h2 class="sec-title" style="flex-basis:100%;margin:0">Newsletter</h2><p class="small" style="flex-basis:100%;margin:0">De temps en temps, des nouvelles de nos créations et nos prochaines dates. Pas tous les deux jours, promis.</p>
-<input type="hidden" name="form-name" value="newsletter"><p hidden><label>Ne pas remplir <input name="bot-field"></label></p>
-<label class="sr" for="news-email">Ton adresse e-mail</label><input id="news-email" type="email" name="email" placeholder="ton adresse e-mail" required autocomplete="email">
-<button class="pill" type="submit">S'abonner</button><p class="form-note" hidden></p></form>
-</div></section>"""
+    return f"""<main>
+<section class="hero"><h1>Bienvenue dans l'univers<br>de la cie <i>Origami</i></h1>
+<div class="hm">{machine_hero()}</div>
+<div class="intro"><p>Depuis 2018, la Cie Origami tisse des spectacles aux formes multiples, nés d'une passion commune : celle de créer, de raconter, de surprendre.</p>
+<p>Chaque projet réunit des artistes de cirque aux univers singuliers, pour donner vie à des œuvres tantôt drôles, tantôt poétiques, toujours sensibles. La compagnie s'adresse à tous les publics (petits, grands ou avertis) avec le désir d'offrir des instants forts et partagés.</p></div></section>
+{divider(110)}
+<section aria-label="Spectacles" class="shows">{shows}</section>
+{divider(130)}
+<section class="next">{sec_h("Prochaines <i>dates</i>", 501)}{dates_list(nxt)}
+<p class="all"><a class="go" href="agenda.html">Tout l'agenda <span aria-hidden="true">→</span></a></p></section>
+<section class="cie-band"><div><blockquote>Nous sommes nulle part et partout à la fois, autant dans la bêtise que dans la poésie. Nous sommes le problème et la solution à la fois !</blockquote>
+<a class="go" href="quisommesnous.html">Qui sommes-nous <span aria-hidden="true">→</span></a></div></section>
+{newsletter()}</main>"""
 
 
 def page_spectacles():
     current = [s for s in SHOWS if s["status"] != "Répertoire"]
     archive = [s for s in SHOWS if s["status"] == "Répertoire"]
-    return f"""<main><section class="bg-hero page-top"><span class="fx" aria-hidden="true"></span><div class="wrap"><div class="frame title-frame">
-<h1 class="t-serif">Spectacles</h1><p class="intro">Cirque-théâtre, cabaret de rue, solos intimistes et créations en cours. En rue et en salle, pour tous les publics.</p></div></div></section>
-{STAR}
-<section class="band"><div class="wrap"><div class="cards">{''.join(card(s) for s in current)}</div></div></section>
-<section class="bg-violet slant-top band"><div class="wrap"><h2 class="sec-title">Le répertoire</h2><div class="cards">{''.join(card(s) for s in archive)}</div></div></section></main>"""
+    blocks = "".join(show_block(s, i, f"{s['status']} · {s['genre']}") for i, s in enumerate(current))
+    rep = "".join(f"""<a href="{href(s['slug'])}"><div class="pic frame">{pic(s['card'], s['title'], 800)}</div><h3>{E(s['title'])}</h3><p>{E(s['teaser'])}</p></a>""" for s in archive)
+    return f"""<main>{title_block("Spec<i>tacles</i>", "Cirque-théâtre, cabaret de rue, solos intimistes et créations en cours. En rue et en salle, pour tous les publics.", 11)}
+<section class="shows">{blocks}</section>{divider(140)}
+<section class="wrap">{sec_h("Le <i>répertoire</i>", 502)}</section><div class="rep">{rep}</div></main>"""
 
 
 def page_show(s):
-    if s["slug"] == "la-petite-fille-dans-la-poubelle":
-        return page_lpfdlp(s)
     body = "".join(f"<p>{p}</p>" for p in s["body"])
-    meta = "".join(f"<span>{E(m)}</span>" for m in meta_list(s))
-    sub = f'<p class="subtitle">{E(s["subtitle"])}</p>' if s.get("subtitle") else ""
-    quote = f'<blockquote class="show-quote"><p>« {E(s["quote"])} »</p></blockquote>' if s["quote"] else ""
-    pills = "".join(f'<a class="pill" href="{u}" rel="noopener">{E(l)}</a>' for l, u in s["links"]) or '<a class="pill" href="contact.html">Dossier sur demande</a>'
+    meta = " · ".join(x for x in (s["genre"], s["duration"], s["public"], s["venue"]) if x)
+    sub = f'<p class="sub">{E(s["subtitle"])}</p>' if s.get("subtitle") else ""
+    quote = f'<blockquote class="quote">{E(s["quote"])}</blockquote>' if s["quote"] else ""
+    links = "".join(f'<a class="btn" href="{u}" rel="noopener">{E(l)}</a>' for l, u in s["links"]) or '<a class="btn" href="contact.html">Dossier sur demande</a>'
+    video = ""
+    if s.get("vimeo"):
+        video = (f'<section class="s-video"><div class="vf frame"><iframe src="https://player.vimeo.com/video/{s["vimeo"]}?title=0&byline=0&portrait=0" '
+                 f'title="{E(s["title"])} – vidéo" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe></div></section>')
     gal = ""
-    if len(s["gallery"]) >= 3:  # en dessous de 3 photos, pas de galerie
-        gal = f"""<section class="h-gal show-gal" style="--sh:484"><span class="h-gal-bg" aria-hidden="true"></span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", 55, 1)}
-<div class="h-gal-wrap"><button class="g-arrow prev" type="button" aria-label="Photos précédentes">‹</button><div class="h-gal-track" style="--gx:135">{gal_track(s["gallery"], s["title"])}</div><button class="g-arrow next" type="button" aria-label="Photos suivantes">›</button></div></section>"""
+    photos = [g for g in s["gallery"] if g not in (s["hero"],)]
+    if len(photos) >= 2:
+        items = "".join(f'<button type="button" class="frame" data-full="{img(g, 1800)}">{pic(g, s["title"] + " – photo " + str(i + 1), 700)}</button>' for i, g in enumerate(photos))
+        gal = f'<section aria-label="Photos"><div class="gal">{items}</div></section>'
     dates = ""
     if s["dates"]:
         up = [d for d in s["dates"] if d[0] >= TODAY][::-1]
         past = [d for d in s["dates"] if d[0] < TODAY]
-        u = f'<ul class="dates">{"".join(date_row(*d) for d in up)}</ul>' if up else '<p class="muted">Pas de nouvelle date annoncée pour le moment.</p>'
-        p = f'<details class="past"><summary>Dates passées ({len(past)})</summary><ul class="dates">{"".join(date_row(*d) for d in past)}</ul></details>' if past else ""
-        dates = f'<section class="bg-grey band dates-sec"><div class="wrap narrow"><h2>Dates</h2>{u}{p}</div></section>'
-    video = ""
-    if s.get("vimeo"):
-        video = (f'<section class="show-video band"><div class="wrap"><div class="vid-frame"><iframe src="https://player.vimeo.com/video/{s["vimeo"]}?title=0&byline=0&portrait=0" '
-                 f'title="{E(s["title"])} – vidéo" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe></div></div></section>')
+        p = f'<details class="past"><summary>Dates passées ({len(past)})</summary><ul class="plain">{"".join(date_line(*d) for d in past)}</ul></details>' if past else ""
+        dates = f'<section class="s-dates">{sec_h("Dates", 503)}{dates_list(up, "Pas de nouvelle date annoncée pour le moment.")}{p}</section>'
+    seed = sum(ord(c) for c in s["slug"])
     return f"""<main>
-<section class="show-hero">{pic(s['hero'], s['title'], 2000, eager=True)}<div class="wrap">
-<a class="back" href="spectacles.html">← Spectacles</a><div class="show-status"><span class="tag">{E(s['status'])}</span></div>
-<h1>{E(s['title'])}</h1>{sub}<p class="who">{E(s['by'])}</p><div class="show-meta">{meta}</div></div></section>
-<section class="bg-violet band"><div class="wrap narrow show-text justify">{body}{quote}</div></section>
-<section class="band"><div class="wrap links">
-<div><h2>Équipe</h2><p class="credits-txt">{E(s['credits'])}</p></div>
-<div><h2>Pour accueillir ce spectacle</h2><div class="pills">{pills}</div><p style="margin-top:16px"><span class="sel">{SITE['email']}</span> · <span class="sel">{SITE['phone']}</span></p></div>
-</div></section>{video}{gal}{dates}</main>"""
-
-
-def page_lpfdlp(s):
-    """Page « La Petite Fille dans la poubelle », calquée sur la page originale (mesures à 1265 px)."""
-    links = "".join(f'<a class="lp-pill" href="{u}" rel="noopener">{E(l)}</a>' for l, u in s["links"])
-    rows = "".join(
-        f'<li><span class="lp-d">{E(label)}</span><span class="lp-p">{E(place)}</span><span class="lp-s">{E(s["title"])}</span></li>'
-        for iso, label, place in sorted(s["dates"], key=lambda d: d[0], reverse=True))
-    gal = ""
-    if len(s["gallery"]) >= 3:
-        gal = (f'<section class="h-gal show-gal" style="--sh:484"><span class="h-gal-bg" aria-hidden="true"></span>{dv("tl", "#000000", 20, 1)}{dv("br", "#000000", 46, 1)}'
-               f'<div class="h-gal-wrap"><button class="g-arrow prev" type="button" aria-label="Photos précédentes">‹</button>'
-               f'<div class="h-gal-track" style="--gx:25">{gal_track(s["gallery"], s["title"])}</div>'
-               f'<button class="g-arrow next" type="button" aria-label="Photos suivantes">›</button></div></section>')
-    video = ""
-    if s.get("vimeo"):
-        video = (f'<div class="vid-frame lp-vid"><iframe src="https://player.vimeo.com/video/{s["vimeo"]}?title=0&byline=0&portrait=0&muted=1&autoplay=1&loop=1&autopause=0" '
-                 f'title="{E(s["title"])} – vidéo" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe></div>')
-    return f"""<main class="lp">
-<section class="lp-hero">
-<div class="lp-band">{pic('4d47d3_36788ab45c464ded9cb6ae8cb0466559~mv2.png', '', 1920, eager=True)}
-<div class="stage"><div class="lp-head">
-<h1 class="lp-title">{pic('4d47d3_ddc40d606c49441781b711ed0234173b~mv2.png', s['title'], 800, eager=True)}</h1>
-<p class="lp-by">{E(s['by'])}</p><p class="lp-meta">Cirque - Théâtre - 60 minutes - Tout public</p><p class="lp-meta">Rue - Salle de spectacle</p>
-</div></div></div>
-<div class="lp-violet"><div class="stage"><div class="lp-txt">{"".join(f"<p>{p}</p>" for p in s["body"][:2])}</div></div></div>
-</section>
-<section class="lp-photo"><div class="lp-photo-img">{pic(s['hero'], s['title'], 1920)}</div></section>
-<section class="lp-violet lp-quote"><div class="stage"><div class="lp-txt"><p>« {E(s['quote'])} »</p><p>60 minutes - Tout public</p></div></div></section>
-<section class="lp-stage-bg"><div class="lp-floor">{pic('4d47d3_f39046547ee4472f8a66460ef05ea9b7~mv2.png', '', 1920)}</div>
-<div class="stage lp-vidwrap">{video}</div>
-<div class="lp-credits"><div class="stage"><p>{E(s['credits'])}</p></div></div>
-<div class="lp-links"><div class="lp-links-img">{pic('4d47d3_f8aeb7972e2f41c28bdc35ba4c959def~mv2.jpg', '', 1920)}</div>
-<div class="stage"><h2>Pour accueillir ce spectacle</h2><div class="lp-pills">{links}</div></div></div>
-</section>
-{gal}
-<section class="lp-dates"><div class="stage"><h2>Dates</h2><ul class="lp-list">{rows}</ul></div>{dv("br", "#202020", 400, 1)}</section>
-</main>"""
+<section class="s-hero">{pic(s['hero'], s['title'], 2000, eager=True)}<div class="wrap">
+<a class="back" href="spectacles.html">← Spectacles</a><br><span class="status">{E(s['status'])}</span>
+<h1>{E(s['title'])}</h1>{sub}<p class="by">{E(s['by'])}</p><p class="meta">{E(meta)}</p></div></section>
+{divider(seed)}
+<section class="s-body">{edge(seed + 3, "r")}<div class="txt">{body}</div></section>{quote}{video}{gal}
+<section class="s-info"><div><h2>Équipe</h2><p>{E(s['credits'])}</p></div>
+<div><h2>Pour accueillir ce spectacle</h2><div class="links">{links}</div><p style="margin-top:16px"><a href="mailto:{SITE['email']}">{SITE['email']}</a> · {SITE['phone']}</p></div></section>
+{dates}</main>"""
 
 
 def page_agenda():
@@ -398,245 +632,233 @@ def page_agenda():
     by_year = {}
     for r in past:
         by_year.setdefault(r[0][:4], []).append(r)
-    past_html = "".join(f'<h3 class="year">{y}</h3><ul class="dates">{"".join(date_row(*r) for r in rows)}</ul>' for y, rows in by_year.items())
-    up_html = f'<ul class="dates">{"".join(date_row(*r) for r in up)}</ul>' if up else '<p class="muted">De nouvelles dates arrivent bientôt.</p>'
-    return f"""<main><section class="bg-hero page-top"><span class="fx" aria-hidden="true"></span><div class="wrap"><div class="frame title-frame">
-<h1 class="t-serif">Agenda</h1><p class="intro">Toutes les dates de tous nos spectacles. Depuis 2021, en Suisse, en France et jusqu'en Argentine.</p></div></div></section>
-{STAR}
-<section class="band"><div class="wrap narrow"><h2 class="sec-title">À venir</h2>{up_html}</div></section>
-<section class="bg-violet slant-top band"><div class="wrap narrow"><h2 class="sec-title">Déjà joué</h2>{past_html}</div></section></main>"""
-
-
-WAVE_D = "M1920 300v-4.067c-455.162 0-690.876-51.203-1082.65-129.288C490.044 97.423 0 100.013 0 100.013V300h1920z"
-TRI_D = "M1920 300 0 100v200h1920z"
-FLIP = {"bl": "", "br": "scale(-1,1)", "tl": "scale(1,-1)", "tr": "scale(-1,-1)"}
-
-
-def shape(kind, color, h, op, wave=True):
-    """Vague ou biseau (séparateurs Wix) : bl/br en bas, tl/tr en haut."""
-    pos = "bottom:0" if kind[0] == "b" else "top:0"
-    tf = FLIP[kind] or "none"
-    d = WAVE_D if wave else TRI_D
-    return (f'<svg class="q-shape" style="{pos};height:calc({h} * var(--u));opacity:{op};transform:{tf}" '
-            f'viewBox="0 100 1920 200" preserveAspectRatio="none" aria-hidden="true"><path fill="{color}" d="{d}"/></svg>')
-
-
-QSTAR = ('<svg class="q-star" viewBox="20 20 160 160" aria-hidden="true"><path fill="#ECECEC" d="M20 100.002c41.21 6.266 54.993 20.886 54.993 20.886'
-         'C92.289 135.827 99.952 180 99.952 180h.097s7.896-44.037 24.958-59.111c0 0 13.783-14.62 54.993-20.886v-.005c-41.21-6.266-54.993-20.886'
-         '-54.993-20.886C107.944 64.037 100.048 20 100.048 20h-.097s-7.663 44.173-24.958 59.111c0 0-13.783 14.62-54.993 20.886"/></svg>')
-
-MASKS = [
-    ("31.499 20 137.001 160.001", "M166.344 54.704c-1.805-4.794-4.774-9.353-9.025-13.403-11.189-10.658-30.812-17.352-48.765-20.236-47.41-7.615-75.151 27.098-76.986 56.126-.874 13.824 6.889 27.31 7.497 41.175.652 14.878-5.574 29.557-2.586 44.536 1.666 8.348 8.576 13.214 20.06 15.16 34.353 5.821 80.34-1.147 97.585-25.256 4.83-6.752 6.951-14.461 7.698-21.959.881-8.85-1.181-17.654-1.463-26.49-.268-8.412 2.606-16.449 5.664-24.509 3.091-8.151 3.392-16.986.321-25.144z"),
-    ("23.999 20.502 152 158.998", "M33.758 60.174c-17.32 24.757-8.751 62.067 3.819 86.859 7.773 15.332 21.838 35.886 46.141 31.984 5.526-.887 10.586-3.167 16.054-4.271 16.952-3.424 36.019 4.667 51.766-1.53 6.229-2.451 11.013-6.889 14.686-11.707 11.588-15.202 12.988-35.352 3.585-51.58-6.596-11.383-18.021-20.815-22.417-32.896-4.313-11.851-1.286-24.74-4.481-36.828-3.886-14.703-20.471-25.243-37.541-16.56-6.449 3.28-11.975 7.686-19.005 10.185-7.319 2.602-15.435 3.282-22.862 5.674-13.94 4.488-23.516 11.767-29.745 20.67z"),
-    ("29 19.5 141.999 161", "M163.48 149.089c-3.142 5.751-7.246 11.149-12.269 15.796-26.945 24.934-76.944 17.631-101.523-5.189-14.614-13.568-20.657-31.02-20.688-48.062-.031-17.043 5.55-33.842 12.254-50.216 5.594-13.664 13.12-28.229 30.105-35.891 14.06-6.342 31.878-6.624 48.493-5.541 10.31.672 20.929 1.886 29.584 5.895 8.655 4.009 14.841 11.483 12.468 18.594-1.724 5.168-7.406 9.13-11.404 13.628-8.564 9.635-9.104 22.55-1.36 32.522 7.174 9.238 21.258 16.523 21.802 27.823.479 9.915-2.082 20.794-7.462 30.641z"),
-]
-
-
-def mask_css(i):
-    vb, d = MASKS[i]
-    svg = f"<svg xmlns='http://www.w3.org/2000/svg' viewBox='{vb}' preserveAspectRatio='none'><path d='{d}'/></svg>"
-    return "url(&quot;data:image/svg+xml," + svg.replace("<", "%3C").replace(">", "%3E") + "&quot;)"
-
-
-# Mesures relevées sur la page originale (largeur de référence 1265 px, panneaux de 1105 px)
-ARTIST_LAYOUT = [
-    dict(left=True, pw=309, ph=361, px=77, tx=482, tw=369, pt=54, h=489, top="tr", bot="br"),
-    dict(left=False, pw=352, ph=368, px=494, tx=95, tw=348, pt=71, h=507, top="tl", bot="bl"),
-    dict(left=True, pw=316, ph=359, px=74, tx=495, tw=348, pt=58, h=490, top="tr", bot="bl"),
-]
-BANDS = [("4d47d3_961237f0dea8435881e62aefd6b5da6e~mv2.jpg", 349, "Le Cabaret Origamique"),
-         ("4d47d3_61cc470ef1f845a8bdd6e7f9eae5e220~mv2.jpg", 327, "L'Équilibre de mon déséquilibre"),
-         ("4d47d3_430eae21e8df4b318b5c31db64b37ba8~mv2.jpg", 331, "Oups, j'ai percuté une vache !"),
-         ("4d47d3_58de7f5a43954103890858434dcf48bc~mv2.jpg", 357, "La compagnie Origami")]
-ARROW = '<svg viewBox="0 0 200 200" aria-hidden="true"><path fill="currentColor" d="M147 77l-1.7 1.9 21.1 20H28.5v2.3h137.9L145.7 121l1.7 2 24.1-22.8L147 77z"/></svg>'
-
-
-def band(i):
-    m, h, alt = BANDS[i]
-    return f'<div class="q-band" style="--h:{h}"><div class="q-band-img">{pic(m, alt, 1400)}</div></div>'
-
-
-def artist_panel(i, a, L):
-    mk = mask_css(i)
-    photo = (f'<figure class="q-photo" style="--pw:{L["pw"]};--ph:{L["ph"]};-webkit-mask-image:{mk};mask-image:{mk}">'
-             f'{pic(a["photo"], a["name"], 800)}</figure>')
-    txt = (f'<div class="q-atxt" style="--tw:{L["tw"]}"><h3>{E(a["name"])}</h3>'
-           f'<p class="q-role">{E(a["role"])}</p><p class="q-bio">{a["bio"]}</p></div>')
-    if L["left"]:
-        inner, start, gap = photo + txt, L["px"], L["tx"] - L["px"] - L["pw"]
-    else:
-        inner, start, gap = txt + photo, L["tx"], L["px"] - L["tx"] - L["tw"]
-    cls = "q-panel q-artist" + ("" if L["left"] else " right")
-    style = f'--h:{L["h"]};--pt:{L["pt"]};--start:{start};--gap:{gap}'
-    return (f'<section class="{cls}" style="{style}">{shape(L["top"], "#9781FF", 304, .22)}'
-            f'{shape(L["bot"], "#9781FF", 142, .21)}<div class="q-in">{inner}</div></section>')
+    past_html = "".join(f'<h2 class="year">{y}</h2><ul class="plain">{"".join(date_line(*r) for r in rows)}</ul>' for y, rows in by_year.items())
+    return f"""<main>{title_block("Agen<i>da</i>", "Toutes les dates de tous nos spectacles. Depuis 2021, en Suisse, en France et jusqu'en Argentine.", 12)}
+<section class="ag">{sec_h("À <i>venir</i>", 504)}{dates_list(up)}</section>{divider(150)}
+<section class="ag">{edge(151, "l")}{sec_h("Déjà <i>joué</i>", 505)}{past_html}</section></main>"""
 
 
 def page_qui():
-    com = "".join(f"<li>{r} : {n}</li>" for r, n in COMMITTEE)
-    parts = []
-    for i, (a, L) in enumerate(zip(ARTISTS, ARTIST_LAYOUT)):
-        parts.append(artist_panel(i, a, L))
-        parts.append(band(i + 1))
-    hist_rows = ""
+    com = "".join(f"<li>{E(r)} : {E(n)}</li>" for r, n in COMMITTEE)
+    artists = "".join(f"""<section class="artist{' r' if i % 2 else ''}"><div class="portrait frame">{pic(a['photo'], a['name'], 900)}</div>
+<div><h2>{E(a['name'])}</h2><p class="role">{E(a['role'])}</p><p>{a['bio']}</p></div></section>""" for i, a in enumerate(ARTISTS))
+    hist = ""
     for y, t, sub, l in HISTORY:
-        btn = f'<a class="q-hbtn" href="{href(l)}">en savoir plus {ARROW}</a>' if l else ""
-        subp = f"<p>{E(sub)}</p>" if sub else ""
-        hist_rows += (f'<li><span class="q-year">{y}</span><span class="q-dot" aria-hidden="true"></span>'
-                      f'<div class="q-htxt"><p>{t}</p>{subp}</div>{btn}</li>')
-    s1 = QSTAR.replace("q-star", "q-star s1")
-    s2 = QSTAR.replace("q-star", "q-star s2")
-    s3 = QSTAR.replace("q-star", "q-star s3")
-    top_img = pic("4d47d3_21e1d6283d5c4a71b7a01b6c4663adac~mv2.jpg", "La compagnie Origami", 1920, eager=True)
-    return f"""<main class="qui">
-<section class="q-top">{top_img}<div class="stage">{s1}{s2}</div>{shape("br", "#9781FF", 200, .17, wave=False)}</section>
-<section class="q-title"><span class="h-hero-bg" aria-hidden="true"></span>{shape("br", "#9781FF", 90, .25, wave=False)}
-<div class="stage"><div class="q-frame"><h1>Qui sommes-nous</h1><span class="q-vline" aria-hidden="true"></span>
-<p class="q-intro">Nous sommes nulle part et partout à la fois, autant dans la bêtise que dans la poésie. Autant dans un vaisseau spatial que sur terre, à porter le monde en équilibre sur un bras.<br>Nous sommes le problème et la solution à la fois !<br>Nous sommes… nous sommes…</p></div>{s3}</div></section>
-<section class="q-body"><span class="h-hero-bg" aria-hidden="true"></span>{shape("tl", "#9781FF", 86, .26, wave=False)}
-<div class="stage q-col">
-<section class="q-panel q-cie" style="--h:603">{shape("tr", "#9781FF", 304, .09)}{shape("bl", "#9781FF", 142, .21)}<div class="q-in">
-<h2>La compagnie Origami</h2>
-<div class="q-text"><p>La Cie Origami est une compagnie de cirque contemporain née en 2018, animée par une envie de liberté artistique et de partager ses créations avec le plus grand nombre. Depuis ses débuts, la compagnie intervient autant en salle, sous chapiteau qu'en rue…</p>
+        if not l and y in SOUV_BY_YEAR:
+            l = SOUV_BY_YEAR[y]["slug"]
+        more = (" · " + E(sub)) if sub else ""
+        link = f' <a href="{href(l)}">voir →</a>' if l else ""
+        hist += f'<li><span class="y">{y}</span><span>{t}{more}{link}</span></li>'
+    return f"""<main>{title_block("Qui sommes-<i>nous</i>", "Nous sommes nulle part et partout à la fois, autant dans la bêtise que dans la poésie. Autant dans un vaisseau spatial que sur terre, à porter le monde en équilibre sur un bras. Nous sommes le problème et la solution à la fois ! Nous sommes… nous sommes…", 13)}
+<section class="cie"><div class="txt"><p>La Cie Origami est une compagnie de cirque contemporain née en 2018, animée par une envie de liberté artistique et de partager ses créations avec le plus grand nombre. Depuis ses débuts, la compagnie intervient autant en salle, sous chapiteau qu'en rue…</p>
 <p><strong>Vous faites des origamis ?</strong> Non, on crée des spectacles. C'est presque pareil, hein ! Parce que, comme l'art du pliage de papier, la création d'un spectacle transforme des idées simples en formes surprenantes. Chaque spectacle est pour nous un pliage, une construction minutieuse qui prend vie sur scène.</p>
 <p>Implantée en Suisse, la Cie Origami est structurée en association pour offrir un cadre administratif à ses projets artistiques.</p></div>
-<div class="q-com"><p>Comité de l'association</p><ul>{com}</ul></div></div></section>
-{band(0)}
-<div class="q-starrow">{QSTAR}</div>
-{"".join(parts)}
-<div class="q-starrow">{QSTAR}</div>
-<section class="q-panel q-hist">{shape("tr", "#9781FF", 304, .21)}{shape("bl", "#9781FF", 142, .21)}<div class="q-in">
-<h2 class="q-htitle">Historique</h2><ol class="q-hlist">{hist_rows}</ol></div></section>
-<div class="q-starrow last">{QSTAR}</div>
-</div></section></main>"""
+<aside><h2>Comité de l'association</h2><ul>{com}</ul></aside></section>
+{divider(160)}
+<div class="artists">{edge(161, "l")}{artists}</div>
+{divider(162)}
+<section class="wrap hist-w">{sec_h("His<i>torique</i>", 506)}<ol class="hist">{hist}</ol></section></main>"""
 
 
 def page_collabs():
     groups = ""
-    for gi, (title, items) in enumerate(COLLABS):
+    for title, items in COLLABS:
         li = "".join(f"""<li><h3>{('<a href="' + u + '" rel="noopener">' + E(n) + '</a>') if u else E(n)}</h3><p>{E(t)}</p></li>""" for n, u, t in items)
-        deco = f'<span class="c-deco" aria-hidden="true">{pic(PARTNER_LOGOS[gi], "", 400)}</span>' if gi < len(PARTNER_LOGOS) else ""
-        groups += f'<div class="c-group{" has-deco" if deco else ""}">{deco}<h2>{E(title)}</h2><ul class="c-list">{li}</ul></div>'
-    crew = "".join(f"<li><strong>{E(s['title'])}</strong><span class='muted'>{E(s['credits'])}</span></li>" for s in SHOWS)
+        groups += f'<div class="cgroup"><h2>{E(title)}</h2><ul class="clist">{li}</ul></div>'
+    crew = "".join(f"<li><strong>{E(s['title'])}</strong><span>{E(s['credits'])}</span></li>" for s in SHOWS)
     sup = "".join(f'<li><a href="{u}" rel="noopener">{E(n)}</a></li>' for n, u in SUPPORTERS)
-    return f"""<main><section class="bg-hero page-top"><span class="fx" aria-hidden="true"></span><div class="wrap"><div class="frame title-frame">
-<h1 class="t-serif">Merci à vous</h1>
-<p class="intro">Merci à toutes les personnes et organisations qui rendent nos projets possibles, aux amis qui partagent nos aventures, et aux petites mains qui déplacent du matériel, montent les décors et rendent nos projets vivants.</p></div></div></section>
-{STAR}
-<section class="band"><div class="wrap">{groups}</div></section>
-<section class="bg-violet slant-both"><div class="wrap"><h2 class="sec-title">Nous ont soutenus</h2><ul class="supporters">{sup}</ul></div></section>
-<section class="band"><div class="wrap narrow"><h2 class="sec-title">Les artistes des créations</h2><ul class="crew">{crew}</ul></div></section></main>"""
+    return f"""<main>{title_block("Merci <i>à vous</i>", "Merci à toutes les personnes et organisations qui rendent nos projets possibles, aux amis qui partagent nos aventures, et aux petites mains qui déplacent du matériel, montent les décors et rendent nos projets vivants.", 14)}
+<section class="col">{groups}</section>
+<section class="sup"><div>{sec_h("Nous ont <i>soutenus</i>", 507)}<ul>{sup}</ul></div></section>
+{divider(170)}
+<section class="col">{edge(171, "r")}{sec_h("Les artistes <i>des créations</i>", 508)}<ul class="crew">{crew}</ul></section></main>"""
 
 
 def page_contact():
     addr = "<br>".join(E(a) for a in SITE["address"])
     opts = "".join(f"<option>{E(s['title'])}</option>" for s in SHOWS if s["status"] != "Répertoire")
-    return f"""<main class="bg-blue"><section class="band"><div class="wrap contact-grid">
-<div class="contact-info"><img class="contact-logo" src="{LOGO_SRC}" alt="Compagnie Origami" width="313" height="56">
-<h1 class="t-serif">Nous écrire</h1>
-<p style="margin-top:1rem">Pour accueillir un spectacle, demander un dossier ou simplement dire bonjour.</p>
-<h2>E-mail</h2><p class="sel">{SITE['email']}</p><button class="copy" type="button" data-copy="{SITE['email']}">Copier</button>
-<h2>Téléphone</h2><p>{SITE['phone_name']} : <span class="sel">{SITE['phone']}</span></p>
+    return f"""<main>{title_block("Nous <i>écrire</i>", "Pour accueillir un spectacle, demander un dossier ou simplement dire bonjour.", 15)}
+<section class="contact"><div>
+<h2>E-mail</h2><p><a class="sel" href="mailto:{SITE['email']}">{SITE['email']}</a> <button class="copy" type="button" data-copy="{SITE['email']}">Copier</button></p>
+<h2>Téléphone</h2><p>{SITE['phone_name']} : <a href="tel:{SITE['phone'].replace(' ', '')}">{SITE['phone']}</a></p>
 <h2>Adresse</h2><p>{addr}</p>
 <h2>Nous suivre</h2><p><a href="{SITE['instagram']}" rel="noopener">Instagram</a> · <a href="{SITE['facebook']}" rel="noopener">Facebook</a></p></div>
-<form class="contact-form" name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field">
+<form class="form" name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field">
 <input type="hidden" name="form-name" value="contact"><p hidden><label>Ne pas remplir <input name="bot-field"></label></p>
-<div class="field"><label for="c-name">Nom</label><input id="c-name" name="nom" required autocomplete="name"></div>
-<div class="field"><label for="c-email">E-mail</label><input id="c-email" type="email" name="email" required autocomplete="email"></div>
-<div class="field"><label for="c-show">Spectacle concerné (facultatif)</label><select id="c-show" name="spectacle"><option value="">—</option>{opts}<option>Autre</option></select></div>
-<div class="field"><label for="c-msg">Message</label><textarea id="c-msg" name="message" rows="6" required></textarea></div>
-<div><button class="pill" type="submit">Envoyer</button></div><p class="form-note" hidden></p></form>
-</div></section>{newsletter()}</main>"""
+<div><label for="c-name">Nom</label><input id="c-name" name="nom" required autocomplete="name"></div>
+<div><label for="c-email">E-mail</label><input id="c-email" type="email" name="email" required autocomplete="email"></div>
+<div><label for="c-show">Spectacle concerné (facultatif)</label><select id="c-show" name="spectacle"><option value="">—</option>{opts}<option>Autre</option></select></div>
+<div><label for="c-msg">Message</label><textarea id="c-msg" name="message" rows="6" required></textarea></div>
+<div><button class="btn" type="submit">Envoyer</button></div></form></section>
+{divider(180)}
+{newsletter()}</main>"""
+
+
+BACK_HOME = '<p class="back-home"><a class="btn" href="index.html">Retour à l&#39;accueil</a></p>'
 
 
 def page_404():
-    return f"""<main><section class="bg-hero page-top"><span class="fx" aria-hidden="true"></span><div class="wrap"><div class="frame title-frame"><h1 class="t-serif">Oups !</h1>
-<p class="intro">Cette page s'est dépliée ailleurs. Elle a peut-être changé d'adresse avec le nouveau site.</p></div>
-<p style="margin-top:2rem"><a class="pill" href="index.html">Retour à l'accueil</a></p></div></section></main>"""
+    return f"""<main>{title_block("Ou<i>ps</i> !", "Cette page s'est dépliée ailleurs. Elle a peut-être changé d'adresse avec le nouveau site.", 16, BACK_HOME)}</main>"""
 
 
-SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button" aria-label="Fermer">×</button><img alt=""></div>
+SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button">Fermer</button><button class="lb-prev" type="button" aria-label="Photo précédente">←</button><img alt=""><button class="lb-next" type="button" aria-label="Photo suivante">→</button></div>
 <script>
 (function(){
- var lb=document.querySelector('.lightbox'),li=lb.querySelector('img');
- document.addEventListener('click',function(e){
-  var g=e.target.closest('.g-item'); if(g){li.src=g.dataset.full;li.alt=g.querySelector('img').alt;lb.hidden=false;return;}
-  if(e.target===lb||e.target.closest('.lb-close')){lb.hidden=true;li.src='';}
-  var c=e.target.closest('.copy'); if(c){try{navigator.clipboard.writeText(c.dataset.copy).then(function(){c.textContent='Copié !';setTimeout(function(){c.textContent="Copier l'adresse"},1800)},function(){})}catch(err){}}
- });
- document.addEventListener('click',function(e){var a=e.target.closest('.g-arrow');if(!a)return;var t=a.parentElement.querySelector('.h-gal-track');t.scrollBy({left:(a.classList.contains('next')?1:-1)*t.clientWidth*.7,behavior:'smooth'});});
- document.addEventListener('keydown',function(e){if(e.key==='Escape'){lb.hidden=true;}});
- document.querySelectorAll('.menu nav a').forEach(function(a){a.addEventListener('click',function(){a.closest('details').open=false})});
- %PREVIEW%
+ var reduce=matchMedia("(prefers-reduced-motion: reduce)").matches,root=document.documentElement;
 
- var pl=document.querySelectorAll('.pin-logo'),lastY=scrollY;addEventListener('scroll',function(){var y=scrollY;pl.forEach(function(l){l.classList.toggle('pin-hide',y>120&&y>lastY)});lastY=y;},{passive:true});
- var hd=document.querySelectorAll('.site-head');function hs(){var on=scrollY>60;hd.forEach(function(h){h.classList.toggle('scrolled',on)})}addEventListener('scroll',hs,{passive:true});hs();
- /* œil et étoiles : un tour complet (-180° → +180°) et réduction à 70 % pendant la traversée de l'écran, comme sur le site original */
- var spinReduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
- function spin(){if(spinReduce)return;var h=innerHeight;document.querySelectorAll('.h-eye,.h-star-svg,.star svg,.q-star').forEach(function(el){if(!el.getClientRects().length)return;var r=el.getBoundingClientRect();var p=(h-r.top)/(h+r.height);p=Math.max(0,Math.min(1,p));el.style.setProperty('--rot',(-180+360*p).toFixed(1)+'deg');el.style.setProperty('--sc',(1-0.3*p).toFixed(3));});}
- var spinTick=false;addEventListener('scroll',function(){if(!spinTick){spinTick=true;requestAnimationFrame(function(){spinTick=false;spin();});}},{passive:true});addEventListener('resize',spin);addEventListener('hashchange',function(){setTimeout(spin,60)});spin();
- /* effets : apparitions au défilement + parallaxe (inspirés du site original) */
- var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
- if(!reduce&&'IntersectionObserver' in window){
-  var groups=[['.panel,.q-in,.h-txt,.h-frame,.h-end-box,.artist>div,.c-group,.links>div,.contact-info,.contact-form,.quote-band .wrap,.show-text','rv'],
-   ['.h-title h2,.sec-title,.page-top .t-serif,.year','rv-glide'],
-   ['.date,.history li,.c-list li,.crew li,.h-bullets li,.supporters li','rv-up'],
-   ];
-  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{rootMargin:'0px 0px -8% 0px'});
-  window.__fxScan=function(root){groups.forEach(function(g){(root||document).querySelectorAll(g[0]).forEach(function(el,i){
-    if(el.dataset.fx)return;el.dataset.fx=1;var r=el.getBoundingClientRect();if(r.top<innerHeight*0.92&&r.bottom>0&&el.offsetParent)return;
-    el.classList.add(g[1]);var sib=el.parentElement?[].indexOf.call(el.parentElement.children,el):0;el.style.setProperty('--d',(Math.min(sib,6)*80)+'ms');io.observe(el);});});};
-  __fxScan();
-  var par=[].slice.call(document.querySelectorAll('.h-img img,.show-hero>img,.q-band-img img,.lp-photo-img img'));
-  var tick=false;function upd(){tick=false;var h=innerHeight;par.forEach(function(im){var r=im.parentElement.getBoundingClientRect();if(r.bottom<0||r.top>h||!im.offsetParent)return;var c=(r.top+r.height/2-h/2)/h;im.style.setProperty('--py',(c*-60).toFixed(1)+'px');});}
-  addEventListener('scroll',function(){if(!tick){tick=true;requestAnimationFrame(upd)}},{passive:true});upd();
+ /* ouverture : la machine se met en marche, une fois par visite */
+ var loader=document.querySelector(".loader");
+ if(!root.classList.contains("seen")){setTimeout(function(){loader.classList.add("done");try{sessionStorage.setItem("origami-vu","1")}catch(e){}},reduce?150:1700);}
+
+ /* menu : un engrenage tourne et ouvre la feuille */
+ var menu=document.getElementById("menu"),btn=document.querySelector(".open-menu"),closeB=menu.querySelector(".close");
+ function openMenu(){menu.classList.remove("closing");menu.classList.add("open");document.body.classList.add("menu-on");btn.setAttribute("aria-expanded","true");closeB.focus();}
+ function closeMenu(){if(!menu.classList.contains("open"))return;menu.classList.remove("open");btn.setAttribute("aria-expanded","false");document.body.classList.remove("menu-on");
+  if(reduce){btn.focus();return;}menu.classList.add("closing");setTimeout(function(){menu.classList.remove("closing")},450);btn.focus();}
+ btn.addEventListener("click",openMenu);closeB.addEventListener("click",closeMenu);
+ menu.addEventListener("keydown",function(e){if(e.key!=="Tab")return;var f=menu.querySelectorAll("a,button"),a=f[0],z=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus()}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus()}});
+
+ /* dates passées : masquées même si le site n'a pas été reconstruit */
+ var d=new Date(),today=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+ document.querySelectorAll("ul.dates").forEach(function(ul){var n=0;ul.querySelectorAll(".d[data-iso]").forEach(function(li){if(li.dataset.iso<today)li.remove();else n++});
+  var em=ul.nextElementSibling;if(em&&em.classList.contains("empty"))em.hidden=n>0;});
+
+ /* engrenages : la rotation suit le défilement (un seul requestAnimationFrame, transforms seulement) */
+ function arr(l){return [].slice.call(l)}
+ var mechs=arr(document.querySelectorAll(".mech")).filter(function(el){return !el.closest(".menu,.loader")}).map(function(el){
+  return {el:el,on:false,
+   g:arr(el.querySelectorAll("[data-w]")).map(function(n){return [n,+n.dataset.w]}),
+   r:arr(el.querySelectorAll("[data-v]")).map(function(n){return [n,+n.dataset.v,+n.dataset.p]}),
+   b:arr(el.querySelectorAll(".bl")).map(function(n){var q=n.dataset,c=n.children;return {rod:c[0],pis:c[1],spr:c[2],cx:+q.cx,cy:+q.cy,R:+q.r,L:+q.l,ph:+q.ph,w:+q.cw,xw:+q.xw,B:+q.b}})};});
+ function put(m,s){
+  m.g.forEach(function(x){x[0].style.transform="rotate("+(x[1]*s).toFixed(2)+"deg)"});
+  m.r.forEach(function(x){x[0].style.transform="translateX("+(-((x[1]*s)%x[2])).toFixed(2)+"px)"});
+  m.b.forEach(function(b){var a=(b.ph+b.w*s)*Math.PI/180,px=b.cx+b.R*Math.cos(a),py=b.cy+b.R*Math.sin(a),dy=b.cy-py,xs=px+Math.sqrt(b.L*b.L-dy*dy),th=Math.atan2(dy,xs-px)*180/Math.PI;
+   b.rod.style.transform="translate("+(px-12).toFixed(1)+"px,"+(py-12).toFixed(1)+"px) rotate("+th.toFixed(2)+"deg)";
+   b.pis.style.transform="translate("+(xs-12).toFixed(1)+"px,"+(b.cy-18).toFixed(1)+"px)";
+   b.spr.style.transform="translate("+(xs+46).toFixed(1)+"px,"+(b.cy-12).toFixed(1)+"px) scaleX("+((b.xw-xs-46)/b.B).toFixed(3)+")";});
  }
+ if(reduce||!("IntersectionObserver" in window)){mechs.forEach(function(m){m.el.classList.add("drawn")});}
+ else{
+  var cur=scrollY,raf=0;
+  function tick(){var t=scrollY,dd=t-cur;cur=Math.abs(dd)<.3?t:cur+dd*.2;
+   for(var i=0;i<mechs.length;i++)if(mechs[i].on)put(mechs[i],cur);
+   raf=cur!==t?requestAnimationFrame(tick):0;}
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){var m=e.target._m;m.on=e.isIntersecting;if(m.on){put(m,cur);m.el.classList.add("drawn")}})},{rootMargin:"150px 0px"});
+  mechs.forEach(function(m){m.el._m=m;put(m,cur);io.observe(m.el)});
+  addEventListener("scroll",function(){if(!raf)raf=requestAnimationFrame(tick)},{passive:true});
+ }
+
+ /* visionneuse photo */
+ var lb=document.querySelector(".lightbox"),li=lb.querySelector("img"),set=[],cur2=0;
+ function show(i){cur2=(i+set.length)%set.length;li.src=set[cur2].dataset.full;li.alt=set[cur2].querySelector("img").alt;}
+ document.addEventListener("click",function(e){
+  var g=e.target.closest(".gal button");if(g){set=[].slice.call(g.parentElement.children);show(set.indexOf(g));lb.hidden=false;lb.querySelector(".lb-close").focus();return;}
+  if(e.target===lb||e.target.closest(".lb-close")){lb.hidden=true;li.src="";if(set[cur2])set[cur2].focus();}
+  if(e.target.closest(".lb-prev"))show(cur2-1);if(e.target.closest(".lb-next"))show(cur2+1);
+  var c=e.target.closest(".copy");if(c&&navigator.clipboard){navigator.clipboard.writeText(c.dataset.copy).then(function(){c.textContent="Copié !";setTimeout(function(){c.textContent="Copier"},1800)},function(){})}
+ });
+ document.addEventListener("keydown",function(e){
+  if(e.key==="Escape"){if(!lb.hidden){lb.hidden=true;li.src="";}else closeMenu();}
+  if(!lb.hidden&&e.key==="ArrowLeft")show(cur2-1);if(!lb.hidden&&e.key==="ArrowRight")show(cur2+1);
+ });
 })();
 </script>"""
 
-PREVIEW_JS = """
- document.addEventListener('submit',function(e){e.preventDefault();var n=e.target.querySelector('.form-note');if(n){n.hidden=false;n.textContent="Aperçu : le formulaire fonctionnera une fois le site en ligne sur Netlify.";}});
- function miss(im){if(im.src.indexOf('data:')===0)return;im.classList.add('noimg');var w=im.closest('figure,.img,.g-item,.card,.show-hero');if(w)w.classList.add('noimg-wrap');}
- document.querySelectorAll('img').forEach(function(im){if(im.complete&&!im.naturalWidth){miss(im)}else{im.addEventListener('error',function(){miss(im)})}});
- function route(){var id=(location.hash||'#accueil').slice(1);var found=false;
-  document.querySelectorAll('.page').forEach(function(p){var on=p.id===id;p.hidden=!on;if(on)found=true;});
-  if(!found){document.getElementById('accueil').hidden=false;}
-  window.scrollTo(0,0);if(window.__fxScan)setTimeout(function(){__fxScan()},30);}
- window.addEventListener('hashchange',route);route();
-"""
 
+
+# ---------------------------------------------------------------- pages « souvenirs » (anciennes pages Wix /quisommesnous/lhbp et /oc)
+# Textes réécrits d'après les anciennes pages (le texte exact n'a pas pu être recopié de Wix) : à remplacer par l'original.
+SOUVENIRS = [
+    dict(slug="lhbp", year="2018", title="L'Homme bande passante", status="Création 2018", by="De et par Sévane Gurunlian",
+         meta="Comédie · Expérimentation sonore, monocycle et acrobatie · 30 minutes", hero="4d47d3_85bf461adcdc4b2fad9eed0058d62a9f~mv2.jpg",
+         quote="On crée, on imagine et on compose des univers à l'aide de tout ce qui nous entoure.",
+         body=["Un spectacle de mime et de son, sans une parole. Sur une scène presque vide, quatre enceintes et un interprète suffisent à faire naître tout un univers.",
+               "Le personnage, un peu clownesque, raconte son monde par le geste et par les sons, à travers des situations du quotidien… et des gaffes qui finissent toujours par le rattraper.",
+               "Et la « bande passante » ? En électronique, c'est une histoire de fréquences. Ici, ça n'a absolument rien à voir."],
+         credits="Création et interprétation : Sévane Gurunlian",
+         dates_title="Dates 2019",
+         dates=[("2019-03-15", "15 mars 2019", "La Griotte (sortie de résidence)"), ("2019-03-29", "29 mars 2019", "BuroSpace (sortie de résidence)"),
+                ("2019-05-11", "11 mai 2019", "Dôme de la bulle d'art"), ("2019-05-18", "18 mai 2019", "École de cirque Taj'um"),
+                ("2019-06-01", "1er juin 2019", "Centre culturel de Porteous"), ("2019-06-15", "15 juin 2019", "Festiv'art"),
+                ("2019-07-03", "3 juillet 2019", "Festival Chatôbruyant"), ("2019-07-07", "7 juillet 2019", "Festival Chatôbruyant"), ("2019-07-10", "10 juillet 2019", "Festival Chatôbruyant"),
+                ("2019-10-05", "5 octobre 2019", "Festival du Théâtre-Cirqule"), ("2019-10-06", "6 octobre 2019", "Festival du Théâtre-Cirqule"),
+                ("2019-12-06", "6 décembre 2019", "Salle communale de Veyrier"), ("2019-12-14", "14 décembre 2019", "La Cantine")]),
+    dict(slug="oc", year="2020", title="Origami Circus", status="Tournée été 2020", by="Avec Anouck Simon, Teddy Marguerat et Sévane Gurunlian",
+         meta="Comédie · Spectacle pluridisciplinaire · 45 minutes", hero=None, quote="",
+         body=["Trois saltimbanques aux caractères (très) explosifs, et une histoire qui les pousse à se demander qui ils sont, et comment ils s'y prennent.",
+               "Clown, danse, jonglage, équilibres sur cannes, effets magiques et monocycle : un spectacle pluridisciplinaire de 45 minutes, joué tout l'été 2020 en France."],
+         credits="Anouck Simon, Teddy Marguerat et Sévane Gurunlian",
+         dates_title="La tournée de l'été 2020",
+         dates=[(f"2020-{m:02d}-{d:02d}", f"{d} {'juillet' if m == 7 else 'août'} 2020", w) for m, d, w in [
+             (7, 6, "Talaris, Lacanau"), (7, 9, "Colvert, Vielle-Saint-Girons"), (7, 13, "Soubeyranne, Remoulins"), (7, 14, "Regnière, Villette-d'Anthon"),
+             (7, 16, "Le Gibanel, Argentat-sur-Dordogne"), (7, 19, "Pineda, La Teste-de-Buch"), (7, 20, "Roumingue, Lanton"), (7, 21, "Bazas"),
+             (7, 23, "Colvert, Vielle-Saint-Girons"), (7, 26, "Séquoia, Saint-Just-Luzac"), (7, 27, "Bois Soleil"), (7, 28, "La Loubine, Olonne-sur-Mer"),
+             (7, 29, "Émeraude, Saint-Briac-sur-Mer"), (8, 3, "Roumingue, Lanton"), (8, 4, "Pineda, La Teste-de-Buch"), (8, 5, "Le Gibanel, Argentat-sur-Dordogne"),
+             (8, 10, "Colvert, Vielle-Saint-Girons"), (8, 11, "Bois Soleil"), (8, 12, "Les Huttes, Saint-Denis-d'Oléron"), (8, 13, "Les Chênes, Médis"),
+             (8, 14, "Céleste, Breuillet"), (8, 16, "Bazas"), (8, 17, "Roumingue, Lanton"), (8, 18, "Talaris, Lacanau"), (8, 19, "Le Trianon, Les Sables-d'Olonne"),
+             (8, 20, "Vikings, Saint-Jean-de-la-Rivière"), (8, 25, "Émeraude, Saint-Briac-sur-Mer")]]),
+]
+SOUV_BY_YEAR = {d["year"]: d for d in SOUVENIRS}
+
+
+def page_souvenir(d):
+    body = "".join(f"<p>{E(p)}</p>" for p in d["body"])
+    quote = f'<blockquote class="quote">{E(d["quote"])}</blockquote>' if d["quote"] else ""
+    hero = pic(d["hero"], d["title"], 2000, eager=True) if d["hero"] else ""
+    rows = "".join(date_line(*r) for r in d["dates"])
+    seed = sum(ord(c) for c in d["slug"])
+    return f"""<main>
+<section class="s-hero{'' if hero else ' no-pic'}">{hero}<div class="wrap">
+<a class="back" href="quisommesnous.html">← Compagnie</a><br><span class="status">{E(d['status'])}</span>
+<h1>{E(d['title'])}</h1><p class="by">{E(d['by'])}</p><p class="meta">{E(d['meta'])}</p></div></section>
+{divider(seed)}
+<section class="s-body">{edge(seed + 3, "r")}<div class="txt">{body}</div></section>{quote}
+<section class="s-info"><div><h2>Équipe</h2><p>{E(d['credits'])}</p></div>
+<div><h2>{E(d['dates_title'])}</h2><ul class="plain">{rows}</ul></div></section></main>"""
 
 def pages():
     ps = [("index", SITE["name"], SITE["description"], page_index, None),
           ("spectacles", "Spectacles", "Tous les spectacles de la Cie Origami : cirque-théâtre, cabaret de rue, solos et créations.", page_spectacles, None),
           ("agenda", "Agenda", "Toutes les dates des spectacles de la Cie Origami.", page_agenda, None),
           ("quisommesnous", "Qui sommes-nous", "Qui est la Cie Origami ? Compagnie de cirque contemporain née à Genève en 2018.", page_qui, None),
-          ("collabs", "Collaborations", "Quelles sont les collaborations de la Cie Origami.", page_collabs, None),
-          ("contact", "Contact", "Nous contacter !", page_contact, None)]
+          ("collabs", "Collaborations", "Les collaborations et soutiens de la Cie Origami.", page_collabs, None),
+          ("contact", "Contact", "Contacter la Cie Origami.", page_contact, None)]
     for s in SHOWS:
         ps.append((s["slug"], s["title"], f"{s['title']} – {s['genre']}. {s['teaser']}", (lambda s=s: page_show(s)), s["hero"]))
+    for d in SOUVENIRS:
+        ps.append((d["slug"], d["title"], f"{d['title']} – {d['meta']}. Un ancien spectacle de la Cie Origami.", (lambda d=d: page_souvenir(d)), d["hero"]))
     return ps
 
 
 def active_for(slug):
-    return "spectacles" if slug in SHOW_BY_SLUG else slug
+    if slug in SHOW_BY_SLUG:
+        return "spectacles"
+    return "quisommesnous" if slug in [d["slug"] for d in SOUVENIRS] else slug
+
+
+FAVICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="6" fill="#281467"/>'
+           '<g fill="none" stroke="#9781FF" stroke-width="2.2" stroke-linejoin="round">'
+           '<path d="M20 5l2.6 4.2 4.8-1.2.4 4.9 4.6 1.8-2.2 4.4 3 3.9-4.4 2.2.3 4.9-4.9-.3-2.2 4.4-3.9-3-4.4 2.2-1.8-4.6-4.9-.4 1.2-4.8L5 20l4.2-2.6-1.2-4.8 4.9-.4 1.8-4.6 4.4 2.2z" transform="rotate(-8 20 20)"/>'
+           '<circle cx="20" cy="20" r="4.5"/></g></svg>')
 
 
 def build():
+    _N[0] = 0
     if os.path.exists(DIST):
         shutil.rmtree(DIST)
     os.makedirs(DIST)
     shutil.copy(os.path.join(HERE, "style.css"), DIST)
     shutil.copy(os.path.join(ROOT, "logo.svg"), DIST)
     with open(os.path.join(DIST, "favicon.svg"), "w") as f:
-        f.write('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><rect width="40" height="40" rx="6" fill="#281467"/><path d="M20 5C21 14 26 19 35 20C26 21 21 26 20 35C19 26 14 21 5 20C14 19 19 14 20 5Z" fill="#fff"/></svg>')
-    script = SCRIPT.replace("%PREVIEW%", "")
+        f.write(FAVICON)
     for slug, title, desc, fn, og in pages():
         path = "" if slug == "index" else slug
-        with open(os.path.join(DIST, f"{slug}.html"), "w") as f:
-            f.write(head(title, desc, path, og) + header(active_for(slug)) + fn() + footer() + script + "</body></html>")
-    with open(os.path.join(DIST, "404.html"), "w") as f:
-        f.write(head("Page introuvable", "", "404") + header("") + page_404() + footer() + script + "</body></html>")
+        with open(os.path.join(DIST, f"{slug}.html"), "w", encoding="utf-8") as f:
+            f.write(head(title, desc, path, og) + header(active_for(slug)) + fn() + footer() + SCRIPT + "</body></html>")
+    with open(os.path.join(DIST, "404.html"), "w", encoding="utf-8") as f:
+        f.write(head("Page introuvable", "", "404") + header("") + page_404() + footer() + SCRIPT + "</body></html>")
     with open(os.path.join(DIST, "_redirects"), "w") as f:
         f.write("\n".join(f"{a}  {b}  301" for a, b in REDIRECTS.items()) + "\n")
     urls = "".join(f"<url><loc>{SITE['url']}/{'' if s == 'index' else s}</loc></url>" for s, *_ in pages())
@@ -647,24 +869,5 @@ def build():
     print("site:", len(os.listdir(DIST)), "fichiers")
 
 
-def build_preview():
-    global LOGO_SRC
-    LOGO_SRC = "data:image/svg+xml;base64," + base64.b64encode(open(os.path.join(ROOT, "logo.svg"), "rb").read()).decode()
-    css = open(os.path.join(HERE, "style.css")).read()
-    secs = "".join(f'<div class="page" id="{"accueil" if slug == "index" else slug}" hidden>{header(active_for(slug))}{fn()}</div>' for slug, title, desc, fn, og in pages())
-    note = '<p class="preview-note">Aperçu de travail · les photos (encore hébergées chez Wix) s\'affichent sur le site en ligne, pas dans cet aperçu.</p>'
-    body = note + secs + footer() + SCRIPT.replace("%PREVIEW%", PREVIEW_JS)
-    body = re.sub(r'<div class="vid-frame"><iframe src="https://player.vimeo.com/video/(\d+)[^"]*"[^>]*></iframe></div>',
-                  r'<a class="vid-link" href="https://vimeo.com/\1" rel="noopener">▶ Voir la vidéo sur Vimeo</a>', body)
-    body = body.replace('href="index.html"', 'href="#accueil"')
-    body = re.sub(r'href="([a-z0-9\-]+)\.html"', r'href="#\1"', body)
-    with open(os.path.join(HERE, "preview.html"), "w") as f:
-        f.write(f'<title>Cie Origami</title>\n<link rel="stylesheet" href="{FONTS}">\n<style>{css}</style>{body}')
-    LOGO_SRC = "logo.svg"
-    print("preview.html ok")
-
-
 if __name__ == "__main__":
     build()
-    if "--preview" in sys.argv:
-        build_preview()
