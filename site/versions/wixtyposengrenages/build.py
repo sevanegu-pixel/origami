@@ -651,8 +651,12 @@ SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button" 
  var hd=document.querySelectorAll('.site-head');function hs(){var on=scrollY>60;hd.forEach(function(h){h.classList.toggle('scrolled',on)})}addEventListener('scroll',hs,{passive:true});hs();
  /* œil et étoiles : un tour complet (-180° → +180°) et réduction à 70 % pendant la traversée de l'écran, comme sur le site original */
  var spinReduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
- function spin(){if(spinReduce)return;var h=innerHeight;document.querySelectorAll('.h-eye,.h-star-svg,.star svg,.q-star').forEach(function(el){if(!el.getClientRects().length)return;var r=el.getBoundingClientRect();var p=(h-r.top)/(h+r.height);p=Math.max(0,Math.min(1,p));el.style.setProperty('--rot',(-180+360*p).toFixed(1)+'deg');el.style.setProperty('--sc',(1-0.3*p).toFixed(3));});}
+ function spin(){if(spinReduce)return;var h=innerHeight;document.querySelectorAll('.h-eye:not(.wheel),.h-star-svg,.star svg,.q-star').forEach(function(el){if(!el.getClientRects().length)return;var r=el.getBoundingClientRect();var p=(h-r.top)/(h+r.height);p=Math.max(0,Math.min(1,p));el.style.setProperty('--rot',(-180+360*p).toFixed(1)+'deg');el.style.setProperty('--sc',(1-0.3*p).toFixed(3));});}
  var spinTick=false;addEventListener('scroll',function(){if(!spinTick){spinTick=true;requestAnimationFrame(function(){spinTick=false;spin();});}},{passive:true});addEventListener('resize',spin);addEventListener('hashchange',function(){setTimeout(spin,60)});spin();
+ /* roue de monocycle : tourne avec le défilement et s'arrête progressivement (inertie) */
+ var wh=document.querySelectorAll('.h-eye.wheel'),wa=0,wv=0,wy=scrollY,wrun=false;
+ function wstep(){wa+=wv;wv*=0.95;wh.forEach(function(w){w.style.setProperty('--rot',wa.toFixed(2)+'deg')});if(Math.abs(wv)>0.03){requestAnimationFrame(wstep)}else{wrun=false}}
+ if(wh.length&&!spinReduce)addEventListener('scroll',function(){var d=scrollY-wy;wy=scrollY;wv=Math.max(-25,Math.min(25,wv+d*0.07));if(!wrun){wrun=true;requestAnimationFrame(wstep)}},{passive:true});
  /* effets : apparitions au défilement + parallaxe (inspirés du site original) */
  var reduce=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
  if(!reduce&&'IntersectionObserver' in window){
