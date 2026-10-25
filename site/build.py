@@ -23,7 +23,7 @@ VERSIONS = [
     ("funambule", "Surprise · Funambule"),
     ("psyche", "Surprise · Psyché"),
     ("wix", "Copie du Wix · oct. 2026"),
-    ("wixengrenages", "Wix × textes Engrenages · oct. 2026"),
+    ("wixengrenages", "Engrenages · typos du Wix · oct. 2026"),
 ]
 DEFAULT = VERSIONS[0][0]
 
