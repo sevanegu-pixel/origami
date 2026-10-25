@@ -110,7 +110,7 @@ function liste(evs) {
     return '<button class="ev" data-id="' + esc(e.id) + '"><div class="jour"><b>' + Number(p[2]) + '</b><span>' + MOIS[Number(p[1]) - 1] + ' ' + p[0] + '</span></div>' +
       '<div><h3>' + esc(e.titre) + '<span class="badge ' + esc(e.statut) + '">' + esc(e.statut) + '</span></h3>' +
       '<p>' + esc([e.debut && (e.debut + (e.fin ? '–' + e.fin : '')), e.lieu].filter(Boolean).join(' · ')) + '</p></div>' +
-      '<div class="jauge">' + e.prises + (places ? ' / ' + places : '') + ' place' + (e.prises > 1 ? 's' : '') +
+      '<div class="jauge">' + e.prises + (places ? ' / ' + places : '') + ' place' + (e.prises > 1 || places > 1 ? 's' : '') +
       (places ? '<div class="barre"><i style="width:' + pc + '%"></i></div>' : '') + '</div></button>';
   }).join('') + '</div>';
 }
