@@ -773,6 +773,7 @@ SCRIPT = """<div class="lightbox" hidden><button class="lb-close" type="button">
 SOUVENIRS = [
     dict(slug="lhbp", year="2018", title="L'Homme bande passante", status="Création 2018", by="De et par Sévane Gurunlian",
          meta="Comédie · Expérimentation sonore, monocycle et acrobatie · 30 minutes", hero="4d47d3_85bf461adcdc4b2fad9eed0058d62a9f~mv2.jpg",
+         portraits=[], gallery=["4d47d3_6dbdde03aab3458b87f1d93f37472ae2~mv2.jpg", "4d47d3_fef26f5c5fcc4ef58ee563ecf362b59c~mv2.jpg"],
          quote="On crée, on imagine et on compose des univers à l'aide de tout ce qui nous entoure.",
          body=["Un spectacle de mime et de son, sans une parole. Sur une scène presque vide, quatre enceintes et un interprète suffisent à faire naître tout un univers.",
                "Le personnage, un peu clownesque, raconte son monde par le geste et par les sons, à travers des situations du quotidien… et des gaffes qui finissent toujours par le rattraper.",
@@ -786,7 +787,11 @@ SOUVENIRS = [
                 ("2019-10-05", "5 octobre 2019", "Festival du Théâtre-Cirqule"), ("2019-10-06", "6 octobre 2019", "Festival du Théâtre-Cirqule"),
                 ("2019-12-06", "6 décembre 2019", "Salle communale de Veyrier"), ("2019-12-14", "14 décembre 2019", "La Cantine")]),
     dict(slug="oc", year="2020", title="Origami Circus", status="Tournée été 2020", by="Avec Anouck Simon, Teddy Marguerat et Sévane Gurunlian",
-         meta="Comédie · Spectacle pluridisciplinaire · 45 minutes", hero=None, quote="",
+         meta="Comédie · Spectacle pluridisciplinaire · 45 minutes", hero="4d47d3_6533ecdcc47345d0a8cb6434203bbc87~mv2.jpg", quote="",
+         portraits=[("4d47d3_a984ef424ec4424d9d76f26af0bd4ceb~mv2.png", "Anouck Simon"), ("4d47d3_a4c8e32a82814017912117e20249a331~mv2.png", "Teddy Marguerat"),
+                    ("4d47d3_2cf6ce7081444099ad0815e75b537a76~mv2.png", "Sévane Gurunlian")],
+         gallery=["4d47d3_502699986c444ebcb5dc515e71348082~mv2.png", "4d47d3_b5cf5a86e60e4279b7c98e16e8badbf1~mv2.jpg",
+                  "4d47d3_a6d1c4660e884350bf321d156d09a27ef000.jpg", "4d47d3_828d24fe9cfa450ab742657d3ad83627~mv2.png"],
          body=["Trois saltimbanques aux caractères (très) explosifs, et une histoire qui les pousse à se demander qui ils sont, et comment ils s'y prennent.",
                "Clown, danse, jonglage, équilibres sur cannes, effets magiques et monocycle : un spectacle pluridisciplinaire de 45 minutes, joué tout l'été 2020 en France."],
          credits="Anouck Simon, Teddy Marguerat et Sévane Gurunlian",
@@ -809,12 +814,20 @@ def page_souvenir(d):
     hero = pic(d["hero"], d["title"], 2000, eager=True) if d["hero"] else ""
     rows = "".join(date_line(*r) for r in d["dates"])
     seed = sum(ord(c) for c in d["slug"])
+    trio = ""
+    if d["portraits"]:
+        trio = '<section class="trio" aria-label="Les artistes">' + "".join(
+            f'<figure>{pic(m, n, 500)}<figcaption>{E(n)}</figcaption></figure>' for m, n in d["portraits"]) + "</section>"
+    gal = ""
+    if d["gallery"]:
+        items = "".join(f'<button type="button" class="frame" data-full="{img(g, 1800)}">{pic(g, d["title"] + " – photo " + str(i + 1), 700)}</button>' for i, g in enumerate(d["gallery"]))
+        gal = f'<section aria-label="Photos"><div class="gal">{items}</div></section>'
     return f"""<main>
 <section class="s-hero{'' if hero else ' no-pic'}">{hero}<div class="wrap">
 <a class="back" href="quisommesnous.html">← Compagnie</a><br><span class="status">{E(d['status'])}</span>
 <h1>{E(d['title'])}</h1><p class="by">{E(d['by'])}</p><p class="meta">{E(d['meta'])}</p></div></section>
 {divider(seed)}
-<section class="s-body">{edge(seed + 3, "r")}<div class="txt">{body}</div></section>{quote}
+<section class="s-body">{edge(seed + 3, "r")}<div class="txt">{body}</div></section>{quote}{trio}{gal}
 <section class="s-info"><div><h2>Équipe</h2><p>{E(d['credits'])}</p></div>
 <div><h2>{E(d['dates_title'])}</h2><ul class="plain">{rows}</ul></div></section></main>"""
 
