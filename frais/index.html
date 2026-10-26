@@ -24,11 +24,21 @@ p { color: #b9b0a8; line-height: 1.45; font-size: 15px; }
 .carte { background: #1b1b1b; border-radius: 16px; padding: 14px 16px; margin-top: 18px; text-align: left; font-size: 14px; line-height: 1.5; color: #d9d2cb; }
 .carte b { color: #ffc04a; }
 .partage { display: inline-block; vertical-align: -3px; width: 16px; height: 16px; }
-#install[hidden], #ouvrir[hidden], #sansLien[hidden] { display: none; }
+#install[hidden], #ouvrir[hidden], #sansLien[hidden], main[hidden], #barreBouton[hidden] { display: none; }
+/* L'appli du personnel s'affiche dans la page (adresse GitHub, sans bandeau Google, plein écran une fois installée). */
+iframe#app { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0; background: #0e0e0e; }
+#barre { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 10; display: none; max-width: 520px; margin: 0 auto;
+  background: #1b1b1b; color: #f3eee9; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.5); padding: 12px 40px 12px 14px; gap: 12px; align-items: center; font-size: 14px; line-height: 1.4; }
+#barre.ouvert { display: flex; }
+#barre img { width: 44px; height: 44px; border-radius: 11px; flex: none; }
+#barre .txt { flex: 1; min-width: 0; }
+#barre .txt b { display: block; color: #ffc04a; font-size: 15px; }
+#barre .btn { width: auto; flex: none; margin: 0; padding: 10px 14px; font-size: 15px; }
+#barre .fermer { position: absolute; top: 4px; right: 6px; border: 0; background: none; color: #8a8086; font-size: 22px; padding: 4px 8px; cursor: pointer; }
 </style>
 </head>
 <body>
-<main>
+<main id="accueil">
   <img class="logo" src="frais_192.png" alt="">
   <h1>Frais</h1>
   <p>Tes tickets de défraiement pour la Cie Origami.</p>
@@ -36,6 +46,12 @@ p { color: #b9b0a8; line-height: 1.45; font-size: 15px; }
   <div class="carte" id="sansLien" hidden>Ouvre le <b>lien personnel</b> que la Cie Origami t'a envoyé : il te connecte directement, sans mot de passe.</div>
   <div class="carte" id="install" hidden></div>
 </main>
+<div id="barre" role="dialog" aria-label="Installer Frais">
+  <img src="frais_192.png" alt="">
+  <div class="txt" id="barreTexte"></div>
+  <button class="btn" id="barreBouton" hidden>Installer</button>
+  <button class="fermer" id="barreFermer" aria-label="Fermer">×</button>
+</div>
 <script>
 (function () {
   var EXEC = "https://script.google.com/macros/s/AKfycbwIjgSj2dPJm_yubC6EF8tf9kCQK66bCLQYzOMkeny_buAxIkEG1CZRNSYCJ5t-cBWn/exec";
@@ -48,27 +64,43 @@ p { color: #b9b0a8; line-height: 1.45; font-size: 15px; }
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
   if (!cle) { document.getElementById("sansLien").hidden = false; return; }
   var adresse = EXEC + "?cle=" + cle;
+  // L'appli s'ouvre dans la page : on reste sur cette adresse (icône, plein écran, pas de bandeau Google).
+  document.getElementById("accueil").hidden = true;
+  var cadre = document.createElement("iframe");
+  cadre.id = "app"; cadre.title = "Frais";
+  cadre.setAttribute("allow", "camera; clipboard-read; clipboard-write; web-share");
+  cadre.src = adresse;
+  document.body.insertBefore(cadre, document.body.firstChild);
+
+  // Pas encore installée : petit bandeau pour mettre l'icône sur l'écran d'accueil (masquable 14 jours).
   var installee = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
-  if (installee) { location.replace(adresse); return; }   // depuis l'icône : directement dans l'appli
-  var b = document.getElementById("ouvrir"); b.href = adresse; b.hidden = false;
-  // Pas encore installée : on explique comment mettre l'icône sur l'écran d'accueil.
-  var ua = navigator.userAgent || "", boite = document.getElementById("install");
+  var masque = 0; try { masque = parseInt(localStorage.getItem("origami_frais_install_masque") || "0", 10); } catch (e) {}
+  if (installee || masque > Date.now()) return;
+  var barre = document.getElementById("barre"), texte = document.getElementById("barreTexte"), bouton = document.getElementById("barreBouton");
+  var ua = navigator.userAgent || "";
   var ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
   var safari = ios && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA|FBAN|FBAV|Instagram|WhatsApp/.test(ua);
   var partage = '<svg class="partage" viewBox="0 0 24 24" fill="none" stroke="#ffc04a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/></svg>';
-  var texte = "";
-  if (ios && safari) texte = "Appuie sur " + partage + " <b>Partager</b>, puis « Sur l'écran d'accueil ».";
-  else if (ios) texte = "Ouvre ce lien dans <b>Safari</b> (menu ⋯ › « Ouvrir dans Safari »), puis Partager › « Sur l'écran d'accueil ».";
-  else if (/Android/.test(ua)) texte = "Dans <b>Chrome</b> : menu ⋮ › « Ajouter à l'écran d'accueil » (ou « Installer l'application »).";
-  else texte = "Sur téléphone, ajoute cette page à l'écran d'accueil pour avoir l'icône.";
   var promesse = null;
-  window.addEventListener("beforeinstallprompt", function (e) {
-    e.preventDefault(); promesse = e;
-    boite.innerHTML = "<b>Mettre l'icône sur ton téléphone</b><br>"; var bt = document.createElement("button");
-    bt.className = "btn"; bt.style.marginTop = "10px"; bt.textContent = "Installer Frais"; boite.appendChild(bt);
-    bt.onclick = function () { promesse.prompt(); };
-  });
-  boite.innerHTML = "<b>Mettre l'icône sur ton téléphone</b><br>" + texte; boite.hidden = false;
+  function montrer(html, avecBouton) { texte.innerHTML = html; bouton.hidden = !avecBouton; barre.classList.add("ouvert"); }
+  document.getElementById("barreFermer").onclick = function () {
+    barre.classList.remove("ouvert");
+    try { localStorage.setItem("origami_frais_install_masque", String(Date.now() + 14 * 864e5)); } catch (e) {}
+  };
+  window.addEventListener("beforeinstallprompt", function (e) { e.preventDefault(); promesse = e; montrer("<b>Installer Frais</b>L'appli s'ouvrira avec son icône, en plein écran.", true); });
+  bouton.onclick = function () {
+    if (!promesse) return;
+    promesse.prompt();
+    promesse.userChoice.then(function (r) { if (r && r.outcome === "accepted") barre.classList.remove("ouvert"); promesse = null; });
+  };
+  window.addEventListener("appinstalled", function () { barre.classList.remove("ouvert"); });
+  setTimeout(function () {
+    if (promesse) return;
+    if (ios && safari) montrer("<b>Mettre l'icône Frais</b>Appuie sur " + partage + " <b style=\"display:inline\">Partager</b>, puis «&nbsp;Sur l'écran d'accueil&nbsp;».", false);
+    else if (ios) montrer("<b>Mettre l'icône Frais</b>Ouvre ce lien dans Safari (menu ⋯ › « Ouvrir dans Safari »).", false);
+    else if (/Android/.test(ua)) montrer("<b>Mettre l'icône Frais</b>Menu ⋮ en haut à droite ›&nbsp;«&nbsp;Ajouter à l'écran d'accueil&nbsp;».", false);
+    else montrer("<b>Mettre l'icône Frais</b>Sur téléphone, ajoute cette page à l'écran d'accueil.", false);
+  }, 3500);
 })();
 </script>
 </body>
