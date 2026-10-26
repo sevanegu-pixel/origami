@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Réservations · Compagnie Origami</title>
+<meta name="description" content="Réservez vos places pour les spectacles de la Compagnie Origami.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Bodoni+Moda:wght@500;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--noir:#0b0a10;--carte:#15121d;--ligne:#2e2744;--blanc:#f7f5ff;--doux:#bdb3e8;--lav:#9781ff;--violet:#5b3fd6;--rouge:#ff8090}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--noir);color:var(--blanc);font:17px/1.55 Barlow,system-ui,sans-serif}
+a{color:var(--lav)}
+.bande{background:var(--violet);height:10px}
+header{max-width:1000px;margin:0 auto;padding:22px 16px 6px;display:flex;align-items:center;gap:14px}
+header img{height:44px;width:auto;max-width:180px}
+header a.retour{margin-left:auto;font-size:15px;text-decoration:none}
+main{max-width:1000px;margin:0 auto;padding:10px 16px 80px}
+.sur{font:700 30px/1 "Amatic SC",cursive;color:var(--lav);letter-spacing:.02em;margin:18px 0 0}
+h1{font:700 clamp(34px,6vw,54px)/1.05 "Bodoni Moda",serif;margin:4px 0 26px}
+.ev{display:grid;grid-template-columns:92px 1fr auto;gap:20px;align-items:center;padding:20px 0;border-top:1px solid var(--ligne)}
+.ev:last-child{border-bottom:1px solid var(--ligne)}
+.jour{text-align:center}
+.jour b{display:block;font:700 40px/1 "Bodoni Moda",serif}
+.jour span{display:block;text-transform:uppercase;font-size:13px;letter-spacing:.08em;color:var(--doux)}
+.ev h2{font:700 24px/1.15 "Bodoni Moda",serif;margin:0 0 4px}
+.ev h2 a{color:inherit;text-decoration:none}
+.ev p{margin:0;color:var(--doux)}
+.btn{display:inline-block;font:600 16px Barlow,sans-serif;background:var(--lav);color:var(--noir);border:0;border-radius:999px;padding:11px 24px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:hover{background:#b0a0ff}
+.btn:disabled{opacity:.6;cursor:default}
+.btn.contour{background:transparent;color:var(--lav);border:1px solid var(--lav)}
+.etat{font-size:15px;color:var(--doux);white-space:nowrap}
+.complet{color:var(--rouge);font-weight:600}
+.vide{color:var(--doux);font-style:italic;padding:20px 0}
+.fiche{display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:start}
+.fiche .infos dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:18px 0}
+.fiche dt{color:var(--doux)}
+.fiche dd{margin:0}
+.fiche img{width:100%;border-radius:4px;margin-bottom:18px;filter:grayscale(1)}
+.desc{white-space:pre-line}
+form{background:var(--carte);border:1px solid var(--ligne);border-radius:12px;padding:22px}
+form h3{font:700 22px "Bodoni Moda",serif;margin:0 0 14px}
+label{display:block;font-size:14px;color:var(--doux);margin:12px 0 4px}
+input,select,textarea{width:100%;font:inherit;color:var(--blanc);background:var(--noir);border:1px solid var(--ligne);border-radius:8px;padding:10px 12px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--lav);border-color:var(--lav)}
+textarea{min-height:80px;resize:vertical}
+.piege{position:absolute;left:-5000px}
+.erreur{color:var(--rouge);margin:12px 0 0}
+.merci{background:var(--carte);border:1px solid var(--lav);border-radius:12px;padding:24px}
+.merci h3{font:700 26px "Bodoni Moda",serif;margin:0 0 8px}
+.petit{font-size:14px;color:var(--doux)}
+@media (max-width:720px){.ev{grid-template-columns:64px 1fr}.ev .action{grid-column:2}.jour b{font-size:30px}.fiche{grid-template-columns:1fr;gap:20px}}
+</style>
+</head>
+<body>
+<div class="bande"></div>
+<header>
+  <a href="../"><img src="logo.svg" alt="Compagnie Origami"></a>
+  <a class="retour" href="../">← Retour au site</a>
+</header>
+<main id="vue"><p class="vide">Chargement des événements…</p></main>
+
+<script>
+(function () {
+  var API = "__API_RESERVATIONS__";
+  var MOIS = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var MOIS_C = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  var JOURS = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  var vue = document.getElementById('vue');
+  var evenements = [];
+
+  function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function parties(iso) { var p = iso.split('-').map(Number); return { a: p[0], m: p[1], j: p[2], js: new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay() }; }
+  function dateLongue(iso) { var d = parties(iso); return JOURS[d.js] + ' ' + (d.j === 1 ? '1er' : d.j) + ' ' + MOIS[d.m - 1] + ' ' + d.a; }
+  function heure(e) { return e.debut ? e.debut + (e.fin ? ' – ' + e.fin : '') : ''; }
+  function etat(e) {
+    if (e.complet) return '<span class="complet">Complet</span>';
+    if (!e.reservable) return '<span class="etat">Réservation fermée</span>';
+    return e.restantes != null && e.restantes <= 10 ? '<span class="etat">Plus que ' + e.restantes + ' place' + (e.restantes > 1 ? 's' : '') + '</span>' : '';
+  }
+
+  function charger() {
+    if (API.indexOf('__') === 0) { vue.innerHTML = titre() + '<p class="vide">Les réservations ouvrent bientôt.</p>'; return; }
+    fetch(API + '?api=evenements').then(function (r) { return r.json(); }).then(function (d) {
+      evenements = d.evenements || [];
+      route();
+    }).catch(function () {
+      vue.innerHTML = titre() + '<p class="vide">Impossible de charger les événements pour le moment. Réessayez dans un instant, ou écrivez-nous à <a href="mailto:compagnieorigami@gmail.com">compagnieorigami@gmail.com</a>.</p>';
+    });
+  }
+
+  function titre() { return '<p class="sur">Venez nous voir !</p><h1>Réservations</h1>'; }
+
+  function liste() {
+    document.title = 'Réservations · Compagnie Origami';
+    if (!evenements.length) { vue.innerHTML = titre() + '<p class="vide">Pas d\'événement à réserver pour le moment.</p>'; return; }
+    vue.innerHTML = titre() + '<div>' + evenements.map(function (e) {
+      var d = parties(e.date);
+      return '<article class="ev"><div class="jour"><b>' + d.j + '</b><span>' + MOIS_C[d.m - 1] + ' ' + d.a + '</span></div>' +
+        '<div><h2><a href="#' + esc(e.id) + '">' + esc(e.titre) + '</a></h2><p>' + esc([JOURS[d.js] + (heure(e) ? ', ' + heure(e) : ''), e.lieu].filter(Boolean).join(' · ')) + '</p></div>' +
+        '<div class="action">' + (e.reservable ? '<a class="btn" href="#' + esc(e.id) + '">Réserver</a> ' : '<a class="btn contour" href="#' + esc(e.id) + '">Voir</a> ') + etat(e) + '</div></article>';
+    }).join('') + '</div>';
+  }
+
+  function fiche(e) {
+    document.title = e.titre + ' · Réservations · Compagnie Origami';
+    var max = e.restantes != null ? Math.min(10, e.restantes) : 10, opts = '';
+    for (var i = 1; i <= max; i++) opts += '<option>' + i + '</option>';
+    var h = '<p class="sur"><a href="#" style="text-decoration:none">← Tous les événements</a></p><h1>' + esc(e.titre) + '</h1><div class="fiche"><div class="infos">' +
+      (e.image ? '<img src="' + esc(e.image) + '" alt="">' : '') +
+      '<dl><dt>Date</dt><dd>' + dateLongue(e.date) + '</dd>' + (heure(e) ? '<dt>Heure</dt><dd>' + esc(heure(e)) + '</dd>' : '') +
+      (e.lieu || e.adresse ? '<dt>Lieu</dt><dd>' + esc([e.lieu, e.adresse].filter(Boolean).join(', ')) + '</dd>' : '') +
+      (e.tarif ? '<dt>Tarif</dt><dd>' + esc(e.tarif) + '</dd>' : '') + '</dl>' +
+      (e.description ? '<div class="desc">' + esc(e.description) + '</div>' : '') + '</div><div>';
+    if (e.reservable) {
+      h += '<form id="resa" novalidate><h3>Réserver</h3>' + (etat(e) ? '<p class="petit">' + etat(e) + '</p>' : '') +
+        '<label for="nom">Prénom et nom *</label><input id="nom" name="nom" autocomplete="name" required>' +
+        '<label for="email">E-mail *</label><input id="email" name="email" type="email" autocomplete="email" required>' +
+        '<label for="telephone">Téléphone</label><input id="telephone" name="telephone" type="tel" autocomplete="tel">' +
+        '<label for="places">Nombre de places *</label><select id="places" name="places">' + opts + '</select>' +
+        '<label for="message">Message</label><textarea id="message" name="message"></textarea>' +
+        '<input class="piege" name="site" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+        '<p class="erreur" id="err" role="alert" hidden></p><p style="margin:18px 0 0"><button class="btn" type="submit">Réserver</button></p>' +
+        '<p class="petit">Vous recevrez un e-mail de confirmation.' + (e.tarif ? '' : ' Le paiement se fait sur place.') + '</p></form>';
+    } else {
+      h += '<div class="merci"><h3>' + (e.complet ? 'C\'est complet' : 'Réservation fermée') + '</h3><p>Écrivez-nous à <a href="mailto:compagnieorigami@gmail.com">compagnieorigami@gmail.com</a> : une place se libère parfois.</p></div>';
+    }
+    vue.innerHTML = h + '</div></div>';
+    scrollTo(0, 0);
+    var f = document.getElementById('resa');
+    if (f) f.onsubmit = function (ev) { ev.preventDefault(); envoyer(e, f); };
+  }
+
+  function envoyer(e, f) {
+    var err = document.getElementById('err'), bt = f.querySelector('button');
+    var d = { api: 'reserver', evenement: e.id };
+    new FormData(f).forEach(function (v, k) { d[k] = v; });
+    err.hidden = true;
+    if (!d.nom.trim()) return montrer('Indiquez votre nom.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email.trim())) return montrer('L\'adresse e-mail ne semble pas correcte.');
+    bt.disabled = true; bt.textContent = 'Envoi…';
+    fetch(API, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(d) })
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) { bt.disabled = false; bt.textContent = 'Réserver'; return montrer(r.erreur || 'La réservation n\'a pas pu être enregistrée.'); }
+        f.outerHTML = '<div class="merci"><h3>Merci !</h3><p>Votre réservation de ' + esc(d.places) + ' place' + (d.places > 1 ? 's' : '') +
+          ' pour « ' + esc(e.titre) + ' » est confirmée.</p><p>' + (r.mailEnvoye === false ? 'Nous vous écrirons à ' : 'Un e-mail de confirmation vient de partir à ') +
+          '<b>' + esc(d.email) + '</b>.</p><p><a href="#">Voir les autres événements</a></p></div>';
+        if (r.restantes != null) e.restantes = r.restantes;
+      })
+      .catch(function () { bt.disabled = false; bt.textContent = 'Réserver'; montrer('Problème de connexion. Réessayez dans un instant.'); });
+    function montrer(t) { err.textContent = t; err.hidden = false; }
+  }
+
+  function route() {
+    var id = decodeURIComponent(location.hash.slice(1));
+    var e = id && evenements.filter(function (x) { return x.id === id; })[0];
+    if (e) fiche(e); else liste();
+  }
+  addEventListener('hashchange', function () { if (evenements.length) route(); });
+  charger();
+})();
+</script>
+</body>
+</html>

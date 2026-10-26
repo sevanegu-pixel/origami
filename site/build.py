@@ -78,6 +78,18 @@ def build_version(name):
             os.remove(fp)
 
 
+def build_reservations():
+    """Page publique /reservations/ : commune à toutes les versions, elle lit les événements
+    en direct depuis l'application Google (adresse dans data/reservations.json)."""
+    import json
+    out = os.path.join(DIST, "reservations")
+    os.makedirs(out)
+    api = json.load(open(os.path.join(HERE, "data", "reservations.json"), encoding="utf-8")).get("api") or "__API_RESERVATIONS__"
+    s = open(os.path.join(HERE, "reservations", "index.html"), encoding="utf-8").read()
+    open(os.path.join(out, "index.html"), "w", encoding="utf-8").write(s.replace("__API_RESERVATIONS__", api))
+    shutil.copy(os.path.join(HERE, "logo.svg"), out)
+
+
 def build():
     if os.path.exists(DIST):
         shutil.rmtree(DIST)
@@ -86,6 +98,7 @@ def build():
         build_version(name)
     for d in ("photos", "videos", "fichiers"):  # médias communs à toutes les versions (voir medias.py)
         shutil.copytree(os.path.join(HERE, d), os.path.join(DIST, d))
+    build_reservations()
     # page d'erreur : celle de la version par défaut, avec ses liens qui pointent vers son dossier
     s = open(os.path.join(DIST, DEFAULT, "404.html"), encoding="utf-8").read()
     s = s.replace("<head>", f'<head><base href="/{DEFAULT}/">', 1)
