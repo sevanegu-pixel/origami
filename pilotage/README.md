@@ -8,6 +8,17 @@ Une feuille Google avec un menu **Site Origami** qui modifie le site sans touche
 Comment ça marche : la feuille lit et écrit le fichier `site/data/agenda.json` sur GitHub
 (branche `site`). À chaque publication, Netlify reconstruit le site tout seul.
 
+## Installation la plus courte (recommandée)
+
+Tout le code est réuni dans un seul fichier, [`a-coller.gs`](a-coller.gs) (fabriqué par `assembler.py`).
+1. Dans la feuille Google : **Extensions > Apps Script**, tout effacer, coller `a-coller.gs`, enregistrer.
+2. **Déployer > Nouveau déploiement > Application web**, « Qui a accès : tout le monde », **Déployer**, autoriser.
+3. Ouvrir l'adresse de l'application web donnée par Google : au premier passage, elle crée la clé et affiche
+   **votre lien personnel** (à mettre en favori). L'adresse publique est notée dans l'onglet « Réglages ».
+
+Les étapes ci-dessous (fichiers séparés, jeton GitHub pour l'agenda) restent valables mais ne sont pas nécessaires
+pour les réservations.
+
 ## Installer (une seule fois)
 
 1. Créer une feuille Google vide, par exemple « Pilotage du site Origami ».

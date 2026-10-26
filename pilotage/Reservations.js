@@ -45,14 +45,50 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.api === 'evenements') return json_({ evenements: evenementsPublics_() });
   if (p.cle && cleValide_(p.cle)) {
-    var t = HtmlService.createTemplateFromFile('Admin');
+    var t = typeof ADMIN_HTML !== 'undefined' ? HtmlService.createTemplate(ADMIN_HTML) : HtmlService.createTemplateFromFile('Admin');
     t.cle = p.cle;
     return t.evaluate()
       .setTitle('Réservations · Cie Origami')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
+  if (!PropertiesService.getScriptProperties().getProperty(RESA.cleAdmin)) return premiereOuverture_();
   return ContentService.createTextOutput('Ouvrez le lien personnel de l\'application.');
+}
+
+/**
+ * Tout premier passage sur l'adresse de l'application, juste après le déploiement : la clé est créée
+ * à ce moment-là et le lien personnel s'affiche. L'adresse publique (pas la clé) est notée dans
+ * l'onglet « Réglages » pour pouvoir la brancher sur le site.
+ */
+function premiereOuverture_() {
+  var verrou = LockService.getScriptLock();
+  verrou.waitLock(20000);
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (props.getProperty(RESA.cleAdmin)) return ContentService.createTextOutput('Ouvrez le lien personnel de l\'application.');
+    var cle = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '').slice(0, 16);
+    props.setProperty(RESA.cleAdmin, cle);
+    var url = ScriptApp.getService().getUrl();
+    onglet_(RESA.ongletEvenements, COL_EV);
+    onglet_(RESA.ongletReservations, COL_RES);
+    var reglages = onglet_('Réglages', ['Réglage', 'Valeur']);
+    reglages.appendRow(['Adresse de l\'application (pour le site)', url]);
+    var lien = url + '?cle=' + cle;
+    return HtmlService.createHtmlOutput(
+      '<div style="font:17px/1.5 sans-serif;max-width:560px;margin:40px auto;padding:0 16px;color:#111">' +
+      '<h1 style="font-size:24px">C\'est installé !</h1>' +
+      '<p>Voici <b>votre lien personnel</b> vers l\'application. Il ouvre la gestion sans mot de passe : ' +
+      'ajoutez-le à vos favoris et ne le partagez pas.</p>' +
+      '<p><a href="' + lien + '" target="_top" style="display:inline-block;background:#9781ff;color:#0b0a10;' +
+      'padding:12px 22px;border-radius:999px;font-weight:600;text-decoration:none">Ouvrir l\'application</a></p>' +
+      '<p style="font-size:14px;color:#555">Le lien :<br><input readonly style="width:100%" value="' + lien + '" onclick="this.select()"></p>' +
+      '<p style="font-size:14px;color:#555">Ce lien ne s\'affiche qu\'une fois. Si vous le perdez : dans la feuille, ' +
+      'menu Site Origami &gt; Réservations : lien de l\'appli.</p></div>')
+      .setTitle('Réservations · Cie Origami');
+  } finally {
+    verrou.releaseLock();
+  }
 }
 
 function doPost(e) {
