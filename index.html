@@ -40,6 +40,10 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
   <button class="fermer" id="instFermer" aria-label="Fermer">×</button>
 </div>
 <script>
+// Chrome sur ordinateur ne propose « Installer » que dans le périmètre de l'appli (index.html) : /origami/ devient /origami/index.html, sans recharger.
+try { if (/\/$/.test(location.pathname)) history.replaceState(null, "", location.pathname + "index.html" + location.search + location.hash); } catch (e) {}
+</script>
+<script>
 (function () {
   var EXEC = "https://script.google.com/macros/s/AKfycbwKllC_RGceJ1vjtyWwUhgaEo2Ub-sL7ShZbkgn8r4aMEZFp-K2z0Kfn9xEo5uOrBhx/exec";
   var CLE = "origami_jeton";
