@@ -1,0 +1,12 @@
+{
+  "name": "diffusion-appli",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Coquille de l'appli Diffusion pour Mac et Android (rien de Diffusion dedans : l'écran vient du serveur).",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

@@ -1,0 +1,67 @@
+# Fabrique l'appli Diffusion pour Mac (coquille Tauri du dossier appli/) et la publie comme « version » GitHub à télécharger.
+# La coquille ne contient rien de Diffusion : l'écran vient du serveur avec le jeton de l'appareil.
+name: Appli Diffusion Mac
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "appli/**"
+      - ".github/workflows/appli-mac.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: appli/src-tauri -> target
+
+      - name: Outils
+        working-directory: appli
+        run: npm install --no-audit --no-fund
+
+      - name: Icônes (depuis l'icône de Diffusion)
+        working-directory: appli
+        run: npx tauri icon ../diffusion/icone-512.png
+
+      - name: Fabrication (Mac Apple et Intel)
+        working-directory: appli
+        run: npx tauri build --target universal-apple-darwin
+
+      - name: Fichier à télécharger
+        id: dmg
+        run: |
+          f=$(ls appli/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          cp "$f" "Diffusion-Mac.dmg"
+          echo "fichier=Diffusion-Mac.dmg" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Diffusion-Mac
+          path: Diffusion-Mac.dmg
+
+      - name: Version à télécharger
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: appli-mac-${{ github.run_number }}
+          name: Appli Diffusion pour Mac (${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: Diffusion-Mac.dmg
+          body: |
+            Appli Diffusion pour Mac (essai). Ouvrir le fichier .dmg, glisser Diffusion dans Applications.
+            Première ouverture : l'appli n'est pas signée par Apple ; Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
