@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src https: data:; connect-src https://script.google.com https://script.googleusercontent.com; frame-src 'self' about:; base-uri 'none'; form-action 'none'">
+<title>Compagnie Origami</title>
+<style>
+  html, body { margin: 0; background: #f4f2ef; font-family: Arial, Helvetica, sans-serif; color: #444; }
+  #etat { text-align: center; padding: 48px 16px; font-size: 15px; }
+  #etat .roue { display: inline-block; width: 18px; height: 18px; border: 2px solid #d9d4cf; border-top-color: #7d3c5e; border-radius: 50%; animation: t .7s linear infinite; vertical-align: -4px; margin-right: 8px; }
+  @keyframes t { to { transform: rotate(360deg); } }
+  iframe { display: none; width: 100%; max-width: 680px; margin: 0 auto; border: 0; background: #fff; }
+</style>
+</head>
+<body>
+<!-- Version web d'un mail de la Compagnie Origami : la page ne contient aucune donnée ; elle lit ce mail-là auprès de l'appli
+     (adresse publique, jeton aléatoire du mail) et l'affiche dans un cadre sans scripts. -->
+<div id="etat"><span class="roue"></span>Chargement du mail…</div>
+<iframe id="mail" title="Mail" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
+<script>
+(function () {
+  var q = new URLSearchParams(location.search), s = q.get('s') || '', v = q.get('v') || '';
+  var etat = document.getElementById('etat'), cadre = document.getElementById('mail');
+  function echec(t) { etat.textContent = t || 'Ce mail n\'est plus disponible en ligne.'; }
+  if (!/^[\w-]{20,120}$/.test(s) || !/^[a-f0-9]{32,64}$/.test(v)) return echec('Lien incomplet.');
+  fetch('https://script.google.com/macros/s/' + s + '/exec?vj=' + v, { credentials: 'omit', redirect: 'follow' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.ok || !d.html) return echec();
+      if (d.titre) document.title = d.titre;
+      cadre.srcdoc = '<!doctype html><html><head><meta charset="utf-8"><base target="_blank">' +
+        '<style>html,body{margin:0;background:#fff}img{max-width:100%;height:auto}</style></head><body>' + d.html + '</body></html>';
+      cadre.onload = function () {
+        etat.style.display = 'none'; cadre.style.display = 'block';
+        var doc = cadre.contentDocument;
+        function hauteur() { try { cadre.style.height = (doc.documentElement.scrollHeight + 4) + 'px'; } catch (e) { /* rien */ } }
+        hauteur();
+        try { doc.querySelectorAll('img').forEach(function (i) { i.addEventListener('load', hauteur); }); } catch (e) { /* rien */ }
+        window.addEventListener('resize', hauteur);
+        setTimeout(hauteur, 600); setTimeout(hauteur, 2000);
+      };
+    })
+    .catch(function () { echec('Le mail n\'a pas pu être chargé. Réessayez dans un instant.'); });
+})();
+</script>
+</body>
+</html>
