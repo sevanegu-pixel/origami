@@ -8,6 +8,8 @@
     "deep-link:default",
     "core:webview:allow-create-webview-window",
     "core:window:allow-close",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     "core:window:allow-destroy",
     { "identifier": "opener:allow-open-url", "allow": [ { "url": "https://*" }, { "url": "http://*" }, { "url": "mailto:*" }, { "url": "tel:*" } ] }
   ]

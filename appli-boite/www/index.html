@@ -192,8 +192,38 @@
     document.documentElement.classList.add('fenetre-ecrire');
   }
   function fenetresPossibles() { return T ? !!(T.webviewWindow && T.webviewWindow.WebviewWindow) : true; }
+  /* Fenêtre d'avance : pour que « Fenêtre séparée » s'ouvre tout de suite, une fenêtre d'écriture de la boîte affichée est
+     chargée à l'avance, cachée. Elle se montre quand on la demande (et une autre se prépare) ; sinon, chargement ordinaire. */
+  var reserve = null, reserveT = null;
+  function finReserve() { if (reserve) { try { T.event.emitTo(reserve.label, 'ecrire-fin', {}); } catch (e) { /* déjà fermée */ } reserve = null; } }
+  function preparerReserve(id, delai) {
+    if (!T || FEN || !fenetresPossibles() || !T.event || !T.event.emitTo) return;
+    clearTimeout(reserveT);
+    reserveT = setTimeout(function () {
+      var c = comptes.filter(function (x) { return x.id === id; })[0];
+      if (!c || vue !== id || (reserve && reserve.compte === id)) return;
+      finReserve();
+      var label = 'ecrire-r' + Date.now().toString(36);
+      try {
+        localStorage.setItem('boite-mail-fenetre-' + label, JSON.stringify({ compte: id, reserve: true }));
+        var w = new T.webviewWindow.WebviewWindow(label, { url: 'index.html?ecrire=' + label, title: 'Écrire · ' + nomCourt(c), width: 760, height: 800, minWidth: 420, minHeight: 480, dragDropEnabled: false, visible: false, focus: false });
+        reserve = { label: label, compte: id, pret: false };
+        w.once('tauri://error', function () { if (reserve && reserve.label === label) reserve = null; try { localStorage.removeItem('boite-mail-fenetre-' + label); } catch (x) { /* rien */ } });
+      } catch (e) { reserve = null; }
+    }, delai);
+  }
+  if (T && !FEN) try {
+    T.event.listen('reserve-prete', function (ev) { var l = ev && ev.payload && ev.payload.label; if (reserve && reserve.label === l) reserve.pret = true; });
+    window.addEventListener('pagehide', finReserve);
+    if (T.window && T.window.getCurrentWindow) T.window.getCurrentWindow().onCloseRequested(function () { finReserve(); });
+  } catch (e) { /* sans fenêtre d'avance */ }
   function ouvrirFenetreEcrire(id, onglet) {
     var c = comptes.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    if (T && reserve && reserve.compte === id && reserve.pret) {
+      var r = reserve; reserve = null;
+      try { T.event.emitTo(r.label, 'ecrire-mail', { onglet: onglet || null }); preparerReserve(id, 8000); return; } catch (e) { /* chargement ordinaire */ }
+    }
+    preparerReserve(id, 15000);
     var label = 'ecrire-' + Date.now().toString(36);
     try { localStorage.setItem('boite-mail-fenetre-' + label, JSON.stringify({ compte: id, onglet: onglet || null })); } catch (e) { return dire('Mémoire de l\'appli pleine : la fenêtre ne peut pas s\'ouvrir.'); }
     var titre = 'Écrire · ' + nomCourt(c);
@@ -204,6 +234,20 @@
       } else if (!window.open('index.html?ecrire=' + label, label, 'width=760,height=800')) dire('Le navigateur a bloqué la nouvelle fenêtre.');
     } catch (e) { dire('La fenêtre n\'a pas pu s\'ouvrir : le mail reste dans les onglets du bas.'); }
   }
+  var fenSource = null, fenAttente = null;
+  function fenEnvoyer(onglet) {
+    if (!fenSource) { fenAttente = { onglet: onglet }; return; }
+    try { fenSource.postMessage({ boiteMail: 'ecrireOnglet', onglet: onglet || null }, '*'); } catch (x) { /* fermé */ }
+  }
+  if (FEN && T && fenDonnees && fenDonnees.reserve) try {
+    T.event.listen('ecrire-mail', function (ev) {
+      fenEnvoyer(ev && ev.payload && ev.payload.onglet);
+      try { var w = T.window.getCurrentWindow(); w.show(); w.setFocus(); } catch (e) { /* déjà visible */ }
+    });
+    T.event.listen('ecrire-fin', function () { fermerCetteFenetre(); });
+    // Si la fenêtre principale a disparu, celle-ci (encore cachée) ne doit pas rester seule.
+    setInterval(function () { try { T.webviewWindow.WebviewWindow.getByLabel('main').then(function (m) { if (!m) fermerCetteFenetre(); }); } catch (e) { /* rien */ } }, 30000);
+  } catch (e) { /* sans événements */ }
   function fermerCetteFenetre() {
     try { if (T && T.window && T.window.getCurrentWindow) { T.window.getCurrentWindow().close(); return; } } catch (e) { /* plus bas */ }
     try { window.close(); } catch (e) { /* rien */ }
@@ -357,7 +401,7 @@
     if (v === 'toutes') { $('page-toutes').classList.add('visible'); chargerToutes(); minuterie = setInterval(chargerToutes, 120000); }
     else if (v === 'ajouter') { $('page-ajouter').classList.add('visible'); dessinerAjouter(); }
     else if (v === 'comptes') { $('page-comptes').classList.add('visible'); dessinerComptes(); }
-    else { cadre(v).classList.add('visible'); direDossier(v, false); }
+    else { cadre(v).classList.add('visible'); direDossier(v, false); if (sources[v]) preparerReserve(v, 20000); }
     dessinerNav();
   }
 
@@ -383,7 +427,9 @@
     if (d.boiteMail === 'fermerFenetre' && FEN) fermerCetteFenetre();
     if (d.boiteMail === 'pret') {
       Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k);
-        try { if (FEN) { if (!fenDit) { fenDit = true; ev.source.postMessage({ boiteMail: 'ecrireOnglet', onglet: (fenDonnees && fenDonnees.onglet) || null }, '*'); } } else ev.source.postMessage({ boiteMail: 'fenetres', actif: fenetresPossibles() }, '*'); } catch (x) { /* fermé */ }
+        try { if (FEN) { if (!fenDit) { fenDit = true; fenSource = ev.source;
+            if (fenDonnees && fenDonnees.reserve) { if (fenAttente) { fenEnvoyer(fenAttente.onglet); fenAttente = null; } try { T.event.emitTo('main', 'reserve-prete', { label: FEN }); } catch (x) { /* seule */ } }
+            else fenEnvoyer((fenDonnees && fenDonnees.onglet) || null); } } else { ev.source.postMessage({ boiteMail: 'fenetres', actif: fenetresPossibles() }, '*'); if (k === vue) preparerReserve(k, 6000); } } catch (x) { /* fermé */ }
         if (k === vue) { direDossier(k, false); dessinerNav(); } } } catch (e) { /* autre */ } });
     }
     // Une boîte annonce ses dossiers (compteurs, libellés, dossier affiché) : le volet les montre. Si on a changé de dossier dans la boîte
