@@ -247,8 +247,14 @@
     dire('Vérification du compte…');
     porte(c, 'etatAcces', []).then(function (r) {
       if (!r || !r.valide) throw new Error('le code n\'est plus valable, refaites « Relier à l\'appli »');
-      var deja = comptes.filter(function (x) { return x.url === c.url; })[0];
-      if (deja) { deja.jeton = c.jeton; if (c.email) deja.email = c.email; delete cadres[deja.id]; c = deja; }
+      /* même adresse de moteur, ou même compte Google relié à une nouvelle copie : on remplace, pas de doublon */
+      var deja = comptes.filter(function (x) { return x.url === c.url; })[0] ||
+        (c.email ? comptes.filter(function (x) { return x.email && x.email.toLowerCase() === c.email.toLowerCase(); })[0] : null);
+      if (deja) {
+        deja.url = c.url; deja.jeton = c.jeton; if (c.email) deja.email = c.email;
+        if (cadres[deja.id]) { cadres[deja.id].remove(); delete cadres[deja.id]; delete sources[deja.id]; }
+        c = deja;
+      }
       else comptes.push(c);
       garderComptes(); dire('Compte relié : ' + (c.email || nomCourt(c))); montrer(c.id);
     }, function (e) { dire('Pas pu relier : ' + (e && e.message || e)); });
@@ -275,7 +281,13 @@
     var id = l.getAttribute('data-id'), c = comptes.filter(function (x) { return x.id === id; })[0]; if (!c) return;
     var k = e.target.getAttribute('data-couleur');
     if (k) { c.couleur = k; garderComptes(); dessinerComptes(); dessinerNav(); }
-    if (e.target.classList.contains('cp-retirer') && confirm('Retirer « ' + nomCourt(c) + ' » de cette appli ? Ses mails ne sont pas touchés.')) {
+    if (e.target.classList.contains('cp-retirer') && !e.target.hasAttribute('data-sur')) {
+      /* pas de confirm() : la fenêtre de l'appli Mac ne l'affiche pas. Deux clics à la place. */
+      var bt = e.target; bt.setAttribute('data-sur', '1'); bt.textContent = 'Retirer vraiment ?';
+      setTimeout(function () { if (bt.isConnected) { bt.removeAttribute('data-sur'); bt.textContent = 'Retirer'; } }, 5000);
+      return;
+    }
+    if (e.target.classList.contains('cp-retirer')) {
       comptes = comptes.filter(function (x) { return x.id !== id; });
       if (cadres[id]) { cadres[id].remove(); delete cadres[id]; delete sources[id]; }
       garderComptes(); dessinerComptes(); dessinerNav();
