@@ -214,6 +214,10 @@
   }
   if (T && !FEN) try {
     T.event.listen('reserve-prete', function (ev) { var l = ev && ev.payload && ev.payload.label; if (reserve && reserve.label === l) reserve.pret = true; });
+    T.event.listen('mail-reduit', function (ev) {
+      var c = comptes.filter(function (x) { return ev && ev.payload && x.id === ev.payload.compte; })[0]; if (!c) return;
+      dire(vue === c.id ? 'Mail mis de côté : il attend en bas, dans les onglets.' : 'Mail mis de côté : il attend en bas de la boîte « ' + nomCourt(c) + ' ».');
+    });
     window.addEventListener('pagehide', finReserve);
     if (T.window && T.window.getCurrentWindow) T.window.getCurrentWindow().onCloseRequested(function () { finReserve(); });
   } catch (e) { /* sans fenêtre d'avance */ }
@@ -249,9 +253,22 @@
     setInterval(function () { try { T.webviewWindow.WebviewWindow.getByLabel('main').then(function (m) { if (!m) fermerCetteFenetre(); }); } catch (e) { /* rien */ } }, 30000);
   } catch (e) { /* sans événements */ }
   function fermerCetteFenetre() {
-    try { if (T && T.window && T.window.getCurrentWindow) { T.window.getCurrentWindow().close(); return; } } catch (e) { /* plus bas */ }
+    fenFermer = true;
+    try { if (T && T.window && T.window.getCurrentWindow) { var w = T.window.getCurrentWindow(); if (typeof w.destroy === 'function') w.destroy(); else w.close(); return; } } catch (e) { /* plus bas */ }
     try { window.close(); } catch (e) { /* rien */ }
   }
+  /* Bouton rouge du Mac dans une fenêtre d'écriture : la boîte ferme le mail comme sa croix (brouillon gardé, ou question s'il n'a pas
+     de destinataire), puis demande elle-même la fermeture de la fenêtre. Sans réponse de la boîte, la fenêtre se ferme quand même. */
+  var fenFermer = false, fenAck = false;
+  if (FEN && T && T.window && T.window.getCurrentWindow) try {
+    T.window.getCurrentWindow().onCloseRequested(function (ev) {
+      if (fenFermer || !fenSource) return; // fermeture voulue, ou boîte pas encore chargée
+      ev.preventDefault();
+      fenAck = false;
+      try { fenSource.postMessage({ boiteMail: 'fermerEcrire' }, '*'); } catch (e) { /* fermée */ }
+      setTimeout(function () { if (!fenAck) fermerCetteFenetre(); }, 2500);
+    });
+  } catch (e) { /* fermeture ordinaire */ }
   /* Dossier choisi : le même pour tous les comptes (Envoyés du compte A → Envoyés du compte B). */
   var DOSSIERS = [['reception', 'Boîte de réception'], ['suivis', 'Suivis'], ['importants', 'Importants'], ['envoyes', 'Envoyés'], ['brouillons', 'Brouillons'], ['programmes', 'Programmés'], ['tous', 'Tous les messages'], ['spam', 'Spam'], ['corbeille', 'Corbeille']];
   var CLE_DOSSIER = 'boite-mail-dossier', choix = lireChoix(), vues = {}, infos = {}, envoiLe = {}, libellesOuverts = false;
@@ -398,7 +415,7 @@
     Object.keys(cadres).forEach(function (k) { cadres[k].classList.remove('visible'); });
     fermerLecteur(true);
     clearInterval(minuterie); minuterie = null;
-    if (v === 'toutes') { $('page-toutes').classList.add('visible'); chargerToutes(); minuterie = setInterval(chargerToutes, 120000); }
+    if (v === 'toutes') { $('page-toutes').classList.add('visible'); chargerToutes(); minuterie = setInterval(chargerToutes, 120000); setTimeout(prechargerAutres, 6000); }
     else if (v === 'ajouter') { $('page-ajouter').classList.add('visible'); dessinerAjouter(); }
     else if (v === 'comptes') { $('page-comptes').classList.add('visible'); dessinerComptes(); }
     else { cadre(v).classList.add('visible'); direDossier(v, false); if (sources[v]) preparerReserve(v, 20000); }
@@ -416,21 +433,65 @@
     cadres[id] = f;
     return f;
   }
+  /* ---------- Copie sur l'ordinateur ----------
+     Chaque boîte confie à l'appli la copie de ses listes et de ses mails déjà lus : elle est rangée ici (base locale de l'appli, sur
+     ce Mac seulement) et rendue à l'ouverture suivante. La boîte s'affiche alors tout de suite et ne demande à Gmail que ce qui a changé. */
+  var baseCopie = null;
+  function avecCopie(suite) {
+    if (baseCopie) return suite(baseCopie);
+    try {
+      var r = indexedDB.open('boite-mail-copie', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('c'); };
+      r.onsuccess = function () { baseCopie = r.result; suite(baseCopie); };
+      r.onerror = function () { suite(null); };
+    } catch (e) { suite(null); }
+  }
+  function copieLire(cle, suite) {
+    var fini = false, rendre = function (v) { if (!fini) { fini = true; suite(v); } };
+    setTimeout(function () { rendre(null); }, 3000);
+    avecCopie(function (db) {
+      if (!db) return rendre(null);
+      try { var q = db.transaction('c').objectStore('c').get(cle); q.onsuccess = function () { rendre(q.result === undefined ? null : q.result); }; q.onerror = function () { rendre(null); }; } catch (e) { rendre(null); }
+    });
+  }
+  function copieEcrire(cle, v) {
+    avecCopie(function (db) { if (!db) return; try { var o = db.transaction('c', 'readwrite').objectStore('c'); if (v === null || v === '') o.delete(cle); else o.put(v, cle); } catch (e) { /* plein : la copie reste facultative */ } });
+  }
+  function compteDuCadre(source) {
+    return Object.keys(cadres).filter(function (k) { try { return source && cadres[k].contentWindow && estDans(source, cadres[k].contentWindow); } catch (e) { return false; } })[0] || '';
+  }
   // Messages des écrans de boîte : prêt (on garde sa fenêtre pour lui parler), liens vers l'extérieur.
   window.addEventListener('message', function (ev) {
     var d = ev.data || {};
+    if (d.boiteMail === 'cache-lire') {
+      var qc = compteDuCadre(ev.source), src = ev.source; if (!qc) return;
+      copieLire('boite|' + qc, function (t) { try { src.postMessage({ boiteMail: 'cache', texte: typeof t === 'string' ? t : '' }, '*'); } catch (e) { /* cadre fermé */ } });
+      return;
+    }
+    if (d.boiteMail === 'cache-ecrire') {
+      var qe = compteDuCadre(ev.source); if (!qe || FEN) return; // une fenêtre d'écriture lit la copie mais ne la remplace pas
+      if (typeof d.texte === 'string' && d.texte.length < 40000000) copieEcrire('boite|' + qe, d.texte);
+      return;
+    }
     if (d.boiteMail === 'ouvrir' && /^(https?:|mailto:|tel:)/i.test(String(d.url || ''))) ouvrirDehors(d.url);
     if (d.boiteMail === 'fenetreEcrire' && !FEN) {
       var qf = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0];
       if (qf) ouvrirFenetreEcrire(qf, d.onglet && typeof d.onglet === 'object' ? d.onglet : null);
     }
     if (d.boiteMail === 'fermerFenetre' && FEN) fermerCetteFenetre();
+    if (d.boiteMail === 'fermerEcrireRecu' && FEN) fenAck = true;
+    if (d.boiteMail === 'titreFenetre' && FEN && T && typeof d.titre === 'string') {
+      var cf = comptes.filter(function (x) { return fenDonnees && x.id === fenDonnees.compte; })[0];
+      try { T.window.getCurrentWindow().setTitle(d.titre.replace(/\s+/g, ' ').slice(0, 120) + (cf ? ' · ' + nomCourt(cf) : '')); } catch (e) { /* titre inchangé */ }
+    }
+    if (d.boiteMail === 'mailReduit' && FEN && T) { try { T.event.emitTo('main', 'mail-reduit', { compte: fenDonnees && fenDonnees.compte }); } catch (e) { /* seule */ } }
     if (d.boiteMail === 'pret') {
       Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k);
         try { if (FEN) { if (!fenDit) { fenDit = true; fenSource = ev.source;
+            try { ev.source.postMessage({ boiteMail: 'calme' }, '*'); } catch (x) { /* fermée */ }
             if (fenDonnees && fenDonnees.reserve) { if (fenAttente) { fenEnvoyer(fenAttente.onglet); fenAttente = null; } try { T.event.emitTo('main', 'reserve-prete', { label: FEN }); } catch (x) { /* seule */ } }
             else fenEnvoyer((fenDonnees && fenDonnees.onglet) || null); } } else { ev.source.postMessage({ boiteMail: 'fenetres', actif: fenetresPossibles() }, '*'); if (k === vue) preparerReserve(k, 6000); } } catch (x) { /* fermé */ }
-        if (k === vue) { direDossier(k, false); dessinerNav(); } } } catch (e) { /* autre */ } });
+        if (k === vue) { direDossier(k, false); dessinerNav(); setTimeout(prechargerAutres, 4000); } } } catch (e) { /* autre */ } });
     }
     // Une boîte annonce ses dossiers (compteurs, libellés, dossier affiché) : le volet les montre. Si on a changé de dossier dans la boîte
     // elle-même (onglet, recherche…), le volet suit, sauf juste après notre propre demande (réponse en retard d'un autre dossier).
@@ -450,6 +511,18 @@
       dessinerNav();
     }
   });
+  /* Les autres comptes sont chargés d'avance, l'un après l'autre, quelques secondes après l'ouverture : passer d'une boîte à l'autre
+     est alors immédiat. Grâce à la copie de l'ordinateur, une boîte chargée ainsi ne relit dans Gmail que ce qui a changé. */
+  var prechargeFaite = false;
+  function prechargerAutres() {
+    if (prechargeFaite || FEN) return; prechargeFaite = true;
+    var restants = comptes.map(function (c) { return c.id; });
+    (function suivant() {
+      var id = restants.shift(); if (!id) return;
+      if (cadres[id] || !comptes.some(function (c) { return c.id === id; })) return suivant();
+      cadre(id); setTimeout(suivant, 8000);
+    })();
+  }
   function estDans(w, haut) { for (var i = 0; w && i < 6; i++) { if (w === haut) return true; if (w === w.parent) break; w = w.parent; } return false; }
   function ouvrirFilDans(id, filId) {
     montrer(id);
@@ -462,17 +535,39 @@
   }
 
   /* ---------- Toutes les boîtes ---------- */
-  var tout = {};
-  function chargerToutes() {
+  /* Listes gardées sur l'ordinateur, par dossier puis par compte : { fils, h } où h est le repère Gmail du compte au moment de la lecture.
+     Toutes les deux minutes l'appli demande seulement ce repère (un petit appel) ; la liste d'un compte n'est relue que s'il a bougé. */
+  var tout = {}, toutes = {}, reperes = {}, toutesLues = false;
+  function garderToutes() { clearTimeout(garderToutes.t); garderToutes.t = setTimeout(function () { try { copieEcrire('toutes', JSON.stringify({ toutes: toutes, reperes: reperes })); } catch (e) { /* facultatif */ } }, 1500); }
+  function repereDe(c) {
+    var r = reperes[c.id];
+    if (r && r.historyId && Date.now() - (r.le || 0) < 50000) return Promise.resolve(r.historyId);
+    var v = r && r.version ? Promise.resolve(r.version) : porte(c, 'versionDonnees', []);
+    return v.then(function (version) { return porte(c, 'changementsDepuis', [{ version: String(version || '0'), historyId: '' }]); })
+      .then(function (x) { reperes[c.id] = { version: String((x && x.version) || '0'), historyId: String((x && x.historyId) || ''), le: Date.now() }; return reperes[c.id].historyId; });
+  }
+  function chargerToutes(forcer) {
+    if (!toutesLues) { // premier passage : la copie de l'ordinateur d'abord
+      toutesLues = true;
+      return copieLire('toutes', function (t) {
+        try { var o = JSON.parse(t || '{}'); if (o && o.toutes && typeof o.toutes === 'object') toutes = o.toutes; if (o && o.reperes && typeof o.reperes === 'object') { reperes = o.reperes; Object.keys(reperes).forEach(function (k) { reperes[k].le = 0; }); } } catch (e) { /* copie illisible : relue dans Gmail */ }
+        chargerToutes(forcer);
+      });
+    }
+    forcer = forcer === true;
     $('etat-toutes').textContent = 'Mise à jour…';
     var dos = choix.libelle ? 'reception' : (choix.dossier || 'reception'), nomDos = (DOSSIERS.filter(function (x) { return x[0] === dos; })[0] || DOSSIERS[0])[1];
     var mots = ($('mots-toutes').value || '').trim();
     var req = { dossier: dos === 'reception' ? 'principale' : dos, libelle: '', recherche: mots, debut: 0, jeton: '', contactsSeuls: false, sansRemises: true };
     var titre = document.querySelector('#page-toutes h2'); if (titre) titre.textContent = 'Toutes les boîtes · ' + nomDos + (mots ? ' · « ' + mots + ' »' : '');
-    var fini = 0, erreurs = [];
+    var fini = 0, erreurs = [], garde = mots ? null : (toutes[dos] = toutes[dos] || {});
+    if (garde) { comptes.forEach(function (c) { if (garde[c.id] && !tout[c.id]) tout[c.id] = garde[c.id].fils || []; }); dessinerToutes(); }
+    var un = function () { fini++; dessinerToutes(); if (fini === comptes.length) $('etat-toutes').textContent = erreurs.length ? 'Pas à jour : ' + erreurs.join(' · ') : nomDos + ' de ' + comptes.length + ' comptes, du plus récent au plus ancien.'; };
     comptes.forEach(function (c) {
-      porte(c, 'listeFils', [req]).then(function (r) { tout[c.id] = (r && r.fils) || []; }, function (e) { erreurs.push(nomCourt(c) + ' : ' + (e && e.message || e)); })
-        .then(function () { fini++; dessinerToutes(); if (fini === comptes.length) $('etat-toutes').textContent = erreurs.length ? 'Pas à jour : ' + erreurs.join(' · ') : nomDos + ' de ' + comptes.length + ' comptes, du plus récent au plus ancien.'; });
+      var lire = function (h) { return porte(c, 'listeFils', [req]).then(function (r) { tout[c.id] = (r && r.fils) || []; if (garde && h) { garde[c.id] = { fils: tout[c.id].slice(0, 60), h: h }; garderToutes(); } }); };
+      if (forcer && reperes[c.id]) reperes[c.id].le = 0;
+      (mots ? lire('') : repereDe(c).then(function (h) { if (!forcer && h && garde[c.id] && garde[c.id].h === h) { tout[c.id] = garde[c.id].fils || []; return; } return lire(h); }, function () { return lire(''); }))
+        .then(null, function (e) { erreurs.push(nomCourt(c) + ' : ' + (e && e.message || e)); }).then(un);
     });
   }
   function quand(d) {
@@ -522,7 +617,7 @@
           if (++fini < ids.length) return;
           actionEnCours = false;
           dire(rates.length ? 'Pas fait pour ' + rates.join(' · ') : (total > 1 ? total + ' mails : ' : 'Mail : ') + (ACTIONS_TOUTES.filter(function (a) { return a[0] === action; })[0] || ['', action])[1].toLowerCase() + ', fait.');
-          chargerToutes();
+          chargerToutes(true);
         });
     });
   }
@@ -639,6 +734,7 @@
     }
     if (e.target.classList.contains('cp-retirer')) {
       comptes = comptes.filter(function (x) { return x.id !== id; });
+      copieEcrire('boite|' + id, null); delete reperes[id]; garderToutes();
       if (cadres[id]) { cadres[id].remove(); delete cadres[id]; delete sources[id]; }
       garderComptes(); dessinerComptes(); dessinerNav();
       try { porte(c, 'deconnecterAppareil', []); } catch (er) { /* hors ligne : le jeton expirera */ }

@@ -2,7 +2,10 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Fenêtre principale et fenêtres d'écriture : liens ouverts dans le navigateur du système, liens boitemail:// pour relier un compte, ouverture et fermeture d'une fenêtre pour écrire.",
-  "windows": ["main", "ecrire-*"],
+  "windows": [
+    "main",
+    "ecrire-*"
+  ],
   "permissions": [
     "core:default",
     "deep-link:default",
@@ -11,6 +14,23 @@
     "core:window:allow-show",
     "core:window:allow-set-focus",
     "core:window:allow-destroy",
-    { "identifier": "opener:allow-open-url", "allow": [ { "url": "https://*" }, { "url": "http://*" }, { "url": "mailto:*" }, { "url": "tel:*" } ] }
+    "core:window:allow-set-title",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "http://*"
+        },
+        {
+          "url": "mailto:*"
+        },
+        {
+          "url": "tel:*"
+        }
+      ]
+    }
   ]
 }
