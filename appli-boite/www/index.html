@@ -16,7 +16,27 @@
   /* Taille de l'affichage (rouage) : le volet et les pages par « zoom », les boîtes (cadres) par une mise à l'échelle, qui marche partout. */
   nav, .page { zoom: var(--z); }
   nav { border-right: 1px solid var(--ligne); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; overflow: auto; background: var(--carte2); }
-  nav h1 { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; margin: 4px 8px 12px; }
+  nav h1 { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; margin: 4px 8px 12px; display: flex; align-items: center; gap: 6px; }
+  nav h1 span { flex: 1; min-width: 0; }
+  #plier { flex: none; border: 0; background: transparent; color: var(--doux); border-radius: 8px; width: 26px; height: 26px; display: grid; place-items: center; padding: 0; }
+  #plier:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--texte); }
+  #plier svg { width: 16px; height: 16px; }
+  .dos > svg { display: none; }
+  /* Volet rabattu (chevron en haut) : une colonne de pictogrammes, pour laisser toute la place à la boîte. */
+  @media (min-width: 761px) {
+    html.volet-plie { --barre: 54px; }
+    html.volet-plie nav { padding: 10px 6px; overflow-x: hidden; }
+    html.volet-plie nav h1 { margin: 0 0 8px; justify-content: center; }
+    html.volet-plie nav h1 span, html.volet-plie nav .nom, html.volet-plie .plus-rub, html.volet-plie .dos.titre, html.volet-plie .dos.lib { display: none; }
+    html.volet-plie .choix, html.volet-plie .rub, html.volet-plie .roue { justify-content: center; padding: 9px 0; }
+    html.volet-plie .pastille { width: 14px; height: 14px; }
+    html.volet-plie .dos { justify-content: center; padding: 6px 0; position: relative; }
+    html.volet-plie .dos > svg { display: block; width: 16px; height: 16px; color: var(--doux); }
+    html.volet-plie .dos.actif > svg { color: var(--accent); }
+    html.volet-plie .dos .nb { position: absolute; top: 0; right: 3px; font-size: 9px; line-height: 1; background: var(--accent); color: #fff; border-radius: 999px; padding: 2px 4px; }
+    html.volet-plie .rub svg { width: 17px; height: 17px; }
+  }
+  @media (max-width: 760px) { #plier { display: none; } }
   .choix { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 10px; padding: 9px 10px; font-weight: 500; }
   .choix:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .choix.actif { background: color-mix(in srgb, var(--accent) 15%, var(--carte)); font-weight: 650; }
@@ -181,6 +201,9 @@
   /* Dossier choisi : le même pour tous les comptes (Envoyés du compte A → Envoyés du compte B). */
   var DOSSIERS = [['reception', 'Boîte de réception'], ['suivis', 'Suivis'], ['importants', 'Importants'], ['envoyes', 'Envoyés'], ['brouillons', 'Brouillons'], ['programmes', 'Programmés'], ['tous', 'Tous les messages'], ['spam', 'Spam'], ['corbeille', 'Corbeille']];
   var CLE_DOSSIER = 'boite-mail-dossier', choix = lireChoix(), vues = {}, infos = {}, envoiLe = {}, libellesOuverts = false;
+  var PICTO_DOS = { reception: '<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5a4 4 0 0 0 8 0h5"/>', suivis: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', importants: '<path d="M4 6h11l5 6-5 6H4l4-6z"/>', envoyes: '<path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4z"/>', brouillons: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>', programmes: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', tous: '<path d="M4 6h16M4 12h16M4 18h16"/>', spam: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>', corbeille: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>' };
+  var CLE_PLIE = 'boite-mail-volet-plie', plie = false; try { plie = localStorage.getItem(CLE_PLIE) === '1'; } catch (e) { /* rien */ }
+  document.documentElement.classList.toggle('volet-plie', plie);
   var ETROIT = window.matchMedia ? window.matchMedia('(max-width: 760px)') : { matches: false };
   function lireChoix() { try { var d = JSON.parse(localStorage.getItem(CLE_DOSSIER) || '{}'); if (d && DOSSIERS.some(function (x) { return x[0] === d.dossier; })) return { dossier: d.dossier, libelle: '' }; } catch (e) { /* rien */ } return { dossier: 'reception', libelle: '' }; }
   function garderChoix() { try { localStorage.setItem(CLE_DOSSIER, JSON.stringify({ dossier: choix.dossier || 'reception' })); } catch (e) { /* rien */ } }
@@ -237,7 +260,7 @@
     };
     var h = '<div class="dossiers" aria-label="Dossiers">' + DOSSIERS.map(function (d) {
       var n = nb(d[0]);
-      return '<button type="button" class="dos' + (surMails && !choix.libelle && choix.dossier === d[0] ? ' actif' : '') + '" data-dossier="' + d[0] + '"><span class="nom">' + d[1] + '</span>' + (n ? '<span class="nb">' + n + '</span>' : '') + '</button>';
+      return '<button type="button" class="dos' + (surMails && !choix.libelle && choix.dossier === d[0] ? ' actif' : '') + '" data-dossier="' + d[0] + '" title="' + d[1] + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + PICTO_DOS[d[0]] + '</svg><span class="nom">' + d[1] + '</span>' + (n ? '<span class="nb">' + n + '</span>' : '') + '</button>';
     }).join('');
     var libs = surToutes ? [] : (info.libelles || []);
     if (libs.length) {
@@ -255,14 +278,14 @@
     if (!estCompte(vue) || !sources[vue]) return '';
     var v = vueDe(vue);
     return '<div class="rubriques" aria-label="Campagnes, modèles et carnet">' + RUBRIQUES.map(function (r) {
-      return '<button type="button" class="rub' + (v === r[0] ? ' actif' : '') + '" data-rubrique="' + r[0] + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + PICTO[r[0]] + '</svg><span class="nom">' + r[1] + '</span></button>' +
+      return '<button type="button" class="rub' + (v === r[0] ? ' actif' : '') + '" data-rubrique="' + r[0] + '" title="' + esc(r[1]) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + PICTO[r[0]] + '</svg><span class="nom">' + r[1] + '</span></button>' +
         (r[2] ? '<button type="button" class="dos plus-rub" data-nouveau="' + r[2] + '"><span class="nom">＋ ' + r[3] + '</span></button>' : '');
     }).join('') + '</div>';
   }
   function direBoite(id, m) { var s = sources[id]; if (!s) return false; try { s.postMessage(m, '*'); return true; } catch (e) { return false; } }
   function dessinerNav() {
-    var h = '<h1>Boîte mail</h1>';
-    if (comptes.length > 1) h += '<button type="button" class="choix toutes' + (vue === 'toutes' ? ' actif' : '') + '" data-vue="toutes"><span class="pastille"></span><span class="nom">Toutes les boîtes</span></button>';
+    var h = '<h1><span>Boîte mail</span><button type="button" id="plier" title="' + (plie ? 'Déplier le volet' : 'Rabattre le volet') + '" aria-label="' + (plie ? 'Déplier le volet' : 'Rabattre le volet') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="' + (plie ? 'M13.5 9.5l2.5 2.5-2.5 2.5' : 'M16 9.5l-2.5 2.5 2.5 2.5') + '"/></svg></button></h1>';
+    if (comptes.length > 1) h += '<button type="button" class="choix toutes' + (vue === 'toutes' ? ' actif' : '') + '" data-vue="toutes" title="Toutes les boîtes"><span class="pastille"></span><span class="nom">Toutes les boîtes</span></button>';
     comptes.forEach(function (c) {
       h += '<button type="button" class="choix' + (vue === c.id ? ' actif' : '') + '" data-vue="' + esc(c.id) + '" title="' + esc(c.email || '') + '">' +
         '<span class="pastille" style="background:' + esc(c.couleur) + '"></span><span class="nom">' + esc(nomCourt(c)) + '</span></button>';
@@ -273,6 +296,7 @@
     $('nav').innerHTML = h;
   }
   $('nav').addEventListener('click', function (e) {
+    if (e.target.closest('#plier')) { plie = !plie; try { localStorage.setItem(CLE_PLIE, plie ? '1' : '0'); } catch (x) { /* rien */ } document.documentElement.classList.toggle('volet-plie', plie); return dessinerNav(); }
     var b = e.target.closest('[data-vue]'); if (b) return montrer(b.getAttribute('data-vue'));
     if (e.target.closest('#roue')) return ouvrirMenuRoue();
     var rb = e.target.closest('[data-rubrique]'); if (rb) { vues[vue] = rb.getAttribute('data-rubrique'); direBoite(vue, { boiteMail: 'vue', vue: vues[vue] }); return dessinerNav(); }
