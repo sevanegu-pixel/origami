@@ -111,12 +111,24 @@
   #actions-toutes button { border: 1px solid var(--ligne); background: var(--carte2); border-radius: 9px; padding: 5px 10px; font-size: 13px; font-weight: 550; }
   #actions-toutes button:hover { border-color: var(--accent); }
   #actions-toutes button:disabled { opacity: .5; }
-  /* Toutes les boîtes, écran large : la liste reste à gauche, le mail choisi s'affiche à droite dans la boîte de son compte. */
-  @media (min-width: 1000px) {
-    #page-toutes.avec-lecteur { right: auto; width: 430px; border-right: 1px solid var(--ligne); padding: 14px 12px 60px; }
+  /* Toutes les boîtes, écran large : la liste reste à gauche (plus étroite si la fenêtre l'est), le mail choisi s'affiche à droite
+     dans la boîte de son compte. Fenêtre plus étroite : le mail prend toute la place, sous une barre « ← Toutes les boîtes ». */
+  .barre-lecteur { display: none; align-items: center; gap: 10px; min-width: 0; }
+  .barre-lecteur button { flex: none; border: 1px solid var(--ligne); background: var(--carte); border-radius: 10px; padding: 7px 12px; font-weight: 600; }
+  .barre-lecteur span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--doux); font-size: 13px; }
+  @media (min-width: 1100px) {
+    #page-toutes.avec-lecteur { right: auto; width: clamp(330px, 36%, 430px); border-right: 1px solid var(--ligne); padding: 14px 12px 60px; }
     #page-toutes.avec-lecteur #fermer-lecteur { display: block; }
-    .cadre.lecteur { left: 430px; width: calc((100% - 430px) / var(--z)); }
+    .cadre.lecteur { left: clamp(330px, 36%, 430px); width: calc((100% - clamp(330px, 36%, 430px)) / var(--z)); }
   }
+  @media (max-width: 1099px) {
+    #page-toutes.avec-lecteur { bottom: auto; height: 54px; padding: 9px 12px; overflow: hidden; border-bottom: 1px solid var(--ligne); }
+    #page-toutes.avec-lecteur .dans > :not(.barre-lecteur) { display: none; }
+    #page-toutes.avec-lecteur .barre-lecteur { display: flex; }
+    .cadre.lecteur { top: 54px; height: calc((100% - 54px) / var(--z)); }
+  }
+  #dos-toutes { display: none; flex: none; max-width: 42%; border: 1px solid var(--ligne); background: var(--carte); color: var(--texte); border-radius: 10px; padding: 0 8px; font: inherit; font-size: 14px; }
+  @media (max-width: 760px) { #dos-toutes { display: block; } }
   .etat { color: var(--doux); font-size: 13px; margin: 6px 0 12px; }
   .boite { background: var(--carte); border: 1px solid var(--ligne); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
   .etape { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--ligne); }
@@ -158,8 +170,9 @@
   <nav id="nav" aria-label="Comptes"></nav>
   <main id="main">
     <section class="page" id="page-toutes"><div class="dans">
+      <div class="barre-lecteur"><button type="button" id="retour-lecteur">← Toutes les boîtes</button><span id="lecteur-compte"></span></div>
       <h2>Toutes les boîtes</h2>
-      <form class="cherche-toutes" id="cherche-toutes"><input type="text" id="mots-toutes" placeholder="Chercher dans toutes les boîtes" aria-label="Chercher dans toutes les boîtes"><button type="button" id="fermer-lecteur" title="Fermer le mail affiché à droite">Fermer le mail</button></form>
+      <form class="cherche-toutes" id="cherche-toutes"><select id="dos-toutes" aria-label="Dossier"></select><input type="text" id="mots-toutes" placeholder="Chercher dans toutes les boîtes" aria-label="Chercher dans toutes les boîtes"><button type="button" id="fermer-lecteur" title="Fermer le mail affiché à droite">Fermer le mail</button></form>
       <p class="etat" id="etat-toutes"></p>
       <div id="actions-toutes" aria-label="Actions sur les mails cochés"></div>
       <div class="liste" id="liste-toutes"></div>
@@ -557,6 +570,8 @@
     forcer = forcer === true;
     $('etat-toutes').textContent = 'Mise à jour…';
     var dos = choix.libelle ? 'reception' : (choix.dossier || 'reception'), nomDos = (DOSSIERS.filter(function (x) { return x[0] === dos; })[0] || DOSSIERS[0])[1];
+    // Fenêtre étroite : le volet des dossiers est caché, le choix du dossier se fait ici.
+    $('dos-toutes').innerHTML = DOSSIERS.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === dos ? ' selected' : '') + '>' + esc(x[1]) + '</option>'; }).join('');
     var mots = ($('mots-toutes').value || '').trim();
     var req = { dossier: dos === 'reception' ? 'principale' : dos, libelle: '', recherche: mots, debut: 0, jeton: '', contactsSeuls: false, sansRemises: true };
     var titre = document.querySelector('#page-toutes h2'); if (titre) titre.textContent = 'Toutes les boîtes · ' + nomDos + (mots ? ' · « ' + mots + ' »' : '');
@@ -570,12 +585,16 @@
         .then(null, function (e) { erreurs.push(nomCourt(c) + ' : ' + (e && e.message || e)); }).then(un);
     });
   }
+  /* Dates comme dans la liste de chaque boîte : « 07h59 » aujourd'hui, « 20 oct. » cette année, « 20.10.25 » avant. */
   function quand(d) {
     var t = Date.parse(String(d || '')); if (isNaN(t)) return '';
     var x = new Date(t), auj = new Date();
-    if (x.toDateString() === auj.toDateString()) return ('0' + x.getHours()).slice(-2) + ':' + ('0' + x.getMinutes()).slice(-2);
-    return x.getDate() + '.' + (x.getMonth() + 1) + (x.getFullYear() !== auj.getFullYear() ? '.' + x.getFullYear() : '');
+    if (x.toDateString() === auj.toDateString()) return ('0' + x.getHours()).slice(-2) + 'h' + ('0' + x.getMinutes()).slice(-2);
+    if (x.getFullYear() !== auj.getFullYear()) return x.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    return x.toLocaleDateString('fr-CH', { day: 'numeric', month: 'short' });
   }
+  // Les pieds de page portent des caractères invisibles : sans eux, l'extrait ne commence plus par un blanc.
+  function sansInvisibles(s) { return String(s == null ? '' : s).replace(/[\u200B-\u200F\u2060-\u2064\uFEFF\u00AD]/g, '').replace(/\s+/g, ' ').trim(); }
   function dessinerToutes() {
     var lignes = [];
     comptes.forEach(function (c) { (tout[c.id] || []).forEach(function (f) { lignes.push({ c: c, f: f, t: Date.parse(String(f.date || '')) || 0 }); }); });
@@ -590,7 +609,7 @@
         '<input type="checkbox" class="coche" aria-label="Cocher ce mail"' + (cochesToutes[l.c.id + '|' + f.id] ? ' checked' : '') + '>' +
         '<div style="min-width:0"><div class="haut"><span class="qui">' + esc(qui) + '</span><span class="cpt">' + esc(nomCourt(l.c)) + '</span></div>' +
         '<div class="objet">' + esc(f.objet) + (f.nb > 1 ? ' <span class="doux">(' + f.nb + ')</span>' : '') + '</div>' +
-        '<div class="extrait">' + esc(f.extrait) + '</div></div>' +
+        '<div class="extrait">' + esc(sansInvisibles(f.extrait)) + '</div></div>' +
         '<span class="quand">' + esc(quand(f.date)) + '</span></div>';
     }).join('') || '<p class="doux">Rien pour l\'instant.</p>';
   }
@@ -622,8 +641,9 @@
     });
   }
   $('actions-toutes').addEventListener('click', function (e) { var b = e.target.closest('[data-action]'); if (b && !b.disabled) agirToutes(b.getAttribute('data-action')); });
-  /* Lire un mail sans quitter « Toutes les boîtes » : sur écran large, la boîte du compte s'affiche à droite, réduite au mail. */
-  var lecteur = null, LARGE = window.matchMedia ? window.matchMedia('(min-width: 1000px)') : { matches: true };
+  /* Lire un mail sans quitter « Toutes les boîtes » : la boîte du compte s'affiche, réduite au mail ; à droite de la liste sur écran
+     large, en pleine place sous une barre « ← Toutes les boîtes » sinon (avant, en fenêtre étroite, on changeait de compte). */
+  var lecteur = null, hautListe = 0;
   function fermerLecteur(silence) {
     if (!lecteur) return;
     var id = lecteur.id; lecteur = null;
@@ -631,12 +651,15 @@
     direBoite(id, { boiteMail: 'lecteur', actif: false });
     $('page-toutes').classList.remove('avec-lecteur');
     if (!silence) dessinerToutes();
+    if (window.matchMedia && window.matchMedia('(max-width: 1099px)').matches) $('page-toutes').scrollTop = hautListe; // la liste revient là où on l'avait laissée
   }
   function lireIci(id, filId) {
-    if (!LARGE.matches) return ouvrirFilDans(id, filId);
     if (lecteur && lecteur.id === id && lecteur.fil === filId) return fermerLecteur();
     if (lecteur && lecteur.id !== id) fermerLecteur(true);
+    if (!lecteur) hautListe = $('page-toutes').scrollTop;
     lecteur = { id: id, fil: filId };
+    var cl = comptes.filter(function (x) { return x.id === id; })[0];
+    $('lecteur-compte').textContent = cl ? nomCourt(cl) : '';
     $('page-toutes').classList.add('avec-lecteur');
     cadre(id).classList.add('lecteur', 'visible');
     dessinerToutes();
@@ -647,8 +670,9 @@
       if (++essais < 80) setTimeout(envoyer, 250); else dire('La boîte tarde à s\'ouvrir : réessayez dans un instant.');
     })();
   }
-  if (LARGE.addEventListener) LARGE.addEventListener('change', function () { if (!LARGE.matches) fermerLecteur(); });
   $('fermer-lecteur').addEventListener('click', function () { fermerLecteur(); });
+  $('retour-lecteur').addEventListener('click', function () { fermerLecteur(); });
+  $('dos-toutes').addEventListener('change', function () { choisir(this.value, ''); });
   $('cherche-toutes').addEventListener('submit', function (e) { e.preventDefault(); tout = {}; dessinerToutes(); chargerToutes(); });
   $('mots-toutes').addEventListener('search', function () { if (!this.value) { tout = {}; chargerToutes(); } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && lecteur && vue === 'toutes') fermerLecteur(); });
