@@ -104,6 +104,8 @@
   .couleurs span.choisie { border-color: var(--texte); }
   .message { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--texte); color: var(--fond); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); display: none; z-index: 9; }
   .barre-tel { display: none; }
+  html.fenetre-ecrire nav { display: none !important; }
+  html.fenetre-ecrire .appli { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important; }
   @media (max-width: 760px) {
     .appli { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
     nav { zoom: 1; }
@@ -152,6 +154,30 @@
   var COULEURS = ['#1f6feb', '#e0b100', '#2f8a4c', '#c2410c', '#8b5cf6', '#db2777', '#0e7490', '#6b7280'];
   var T = window.__TAURI__ || null;
   var comptes = lireComptes(), vue = lireVue(), cadres = {}, sources = {}, minuterie = null;
+  /* Fenêtre séparée pour écrire un mail : la même page, ouverte avec ?ecrire=<étiquette>, ne montre que la boîte du compte
+     et lui demande d'ouvrir le mail (confié par la fenêtre principale dans la mémoire de l'appli). */
+  var FEN = (location.search.match(/[?&]ecrire=([\w-]{1,40})/) || [])[1] || '', fenDonnees = null, fenDit = false;
+  if (FEN) {
+    try { fenDonnees = JSON.parse(localStorage.getItem('boite-mail-fenetre-' + FEN) || 'null'); localStorage.removeItem('boite-mail-fenetre-' + FEN); } catch (e) { fenDonnees = null; }
+    document.documentElement.classList.add('fenetre-ecrire');
+  }
+  function fenetresPossibles() { return T ? !!(T.webviewWindow && T.webviewWindow.WebviewWindow) : true; }
+  function ouvrirFenetreEcrire(id, onglet) {
+    var c = comptes.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    var label = 'ecrire-' + Date.now().toString(36);
+    try { localStorage.setItem('boite-mail-fenetre-' + label, JSON.stringify({ compte: id, onglet: onglet || null })); } catch (e) { return dire('Mémoire de l\'appli pleine : la fenêtre ne peut pas s\'ouvrir.'); }
+    var titre = 'Écrire · ' + nomCourt(c);
+    try {
+      if (T) {
+        var w = new T.webviewWindow.WebviewWindow(label, { url: 'index.html?ecrire=' + label, title: titre, width: 760, height: 800, minWidth: 420, minHeight: 480, dragDropEnabled: false });
+        w.once('tauri://error', function (e) { dire('La fenêtre n\'a pas pu s\'ouvrir : le mail reste dans les onglets du bas.'); try { localStorage.removeItem('boite-mail-fenetre-' + label); } catch (x) { /* rien */ } });
+      } else if (!window.open('index.html?ecrire=' + label, label, 'width=760,height=800')) dire('Le navigateur a bloqué la nouvelle fenêtre.');
+    } catch (e) { dire('La fenêtre n\'a pas pu s\'ouvrir : le mail reste dans les onglets du bas.'); }
+  }
+  function fermerCetteFenetre() {
+    try { if (T && T.window && T.window.getCurrentWindow) { T.window.getCurrentWindow().close(); return; } } catch (e) { /* plus bas */ }
+    try { window.close(); } catch (e) { /* rien */ }
+  }
   /* Dossier choisi : le même pour tous les comptes (Envoyés du compte A → Envoyés du compte B). */
   var DOSSIERS = [['reception', 'Boîte de réception'], ['suivis', 'Suivis'], ['importants', 'Importants'], ['envoyes', 'Envoyés'], ['brouillons', 'Brouillons'], ['programmes', 'Programmés'], ['tous', 'Tous les messages'], ['spam', 'Spam'], ['corbeille', 'Corbeille']];
   var CLE_DOSSIER = 'boite-mail-dossier', choix = lireChoix(), vues = {}, infos = {}, envoiLe = {}, libellesOuverts = false;
@@ -185,7 +211,7 @@
   function lireComptes() { try { var c = JSON.parse(localStorage.getItem(CLE) || '[]'); return Array.isArray(c) ? c : []; } catch (e) { return []; } }
   function garderComptes() { try { localStorage.setItem(CLE, JSON.stringify(comptes)); } catch (e) { /* appareil sans mémoire */ } }
   function lireVue() { try { return localStorage.getItem(CLE_VUE) || ''; } catch (e) { return ''; } }
-  function garderVue(v) { try { localStorage.setItem(CLE_VUE, v); } catch (e) { /* rien */ } }
+  function garderVue(v) { if (FEN) return; try { localStorage.setItem(CLE_VUE, v); } catch (e) { /* rien */ } }
   function dire(t) { var m = $('message'); m.textContent = t; m.style.display = 'block'; clearTimeout(dire.t); dire.t = setTimeout(function () { m.style.display = 'none'; }, 5000); }
   function ouvrirDehors(u) {
     try { if (T && T.opener && T.opener.openUrl) { T.opener.openUrl(String(u)); return; } } catch (e) { /* plus bas */ }
@@ -316,8 +342,15 @@
   window.addEventListener('message', function (ev) {
     var d = ev.data || {};
     if (d.boiteMail === 'ouvrir' && /^(https?:|mailto:|tel:)/i.test(String(d.url || ''))) ouvrirDehors(d.url);
+    if (d.boiteMail === 'fenetreEcrire' && !FEN) {
+      var qf = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0];
+      if (qf) ouvrirFenetreEcrire(qf, d.onglet && typeof d.onglet === 'object' ? d.onglet : null);
+    }
+    if (d.boiteMail === 'fermerFenetre' && FEN) fermerCetteFenetre();
     if (d.boiteMail === 'pret') {
-      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k); if (k === vue) { direDossier(k, false); dessinerNav(); } } } catch (e) { /* autre */ } });
+      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k);
+        try { if (FEN) { if (!fenDit) { fenDit = true; ev.source.postMessage({ boiteMail: 'ecrireOnglet', onglet: (fenDonnees && fenDonnees.onglet) || null }, '*'); } } else ev.source.postMessage({ boiteMail: 'fenetres', actif: fenetresPossibles() }, '*'); } catch (x) { /* fermé */ }
+        if (k === vue) { direDossier(k, false); dessinerNav(); } } } catch (e) { /* autre */ } });
     }
     // Une boîte annonce ses dossiers (compteurs, libellés, dossier affiché) : le volet les montre. Si on a changé de dossier dans la boîte
     // elle-même (onglet, recherche…), le volet suit, sauf juste après notre propre demande (réponse en retard d'un autre dossier).
@@ -500,14 +533,15 @@
 
   /* ---------- Liens boitemail://relier?c=… ---------- */
   function liens(urls) { (urls || []).forEach(function (u) { if (/^boitemail:\/\/relier/i.test(String(u))) relier(String(u)); }); }
-  try {
+  if (!FEN) try {
     if (T && T.core) T.core.invoke('plugin:deep-link|get_current').then(liens, function () { /* aucun */ });
     if (T && T.event) T.event.listen('deep-link://new-url', function (ev) { liens(ev.payload); });
   } catch (e) { /* pas dans l'appli */ }
   // Essai dans un navigateur : #relier=<code>
-  if (/^#relier=/.test(location.hash)) { relier(location.hash.slice(8)); history.replaceState(null, '', location.pathname); }
+  if (!FEN && /^#relier=/.test(location.hash)) { relier(location.hash.slice(8)); history.replaceState(null, '', location.pathname); }
 
-  montrer(vue || (comptes.length > 1 ? 'toutes' : (comptes[0] ? comptes[0].id : 'ajouter')));
+  if (FEN) { if (fenDonnees && comptes.some(function (c) { return c.id === fenDonnees.compte; })) montrer(fenDonnees.compte); else fermerCetteFenetre(); }
+  else montrer(vue || (comptes.length > 1 ? 'toutes' : (comptes[0] ? comptes[0].id : 'ajouter')));
 })();
 </script>
 </body>
