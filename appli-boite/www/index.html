@@ -222,8 +222,8 @@
     return h + '</div>';
   }
   /* Rubriques de la boîte affichée (chaque boîte a ses campagnes, ses modèles et son carnet). */
-  var PICTO = { campagne: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>', modeles: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>', contacts: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M18 20a6 6 0 0 0-2-4.5"/>' };
-  var RUBRIQUES = [['campagne', 'Campagnes', 'campagne', 'Nouvelle campagne'], ['modeles', 'Modèles', 'modele', 'Nouveau modèle'], ['contacts', 'Carnet d\'adresses', '', '']];
+  var PICTO = { campagne: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>', modeles: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>', adresses: '<path d="M4 12a8 8 0 1 0 8-8"/><circle cx="12" cy="12" r="3.2"/><path d="M15.2 12v1.2a2.4 2.4 0 0 0 4.8 0V12"/>', contacts: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M18 20a6 6 0 0 0-2-4.5"/>' };
+  var RUBRIQUES = [['campagne', 'Campagnes', 'campagne', 'Nouvelle campagne'], ['modeles', 'Modèles', 'modele', 'Nouveau modèle'], ['adresses', 'Contacts', '', ''], ['contacts', 'Carnet d\'adresses', '', '']];
   function vueDe(id) { return vues[id] || 'messages'; }
   function htmlRubriques() {
     if (!estCompte(vue) || !sources[vue]) return '';
