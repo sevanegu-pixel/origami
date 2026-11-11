@@ -218,13 +218,19 @@
     $('ajouter').innerHTML =
       '<h2>Ajouter un compte</h2><p class="sous">Chaque compte Google a sa propre Boîte mail, dans son Drive. Ça prend une minute, dans votre navigateur, avec le compte à relier.</p>' +
       '<div class="boite">' +
-      '<div class="etape"><span class="num">1</span><div><b>Créer la Boîte mail du compte</b><p class="doux">Une copie vierge s\'ouvre dans le navigateur. Vérifiez en haut à droite que c\'est le bon compte Google, puis « Créer une copie ».</p>' +
+      '<div class="etape"><span class="num">1</span><div><b>Créer la Boîte mail du compte</b><p class="doux">Une copie vierge s\'ouvre dans le navigateur. Indiquez l\'adresse Gmail du compte : la copie se fait avec ce compte-là. Puis « Créer une copie ».</p>' +
+        '<input type="text" id="aj-email" inputmode="email" autocomplete="email" placeholder="Adresse Gmail du compte à relier" style="margin-bottom:8px">' +
         '<button type="button" class="prim" id="aj-copie"' + (pret ? '' : ' disabled') + '>Créer ma Boîte mail</button>' + (pret ? '' : ' <span class="doux">(bientôt)</span>') + '</div></div>' +
       '<div class="etape"><span class="num">2</span><div><b>Relier à l\'appli</b><p class="doux">Dans la copie : menu <b>Boîte mail › Relier à l\'appli Boîte mail</b>, puis acceptez les autorisations Google (« appli non validée » : c\'est normal pour un outil à soi, « Paramètres avancés › Accéder »). La première fois, un interrupteur Google est demandé : la fenêtre explique.</p></div></div>' +
       '<div class="etape"><span class="num">3</span><div><b>Ouvrir dans l\'appli</b><p class="doux">Cliquez « Ouvrir dans l\'appli Boîte mail » : le compte apparaît ici tout seul. Sinon, collez le code :</p>' +
         '<textarea id="aj-code" placeholder="Code de liaison"></textarea><div class="actions"><button type="button" id="aj-ok">Relier avec ce code</button></div></div></div>' +
       '</div>';
-    var b = $('aj-copie'); if (b && pret) b.onclick = function () { ouvrirDehors(MODELE); };
+    var b = $('aj-copie'); if (b && pret) b.onclick = function () {
+      // Plusieurs comptes Google dans le navigateur : sans « authuser », la copie part sur le compte par défaut.
+      var em = String($('aj-email').value || '').trim();
+      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { dire('Adresse incomplète.'); return; }
+      ouvrirDehors(MODELE + (em ? '?authuser=' + encodeURIComponent(em) : ''));
+    };
     $('aj-ok').onclick = function () { relier($('aj-code').value); };
   }
   function decoder(code) {
