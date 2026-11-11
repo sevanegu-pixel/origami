@@ -76,6 +76,7 @@
   .menu-roue .taille span.nom { flex: 1; min-width: 0; }
   .menu-roue .taille button { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--ligne); border-radius: 50%; font-size: 17px; font-weight: 600; text-align: center; }
   .menu-roue .taille b { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+  .menu-roue .version { padding: 6px 10px 4px; border-top: 1px solid var(--ligne); margin-top: 4px; font-size: 12px; color: var(--doux); }
   main { position: relative; min-width: 0; height: 100%; overflow: hidden; }
   .cadre { position: absolute; left: 0; top: 0; width: calc(100% / var(--z)); height: calc(100% / var(--z)); transform: scale(var(--z)); transform-origin: 0 0; border: 0; background: var(--fond); display: none; }
   .cadre.visible { display: block; }
@@ -145,6 +146,25 @@
   .couleurs span.choisie { border-color: var(--texte); }
   .message { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--texte); color: var(--fond); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); display: none; z-index: 9; }
   .barre-tel { display: none; }
+  /* Aperçu immédiat : pendant qu'une boîte s'ouvre, sa dernière liste de mails (gardée sur l'ordinateur) est déjà à l'écran. */
+  #page-apercu { z-index: 2; background: var(--fond); }
+  #page-apercu h2 { min-width: 0; overflow-wrap: anywhere; }
+  /* Fenêtre large : la liste est à gauche, là où la boîte l'affichera, pour que rien ne saute quand la boîte prend le relais. */
+  @media (min-width: 1141px) { #page-apercu > .dans { max-width: none; margin: 0; } #page-apercu > .dans > * { max-width: 404px; } }
+  #etat-apercu { display: flex; align-items: center; gap: 8px; }
+  .tourne { flex: none; width: 13px; height: 13px; border-radius: 50%; border: 2px solid var(--ligne); border-top-color: var(--accent); animation: tourne .8s linear infinite; }
+  @keyframes tourne { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .tourne { animation-duration: 2.4s; } }
+  #liste-apercu { zoom: var(--txt, 1); }
+  #liste-apercu .conv { grid-template-columns: 4px minmax(0, 1fr) auto; }
+  #liste-apercu .conv.attendue { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  /* Comptes à faire glisser dans le volet pour choisir leur ordre */
+  nav.en-glisse, nav.en-glisse .choix { cursor: grabbing; }
+  .choix.glisse { background: color-mix(in srgb, var(--accent) 15%, var(--carte)); box-shadow: 0 4px 14px rgba(0,0,0,.18); position: relative; z-index: 1; }
+  .compte .ordre { display: flex; gap: 6px; }
+  .si-etroit { display: none; }
+  @media (max-width: 760px) { .si-large { display: none; } .si-etroit { display: inline; } }
+  .compte .ordre button { width: 34px; height: 34px; padding: 0; display: inline-grid; place-items: center; font-size: 15px; }
   html.fenetre-ecrire nav { display: none !important; }
   html.fenetre-ecrire .appli { grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) !important; }
   @media (max-width: 760px) {
@@ -177,6 +197,11 @@
       <div id="actions-toutes" aria-label="Actions sur les mails cochés"></div>
       <div class="liste" id="liste-toutes"></div>
     </div></section>
+    <section class="page" id="page-apercu" aria-live="polite"><div class="dans">
+      <h2><span id="titre-apercu"></span></h2>
+      <p class="etat" id="etat-apercu"></p>
+      <div class="liste" id="liste-apercu"></div>
+    </div></section>
     <section class="page" id="page-ajouter"><div class="dans" id="ajouter"></div></section>
     <section class="page" id="page-comptes"><div class="dans" id="comptes"></div></section>
   </main>
@@ -194,6 +219,7 @@
 (function () {
   var MODELE = 'https://docs.google.com/spreadsheets/d/1ASK-DE6JQPvcn471bWiASXp88oaGneUlPWYHOUwGDsc/copy'; // Boîte mail vierge à copier (rempli à la publication)
   var CLE = 'boite-mail-comptes', CLE_VUE = 'boite-mail-vue';
+  var VERSION = '__VERSION_APPLI__'; // remplacé par le numéro de la version à la fabrication (visible dans le menu Réglages)
   var COULEURS = ['#1f6feb', '#e0b100', '#2f8a4c', '#c2410c', '#8b5cf6', '#db2777', '#0e7490', '#6b7280'];
   var T = window.__TAURI__ || null;
   var comptes = lireComptes(), vue = lireVue(), cadres = {}, sources = {}, minuterie = null;
@@ -225,12 +251,24 @@
       } catch (e) { reserve = null; }
     }, delai);
   }
+  /* Ce qu'une fenêtre d'écriture dit à la fenêtre principale (dans un navigateur, pour les essais : un canal entre les deux pages). */
+  var canal = null; try { if (!T && window.BroadcastChannel) canal = new BroadcastChannel('boite-mail-fenetres'); } catch (e) { canal = null; }
+  function versPrincipale(nom, charge) {
+    try { if (T && T.event && T.event.emitTo) T.event.emitTo('main', nom, charge || {}); else if (canal) canal.postMessage({ nom: nom, charge: charge || {} }); } catch (e) { /* fenêtre seule */ }
+  }
+  function recuDeFenetre(nom, p) {
+    p = p || {};
+    var c = comptes.filter(function (x) { return x.id === p.compte; })[0];
+    if (nom === 'mail-reduit' && c) dire(vue === c.id ? 'Mail mis de côté : il attend en bas, dans les onglets.' : 'Mail mis de côté : il attend en bas de la boîte « ' + nomCourt(c) + ' ».');
+    // La fenêtre d'écriture se cache dès que le mail est fermé : ce que sa boîte annonce ensuite (« ✓ Brouillon enregistré », « Mail envoyé », un échec) est dit ici.
+    if (nom === 'avis-fenetre' && typeof p.texte === 'string' && p.texte.trim()) dire(p.texte.replace(/\s+/g, ' ').trim().slice(0, 300));
+    // Son travail est fini : la boîte de ce compte demande tout de suite à Gmail ce qui a changé (le brouillon ou le mail parti apparaît sans attendre).
+    if (nom === 'fenetre-finie' && c) setTimeout(function () { direBoite(c.id, { boiteMail: 'quoiDeNeuf' }); }, 700);
+  }
+  if (canal && !FEN) canal.onmessage = function (ev) { var d = ev.data || {}; if (typeof d.nom === 'string') recuDeFenetre(d.nom, d.charge); };
   if (T && !FEN) try {
     T.event.listen('reserve-prete', function (ev) { var l = ev && ev.payload && ev.payload.label; if (reserve && reserve.label === l) reserve.pret = true; });
-    T.event.listen('mail-reduit', function (ev) {
-      var c = comptes.filter(function (x) { return ev && ev.payload && x.id === ev.payload.compte; })[0]; if (!c) return;
-      dire(vue === c.id ? 'Mail mis de côté : il attend en bas, dans les onglets.' : 'Mail mis de côté : il attend en bas de la boîte « ' + nomCourt(c) + ' ».');
-    });
+    ['mail-reduit', 'avis-fenetre', 'fenetre-finie'].forEach(function (nom) { T.event.listen(nom, function (ev) { recuDeFenetre(nom, ev && ev.payload); }); });
     window.addEventListener('pagehide', finReserve);
     if (T.window && T.window.getCurrentWindow) T.window.getCurrentWindow().onCloseRequested(function () { finReserve(); });
   } catch (e) { /* sans fenêtre d'avance */ }
@@ -251,8 +289,9 @@
       } else if (!window.open('index.html?ecrire=' + label, label, 'width=760,height=800')) dire('Le navigateur a bloqué la nouvelle fenêtre.');
     } catch (e) { dire('La fenêtre n\'a pas pu s\'ouvrir : le mail reste dans les onglets du bas.'); }
   }
-  var fenSource = null, fenAttente = null;
+  var fenSource = null, fenAttente = null, fenServie = !!(FEN && fenDonnees && !fenDonnees.reserve);
   function fenEnvoyer(onglet) {
+    fenServie = true;
     if (!fenSource) { fenAttente = { onglet: onglet }; return; }
     try { fenSource.postMessage({ boiteMail: 'ecrireOnglet', onglet: onglet || null }, '*'); } catch (x) { /* fermé */ }
   }
@@ -265,10 +304,34 @@
     // Si la fenêtre principale a disparu, celle-ci (encore cachée) ne doit pas rester seule.
     setInterval(function () { try { T.webviewWindow.WebviewWindow.getByLabel('main').then(function (m) { if (!m) fermerCetteFenetre(); }); } catch (e) { /* rien */ } }, 30000);
   } catch (e) { /* sans événements */ }
+  var fenFinie = false;
   function fermerCetteFenetre() {
-    fenFermer = true;
-    try { if (T && T.window && T.window.getCurrentWindow) { var w = T.window.getCurrentWindow(); if (typeof w.destroy === 'function') w.destroy(); else w.close(); return; } } catch (e) { /* plus bas */ }
-    try { window.close(); } catch (e) { /* rien */ }
+    if (fenFinie) return; // la boîte redemande la fermeture toutes les demi-secondes : une seule suffit
+    fenFinie = true; fenFermer = true; clearTimeout(fenCacheeT);
+    var fermer = function () {
+      try { if (T && T.window && T.window.getCurrentWindow) { var w = T.window.getCurrentWindow(); if (typeof w.destroy === 'function') w.destroy(); else w.close(); return; } } catch (e) { /* plus bas */ }
+      try { window.close(); } catch (e) { /* rien */ }
+      setTimeout(function () { fenFinie = false; }, 1500); // la fenêtre n'a pas pu se fermer (navigateur) : une demande suivante réessaiera
+    };
+    // La fenêtre principale est prévenue d'abord (sa boîte se met à jour) ; la fenêtre se ferme juste après, le temps que le mot parte.
+    if (fenServie && fenDonnees) { versPrincipale('fenetre-finie', { compte: fenDonnees.compte }); setTimeout(fermer, 150); } else fermer();
+  }
+  /* Mail fermé pour de bon (brouillon à enregistrer, envoi en route) : la fenêtre disparaît tout de suite et finit son travail cachée ;
+     sa boîte demande ensuite la fermeture. Elle revient si la boîte a besoin de la personne (envoi échoué, question), ou d'elle-même
+     après deux minutes sans nouvelle : jamais de fenêtre cachée oubliée avec un mail dedans. */
+  var fenCachee = false, fenCacheeT = null;
+  function cacherCetteFenetre() {
+    if (!T || !T.window || !T.window.getCurrentWindow || fenFermer) return; // navigateur : la fenêtre attend affichée
+    try {
+      var w = T.window.getCurrentWindow(); if (typeof w.hide !== 'function') return;
+      var p = w.hide(); fenCachee = true;
+      if (p && p.then) p.then(null, function () { fenCachee = false; clearTimeout(fenCacheeT); }); // appli plus ancienne (sans ce droit) : elle reste affichée
+    } catch (e) { fenCachee = false; return; }
+    clearTimeout(fenCacheeT); fenCacheeT = setTimeout(function () { if (fenCachee && !fenFermer) montrerCetteFenetre(); }, 120000);
+  }
+  function montrerCetteFenetre() {
+    fenCachee = false; clearTimeout(fenCacheeT);
+    try { if (T && T.window && T.window.getCurrentWindow) { var w = T.window.getCurrentWindow(); w.show(); w.setFocus(); } } catch (e) { /* déjà visible */ }
   }
   /* Bouton rouge du Mac dans une fenêtre d'écriture : la boîte ferme le mail comme sa croix (brouillon gardé, ou question s'il n'a pas
      de destinataire), puis demande elle-même la fermeture de la fenêtre. Sans réponse de la boîte, la fenêtre se ferme quand même. */
@@ -284,7 +347,24 @@
   } catch (e) { /* fermeture ordinaire */ }
   /* Dossier choisi : le même pour tous les comptes (Envoyés du compte A → Envoyés du compte B). */
   var DOSSIERS = [['reception', 'Boîte de réception'], ['suivis', 'Suivis'], ['importants', 'Importants'], ['envoyes', 'Envoyés'], ['brouillons', 'Brouillons'], ['programmes', 'Programmés'], ['tous', 'Tous les messages'], ['spam', 'Spam'], ['corbeille', 'Corbeille']];
-  var CLE_DOSSIER = 'boite-mail-dossier', choix = lireChoix(), vues = {}, infos = {}, envoiLe = {}, libellesOuverts = false;
+  var CLE_DOSSIER = 'boite-mail-dossier', choix = lireChoix(), vues = {}, infos = lireInfos(), recus = {}, envoiLe = {}, libellesOuverts = false;
+  /* Dossiers, compteurs et libellés de chaque compte : gardés d'une ouverture à l'autre, pour que le volet soit complet tout de suite
+     (chaque boîte les remet à jour dès qu'elle a répondu). */
+  function lireInfos() {
+    try {
+      var o = JSON.parse(localStorage.getItem('boite-mail-infos') || '{}'), r = {};
+      Object.keys(o || {}).forEach(function (k) { var x = o[k]; if (x && typeof x === 'object') r[k] = { comptes: x.comptes && typeof x.comptes === 'object' ? x.comptes : {}, libelles: Array.isArray(x.libelles) ? x.libelles.slice(0, 200) : [], dossier: '', libelle: '' }; });
+      return r;
+    } catch (e) { return {}; }
+  }
+  function garderInfos() {
+    clearTimeout(garderInfos.t);
+    garderInfos.t = setTimeout(function () {
+      if (FEN) return;
+      var o = {}; comptes.forEach(function (c) { var x = infos[c.id]; if (x) o[c.id] = { comptes: x.comptes, libelles: x.libelles }; });
+      try { localStorage.setItem('boite-mail-infos', JSON.stringify(o)); } catch (e) { /* facultatif */ }
+    }, 1200);
+  }
   var PICTO_DOS = { reception: '<path d="M3 13l3-8h12l3 8v6H3z"/><path d="M3 13h5a4 4 0 0 0 8 0h5"/>', suivis: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', importants: '<path d="M4 6h11l5 6-5 6H4l4-6z"/>', envoyes: '<path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4z"/>', brouillons: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>', programmes: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', tous: '<path d="M4 6h16M4 12h16M4 18h16"/>', spam: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5v.5"/>', corbeille: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>' };
   var CLE_PLIE = 'boite-mail-volet-plie', plie = false; try { plie = localStorage.getItem(CLE_PLIE) === '1'; } catch (e) { /* rien */ }
   document.documentElement.classList.toggle('volet-plie', plie);
@@ -359,7 +439,7 @@
   var RUBRIQUES = [['campagne', 'Campagnes', 'campagne', 'Nouvelle campagne'], ['modeles', 'Modèles', 'modele', 'Nouveau modèle'], ['adresses', 'Contacts', '', ''], ['contacts', 'Carnet d\'adresses', '', '']];
   function vueDe(id) { return vues[id] || 'messages'; }
   function htmlRubriques() {
-    if (!estCompte(vue) || !sources[vue]) return '';
+    if (!estCompte(vue) || (!sources[vue] && !infos[vue])) return ''; // boîte prête, ou déjà connue d'une ouverture précédente
     var v = vueDe(vue);
     return '<div class="rubriques" aria-label="Campagnes, modèles et carnet">' + RUBRIQUES.map(function (r) {
       return '<button type="button" class="rub' + (v === r[0] ? ' actif' : '') + '" data-rubrique="' + r[0] + '" title="' + esc(r[1]) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + PICTO[r[0]] + '</svg><span class="nom">' + r[1] + '</span></button>' +
@@ -367,11 +447,33 @@
     }).join('') + '</div>';
   }
   function direBoite(id, m) { var s = sources[id]; if (!s) return false; try { s.postMessage(m, '*'); return true; } catch (e) { return false; } }
+  /* Demande faite pendant que la boîte s'ouvre encore (clic dans l'aperçu ou dans le volet) : gardée, et dite dès que la boîte peut
+     l'entendre. L'écran d'une boîte dit où il en est (niveau) : 0 il répond (« pret ») : un mail à ouvrir peut partir ; 1 sa vue de
+     départ est posée (« demarre ») : une rubrique peut partir, avant elle serait aussitôt remplacée par cette vue ; 2 les données du
+     serveur sont affichées (« frais ») : « nouveau modèle » et « nouvelle campagne » peuvent partir, avant elles les rechargeraient. */
+  var aDire = {}, demarre = {}, affiches = {};
+  function besoin(m) { return m.boiteMail === 'nouveau' ? 2 : (m.boiteMail === 'vue' ? 1 : 0); }
+  function direBientot(id, m) {
+    if ((demarre[id] || 0) >= besoin(m) && direBoite(id, m)) return;
+    aDire[id] = (aDire[id] || []).filter(function (x) { return !besoin(x) !== !besoin(m); }); aDire[id].push(m); // une seule rubrique demandée à la fois
+    if (sources[id] && apercuDe !== id) dire('Ça s\'ouvre dès que la boîte est à jour…'); // boîte déjà à l'écran, encore en train de se mettre à jour
+  }
+  function viderDemandes(id) {
+    var file = aDire[id] || [], part = file.filter(function (m) { return (demarre[id] || 0) >= besoin(m); });
+    aDire[id] = file.filter(function (m) { return part.indexOf(m) < 0; }); if (!aDire[id].length) delete aDire[id];
+    part.forEach(function (m) { direBoite(id, m); });
+    return part.length;
+  }
+  function niveauBoite(id, n) { if ((demarre[id] || 0) < n) demarre[id] = n; return viderDemandes(id); }
+  function rubriqueAttendue(id) { return (aDire[id] || []).some(besoin); }
+  function oublierDemandes(id) { delete aDire[id]; if (attendu && attendu.id === id) attendu = null; } // un nouveau choix remplace ce qui attendait
+  var glisse = null, finGlisseLe = 0; // compte en train d'être déplacé dans le volet (plus bas : « Ordre des comptes »)
   function dessinerNav() {
+    if (glisse && glisse.actif) return; // un compte est en train d'être déplacé : le volet est redessiné à la fin du geste
     var h = '<h1><span>Boîte mail</span><button type="button" id="plier" title="' + (plie ? 'Déplier le volet' : 'Rabattre le volet') + '" aria-label="' + (plie ? 'Déplier le volet' : 'Rabattre le volet') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d="' + (plie ? 'M13.5 9.5l2.5 2.5-2.5 2.5' : 'M16 9.5l-2.5 2.5 2.5 2.5') + '"/></svg></button></h1>';
     if (comptes.length > 1) h += '<button type="button" class="choix toutes' + (vue === 'toutes' ? ' actif' : '') + '" data-vue="toutes" title="Toutes les boîtes"><span class="pastille"></span><span class="nom">Toutes les boîtes</span></button>';
     comptes.forEach(function (c) {
-      h += '<button type="button" class="choix' + (vue === c.id ? ' actif' : '') + '" data-vue="' + esc(c.id) + '" title="' + esc(c.email || '') + '">' +
+      h += '<button type="button" class="choix' + (vue === c.id ? ' actif' : '') + '" data-vue="' + esc(c.id) + '" title="' + esc((c.email || nomCourt(c)) + (comptes.length > 1 ? ' · faire glisser pour changer l\'ordre' : '')) + '">' +
         '<span class="pastille" style="background:' + esc(c.couleur) + '"></span><span class="nom">' + esc(nomCourt(c)) + '</span></button>';
     });
     h += htmlDossiers();
@@ -380,21 +482,88 @@
     $('nav').innerHTML = h;
   }
   $('nav').addEventListener('click', function (e) {
+    if (Date.now() - finGlisseLe < 150) return; // le clic qui suit tout de suite la fin d'un déplacement de compte n'en est pas un
     if (e.target.closest('#plier')) { plie = !plie; try { localStorage.setItem(CLE_PLIE, plie ? '1' : '0'); } catch (x) { /* rien */ } document.documentElement.classList.toggle('volet-plie', plie); return dessinerNav(); }
     var b = e.target.closest('[data-vue]'); if (b) return montrer(b.getAttribute('data-vue'));
     if (e.target.closest('#roue')) return ouvrirMenuRoue();
-    var rb = e.target.closest('[data-rubrique]'); if (rb) { vues[vue] = rb.getAttribute('data-rubrique'); direBoite(vue, { boiteMail: 'vue', vue: vues[vue] }); return dessinerNav(); }
-    var nv = e.target.closest('[data-nouveau]'); if (nv) { direBoite(vue, { boiteMail: 'nouveau', quoi: nv.getAttribute('data-nouveau') }); return; }
+    var rb = e.target.closest('[data-rubrique]'); if (rb) { oublierDemandes(vue); vues[vue] = rb.getAttribute('data-rubrique'); direBientot(vue, { boiteMail: 'vue', vue: vues[vue] }); if (apercuDe === vue) dessinerApercu(); return dessinerNav(); }
+    var nv = e.target.closest('[data-nouveau]'); if (nv) { oublierDemandes(vue); direBientot(vue, { boiteMail: 'nouveau', quoi: nv.getAttribute('data-nouveau') }); if (apercuDe === vue) dessinerApercu(); return; }
     if (e.target.closest('[data-libelles]')) { libellesOuverts = !(libellesOuverts || !!choix.libelle); if (!libellesOuverts && choix.libelle) return choisir('reception', ''); return dessinerNav(); }
     var d = e.target.closest('[data-dossier], [data-libelle]'); if (d) choisir(d.getAttribute('data-dossier') || '', d.getAttribute('data-libelle') || '');
   });
+  /* ---------- Ordre des comptes ----------
+     On attrape un compte dans le volet et on le fait glisser : il prend la place du compte que le pointeur survole (de haut en bas dans
+     le volet, de gauche à droite quand la fenêtre est étroite). L'ordre est gardé sur l'appareil ; « Toutes les boîtes » reste en tête.
+     Au doigt, le volet défile : l'ordre se règle alors dans « Comptes reliés » (flèches), qui sert aussi au clavier. */
+  function boutonsComptes() { return [].slice.call($('nav').querySelectorAll('.choix[data-vue]:not(.toutes)')); }
+  function ordreChange(suite) {
+    var ordre = boutonsComptes().map(function (b) { return b.getAttribute('data-vue'); }), avant = comptes.map(function (c) { return c.id; }).join('|');
+    comptes.sort(function (a, b) { return ordre.indexOf(a.id) - ordre.indexOf(b.id); });
+    if (comptes.map(function (c) { return c.id; }).join('|') !== avant) { garderComptes(); if (suite) suite(); }
+  }
+  $('nav').addEventListener('pointerdown', function (e) {
+    if (e.button !== 0 || e.pointerType === 'touch' || comptes.length < 2 || FEN) return;
+    var b = e.target.closest && e.target.closest('.choix[data-vue]'); if (!b || b.classList.contains('toutes')) return;
+    glisse = { id: b.getAttribute('data-vue'), x: e.clientX, y: e.clientY, pointeur: e.pointerId, actif: false, b: null };
+  });
+  window.addEventListener('pointermove', function (e) {
+    if (!glisse || e.pointerId !== glisse.pointeur) return;
+    if (!glisse.actif) {
+      if (Math.abs(e.clientX - glisse.x) < 7 && Math.abs(e.clientY - glisse.y) < 7) return;
+      var b = boutonsComptes().filter(function (x) { return x.getAttribute('data-vue') === glisse.id; })[0]; // le volet a pu être redessiné depuis l'appui
+      if (!b) { glisse = null; return; }
+      glisse.b = b; glisse.actif = true; b.classList.add('glisse'); $('nav').classList.add('en-glisse'); $('menu-roue').classList.remove('visible');
+      try { b.setPointerCapture(glisse.pointeur); } catch (x) { /* le geste marche aussi sans */ }
+      try { window.getSelection().removeAllRanges(); } catch (x) { /* rien de sélectionné */ }
+      // Près d'un bord, le volet défile tout seul : on atteint ainsi un compte caché plus loin (fenêtre étroite, beaucoup de comptes).
+      glisse.defile = setInterval(function () {
+        if (!glisse || !glisse.actif) return;
+        var large = !ETROIT.matches, p = large ? glisse.py : glisse.px, max = large ? window.innerHeight : window.innerWidth, pas = p < 44 ? -14 : (p > max - 44 ? 14 : 0);
+        if (!pas) return;
+        var n = $('nav'), avant = large ? n.scrollTop : n.scrollLeft;
+        if (large) n.scrollTop += pas; else n.scrollLeft += pas;
+        if ((large ? n.scrollTop : n.scrollLeft) !== avant) placerGlisse(glisse.px, glisse.py);
+      }, 40);
+    }
+    e.preventDefault();
+    glisse.px = e.clientX; glisse.py = e.clientY;
+    placerGlisse(e.clientX, e.clientY);
+  });
+  function placerGlisse(x, y) {
+    var sous = document.elementFromPoint(x, y); if (!sous || !$('nav').contains(sous) || sous === $('nav')) return;
+    var l = boutonsComptes(), moi = glisse.b, o = sous.closest('.choix[data-vue]');
+    if (o && o.classList.contains('toutes')) o = null;
+    if (o === moi) return;
+    if (!o) { // au-dessus du premier compte ou sous le dernier : il va au bout de la liste
+      var premier = l[0], dernier = l[l.length - 1];
+      if (premier !== moi && (sous.compareDocumentPosition(premier) & Node.DOCUMENT_POSITION_FOLLOWING)) premier.parentNode.insertBefore(moi, premier);
+      else if (dernier !== moi && (sous.compareDocumentPosition(dernier) & Node.DOCUMENT_POSITION_PRECEDING)) dernier.parentNode.insertBefore(moi, dernier.nextSibling);
+      return;
+    }
+    if (l.indexOf(o) < l.indexOf(moi)) o.parentNode.insertBefore(moi, o); else o.parentNode.insertBefore(moi, o.nextSibling);
+  }
+  function finGlisse(e, annule) {
+    if (!glisse || (e && e.pointerId !== glisse.pointeur)) return;
+    var g = glisse; glisse = null;
+    if (!g.actif) return; // simple clic : rien n'a bougé
+    finGlisseLe = Date.now(); clearInterval(g.defile);
+    try { g.b.releasePointerCapture(g.pointeur); } catch (x) { /* déjà rendu */ }
+    $('nav').classList.remove('en-glisse');
+    if (!annule) ordreChange(function () { if (vue === 'comptes') dessinerComptes(); dire('Ordre des comptes gardé.'); });
+    dessinerNav();
+  }
+  window.addEventListener('pointerup', function (e) { finGlisse(e, false); });
+  window.addEventListener('pointercancel', function (e) { finGlisse(e, true); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && glisse) finGlisse(null, true); });
+  window.addEventListener('blur', function () { if (glisse && !glisse.actif) glisse = null; });
   /* Rouage : tout ce qui est général (ajouter un compte, comptes reliés) dans un petit menu, pour laisser la place aux boîtes. */
   function ouvrirMenuRoue() {
     var m = $('menu-roue'), r = $('roue').getBoundingClientRect();
     if (m.classList.contains('visible')) return m.classList.remove('visible');
     m.innerHTML = '<button type="button" role="menuitem" data-vue="ajouter">＋ Ajouter un compte</button>' + (comptes.length ? '<button type="button" role="menuitem" data-vue="comptes">Comptes reliés</button>' : '') +
       '<div class="taille"><span class="nom">Taille de l\'affichage</span><button type="button" data-taille="-1" aria-label="Plus petit" title="Plus petit">−</button><b id="taille-valeur">' + Math.round(taille * 100) + ' %</b><button type="button" data-taille="1" aria-label="Plus grand" title="Plus grand">+</button></div>' +
-      '<div class="taille" style="border-top:0;margin-top:0;padding-top:2px"><span class="nom">Texte des mails</span><button type="button" data-texte="-1" aria-label="Texte plus petit" title="Plus petit">−</button><b id="texte-valeur">' + Math.round(texte * 100) + ' %</b><button type="button" data-texte="1" aria-label="Texte plus grand" title="Plus grand">+</button></div>';
+      '<div class="taille" style="border-top:0;margin-top:0;padding-top:2px"><span class="nom">Texte des mails</span><button type="button" data-texte="-1" aria-label="Texte plus petit" title="Plus petit">−</button><b id="texte-valeur">' + Math.round(texte * 100) + ' %</b><button type="button" data-texte="1" aria-label="Texte plus grand" title="Plus grand">+</button></div>' +
+      (/^\d+$/.test(VERSION) ? '<div class="version">Appli Boîte mail · version ' + VERSION + '</div>' : '');
     m.classList.add('visible');
     var haut = r.top > window.innerHeight / 2;
     m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - m.offsetWidth - 8)) + 'px';
@@ -409,7 +578,11 @@
   function choisir(dossier, libelle) {
     choix = { dossier: libelle ? '' : (dossier || 'reception'), libelle: libelle || '' }; garderChoix();
     if (vue === 'toutes') { if (choix.libelle) choix = { dossier: 'reception', libelle: '' }; tout = {}; dessinerToutes(); chargerToutes(); }
-    else if (estCompte(vue)) { vues[vue] = 'messages'; direDossier(vue, true); }
+    else if (estCompte(vue)) {
+      vues[vue] = 'messages';
+      oublierDemandes(vue); // une rubrique ou un mail demandés juste avant ne comptent plus
+      direDossier(vue, true); if (apercuDe === vue) dessinerApercu();
+    }
     dessinerNav();
   }
   function direVolet(id) { var s = sources[id]; if (s) { try { s.postMessage({ boiteMail: 'voletDossiers', actif: !ETROIT.matches }, '*'); s.postMessage({ boiteMail: 'voletRubriques', actif: !ETROIT.matches }, '*'); } catch (e) { /* fermé */ } } }
@@ -424,6 +597,7 @@
     if (!comptes.length && v !== 'ajouter') v = 'ajouter';
     if (v !== 'toutes' && v !== 'ajouter' && v !== 'comptes' && !comptes.some(function (c) { return c.id === v; })) v = comptes.length > 1 ? 'toutes' : (comptes[0] ? comptes[0].id : 'ajouter');
     vue = v; garderVue(v);
+    cacherApercu();
     [].forEach.call(document.querySelectorAll('.page'), function (p) { p.classList.remove('visible'); });
     Object.keys(cadres).forEach(function (k) { cadres[k].classList.remove('visible'); });
     fermerLecteur(true);
@@ -431,9 +605,65 @@
     if (v === 'toutes') { $('page-toutes').classList.add('visible'); chargerToutes(); minuterie = setInterval(chargerToutes, 120000); setTimeout(prechargerAutres, 6000); }
     else if (v === 'ajouter') { $('page-ajouter').classList.add('visible'); dessinerAjouter(); }
     else if (v === 'comptes') { $('page-comptes').classList.add('visible'); dessinerComptes(); }
-    else { cadre(v).classList.add('visible'); direDossier(v, false); if (sources[v]) preparerReserve(v, 20000); }
+    else { cadre(v).classList.add('visible'); direDossier(v, false); if (sources[v]) preparerReserve(v, 20000); if (!affiches[v]) montrerApercu(v); } // boîte pas encore affichée (même chargée d'avance) : l'aperçu d'abord
     dessinerNav();
   }
+
+  /* ---------- Aperçu immédiat ----------
+     Une boîte met plusieurs secondes à s'ouvrir (son écran vient de Google). Pendant ce temps, l'appli montre déjà la dernière liste
+     de mails du dossier choisi, lue dans la copie gardée sur l'ordinateur. Un clic sur un mail est retenu : il s'ouvre dès que la boîte
+     est prête. L'aperçu s'efface quand la boîte a affiché ses mails. */
+  var apercus = {}, apercuDe = '', apercuT = null, apercuTard = null, attendu = null;
+  function listesDeCopie(texte) {
+    var r = {};
+    try {
+      var o = JSON.parse(texte || 'null'), m = o && o.mails; if (!m) return r;
+      var dossierDe = function (cle) { var p = String(cle || '').split('|'); return p.length === 5 && !p[1] && !p[2] && !p[4] ? (p[0] === 'principale' ? 'reception' : p[0]) : ''; }; // ni libellé, ni recherche, ni page suivante
+      var poser = function (cle, x, le) { var d = dossierDe(cle); if (!d || !x || !Array.isArray(x.fils)) return; if (!r[d] || (le || 0) > r[d].le) r[d] = { fils: x.fils.slice(0, 40), le: le || 0 }; };
+      poser(m.cle, m.r, m.le);
+      var l = (m.boite && m.boite.listes) || {};
+      Object.keys(l).forEach(function (k) { poser(k, l[k] && l[k].r, l[k] && l[k].le); });
+    } catch (e) { /* copie illisible : pas d'aperçu, la boîte s'ouvre comme avant */ }
+    return r;
+  }
+  function montrerApercu(id) {
+    if (FEN || !estCompte(id)) return;
+    apercuDe = id; $('page-apercu').classList.add('visible'); $('page-apercu').scrollTop = 0;
+    dessinerApercu.tard = '';
+    dessinerApercu();
+    if (!apercus[id]) copieLire('boite|' + id, function (t) { apercus[id] = listesDeCopie(typeof t === 'string' ? t : ''); if (apercuDe === id) dessinerApercu(); });
+    clearTimeout(apercuTard); apercuTard = setTimeout(function () { if (apercuDe === id) dessinerApercu(true); }, 15000);
+    clearTimeout(apercuT); apercuT = setTimeout(function () { if (apercuDe === id) cacherApercu(); }, sources[id] ? 8000 : 45000); // jamais d'aperçu qui masque la boîte sans fin
+  }
+  function cacherApercu() { if (!apercuDe) return; apercuDe = ''; attendu = null; clearTimeout(apercuT); clearTimeout(apercuTard); $('page-apercu').classList.remove('visible'); }
+  function dessinerApercu(tard) {
+    var id = apercuDe, c = comptes.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    var dos = ETROIT.matches ? 'reception' : (choix.libelle ? '' : (choix.dossier || 'reception'));
+    var rub = RUBRIQUES.filter(function (r) { return r[0] === vueDe(id); })[0];
+    var nv = (aDire[id] || []).filter(function (x) { return x.boiteMail === 'nouveau'; })[0], rnv = nv && RUBRIQUES.filter(function (r) { return r[2] === nv.quoi; })[0];
+    $('titre-apercu').textContent = nomCourt(c) + ' · ' + (rnv ? rnv[3] : (rub ? rub[1] : (dos ? (DOSSIERS.filter(function (x) { return x[0] === dos; })[0] || DOSSIERS[0])[1] : choix.libelle)));
+    var fils = !rnv && !rub && dos && apercus[id] && apercus[id][dos] ? apercus[id][dos].fils : [];
+    if (tard === undefined) tard = dessinerApercu.tard === id; else dessinerApercu.tard = tard ? id : '';
+    $('etat-apercu').innerHTML = '<span class="tourne"></span><span>' + (tard ? 'L\'ouverture tarde : la connexion est peut-être lente.' + (fils.length ? ' Voici les mails de la dernière fois.' : '')
+      : (attendu && attendu.id === id ? 'Ce mail s\'ouvre dès que la boîte est prête.' : (fils.length ? 'Mise à jour… Voici les mails de la dernière fois.' : 'Ouverture…'))) + '</span>';
+    $('liste-apercu').innerHTML = fils.map(function (f) {
+      var qui = (f.contacts || []).map(function (x) { return x.nom || x.cle; }).join(', ') || f.de || '—';
+      return '<div class="conv' + (f.nonLu ? ' non-lu' : '') + (attendu && attendu.id === id && attendu.fil === f.id ? ' attendue' : '') + '" data-fil="' + esc(f.id) + '" role="button" tabindex="0">' +
+        '<span class="bord" style="background:' + esc(c.couleur) + '"></span>' +
+        '<div style="min-width:0"><div class="haut"><span class="qui">' + esc(qui) + '</span></div>' +
+        '<div class="objet">' + esc(f.objet) + (f.nb > 1 ? ' <span class="doux">(' + f.nb + ')</span>' : '') + '</div>' +
+        '<div class="extrait">' + esc(sansInvisibles(f.extrait)) + '</div></div>' +
+        '<span class="quand">' + esc(quand(f.date)) + '</span></div>';
+    }).join('');
+  }
+  function choisirDansApercu(e) {
+    var d = e.target.closest && e.target.closest('.conv'); if (!d || !apercuDe) return;
+    attendu = { id: apercuDe, fil: d.getAttribute('data-fil') };
+    direBientot(apercuDe, { boiteMail: 'ouvrirFil', id: attendu.fil });
+    dessinerApercu();
+  }
+  $('liste-apercu').addEventListener('click', choisirDansApercu);
+  $('liste-apercu').addEventListener('keydown', function (e) { if (e.key === 'Enter') choisirDansApercu(e); });
 
   /* ---------- Une boîte : son écran dans un cadre (gardé ouvert pour revenir vite) ---------- */
   function cadre(id) {
@@ -493,29 +723,50 @@
     }
     if (d.boiteMail === 'fermerFenetre' && FEN) fermerCetteFenetre();
     if (d.boiteMail === 'fermerEcrireRecu' && FEN) fenAck = true;
+    if (d.boiteMail === 'cacherFenetre' && FEN && (!fenSource || ev.source === fenSource)) cacherCetteFenetre();
+    if (d.boiteMail === 'montrerFenetre' && FEN && (!fenSource || ev.source === fenSource)) montrerCetteFenetre();
+    if (d.boiteMail === 'avisFenetre' && FEN && (!fenSource || ev.source === fenSource) && typeof d.texte === 'string') versPrincipale('avis-fenetre', { compte: fenDonnees && fenDonnees.compte, texte: d.texte.slice(0, 400) });
     if (d.boiteMail === 'titreFenetre' && FEN && T && typeof d.titre === 'string') {
       var cf = comptes.filter(function (x) { return fenDonnees && x.id === fenDonnees.compte; })[0];
       try { T.window.getCurrentWindow().setTitle(d.titre.replace(/\s+/g, ' ').slice(0, 120) + (cf ? ' · ' + nomCourt(cf) : '')); } catch (e) { /* titre inchangé */ }
     }
-    if (d.boiteMail === 'mailReduit' && FEN && T) { try { T.event.emitTo('main', 'mail-reduit', { compte: fenDonnees && fenDonnees.compte }); } catch (e) { /* seule */ } }
+    if (d.boiteMail === 'mailReduit' && FEN) versPrincipale('mail-reduit', { compte: fenDonnees && fenDonnees.compte });
     if (d.boiteMail === 'pret') {
       Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k);
         try { if (FEN) { if (!fenDit) { fenDit = true; fenSource = ev.source;
             try { ev.source.postMessage({ boiteMail: 'calme' }, '*'); } catch (x) { /* fermée */ }
             if (fenDonnees && fenDonnees.reserve) { if (fenAttente) { fenEnvoyer(fenAttente.onglet); fenAttente = null; } try { T.event.emitTo('main', 'reserve-prete', { label: FEN }); } catch (x) { /* seule */ } }
             else fenEnvoyer((fenDonnees && fenDonnees.onglet) || null); } } else { ev.source.postMessage({ boiteMail: 'fenetres', actif: fenetresPossibles() }, '*'); if (k === vue) preparerReserve(k, 6000); } } catch (x) { /* fermé */ }
-        if (k === vue) { direDossier(k, false); dessinerNav(); setTimeout(prechargerAutres, 4000); } } } catch (e) { /* autre */ } });
+        if (k === vue) { direDossier(k, false); dessinerNav(); setTimeout(prechargerAutres, 4000); }
+        // Un mail cliqué dans l'aperçu part maintenant ; le reste attend que l'écran dise où il en est. Sans nouvelle de lui (écran plus
+        // ancien, qui ne dit rien), tout part neuf secondes après ; s'il a démarré mais que le serveur tarde, au bout d'une minute.
+        demarre[k] = 0; affiches[k] = false; viderDemandes(k);
+        var src = ev.source;
+        setTimeout(function () { if (sources[k] === src && !demarre[k]) { affiches[k] = true; niveauBoite(k, 2); } }, 9000);
+        setTimeout(function () { if (sources[k] === src) niveauBoite(k, 2); }, 65000);
+        // L'aperçu s'efface quand l'écran dit que ses mails sont affichés (« affiche ») ; sans nouvelle de lui, six secondes après.
+        if (apercuDe === k) setTimeout(function () { if (apercuDe === k && sources[k] === src && !demarre[k]) cacherApercu(); }, 6000);
+      } } catch (e) { /* autre */ } });
     }
     // Une boîte annonce ses dossiers (compteurs, libellés, dossier affiché) : le volet les montre. Si on a changé de dossier dans la boîte
     // elle-même (onglet, recherche…), le volet suit, sauf juste après notre propre demande (réponse en retard d'un autre dossier).
     if (d.boiteMail === 'vue') { // la boîte dit quelle vue elle affiche (mails, campagnes, modèles, carnet)
       var qv = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0];
-      if (qv && /^[a-z]{1,20}$/.test(String(d.vue || '')) && vues[qv] !== d.vue) { vues[qv] = d.vue; if (qv === vue) dessinerNav(); }
+      if (qv && /^[a-z]{1,20}$/.test(String(d.vue || '')) && vues[qv] !== d.vue && !rubriqueAttendue(qv)) { vues[qv] = d.vue; if (qv === vue) dessinerNav(); }
+    }
+    // L'écran d'une boîte dit où il en est : ce qui attendait part au bon moment, et l'aperçu s'efface quand il n'a plus rien à cacher
+    // (mails affichés, et plus aucune demande en attente : un « nouveau modèle » demandé pendant l'ouverture garde l'aperçu jusqu'à lui).
+    if (d.boiteMail === 'demarre' || d.boiteMail === 'affiche' || d.boiteMail === 'frais') {
+      var qd = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0]; if (!qd) return;
+      niveauBoite(qd, d.boiteMail === 'frais' ? 2 : 1);
+      if (d.boiteMail === 'affiche') affiches[qd] = true;
+      if (apercuDe === qd && affiches[qd] && !aDire[qd]) setTimeout(function () { if (apercuDe === qd && !aDire[qd]) cacherApercu(); }, 180);
     }
     if (d.boiteMail === 'dossiers') {
       var qui = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0]; if (!qui) return;
-      var premier = !infos[qui];
+      var premier = !recus[qui]; recus[qui] = true; // première annonce de cette boîte depuis l'ouverture (les compteurs gardés en mémoire ne comptent pas)
       infos[qui] = { comptes: d.comptes || {}, libelles: Array.isArray(d.libelles) ? d.libelles.slice(0, 200) : [], dossier: String(d.dossier || ''), libelle: String(d.libelle || '') };
+      garderInfos();
       if (qui === vue) {
         var pareil = infos[qui].libelle === choix.libelle && (choix.libelle || infos[qui].dossier === choix.dossier);
         if (premier && !pareil) direDossier(qui, false);
@@ -721,7 +972,7 @@
         (c.email ? comptes.filter(function (x) { return x.email && x.email.toLowerCase() === c.email.toLowerCase(); })[0] : null);
       if (deja) {
         deja.url = c.url; deja.jeton = c.jeton; if (c.email) deja.email = c.email;
-        if (cadres[deja.id]) { cadres[deja.id].remove(); delete cadres[deja.id]; delete sources[deja.id]; }
+        if (cadres[deja.id]) { cadres[deja.id].remove(); delete cadres[deja.id]; delete sources[deja.id]; delete demarre[deja.id]; delete affiches[deja.id]; delete recus[deja.id]; }
         c = deja;
       }
       else comptes.push(c);
@@ -732,12 +983,15 @@
   /* ---------- Comptes reliés ---------- */
   function dessinerComptes() {
     $('comptes').innerHTML = '<h2>Comptes reliés</h2><p class="sous">Les boîtes que cette appli affiche. Retirer un compte ici ne touche pas à ses mails.</p>' +
-      comptes.map(function (c) {
+      (comptes.length > 1 ? '<p class="doux" style="margin:-4px 0 12px">Ordre des comptes : les flèches ici, ou faites glisser un compte à sa place <span class="si-large">dans le volet</span><span class="si-etroit">dans la barre du haut</span>.</p>' : '') +
+      comptes.map(function (c, i) {
+        var fleches = comptes.length > 1 ? '<span class="ordre"><button type="button" class="cp-monter" title="Monter" aria-label="Monter ' + esc(nomCourt(c)) + '"' + (i ? '' : ' disabled') + '>↑</button>' +
+          '<button type="button" class="cp-descendre" title="Descendre" aria-label="Descendre ' + esc(nomCourt(c)) + '"' + (i < comptes.length - 1 ? '' : ' disabled') + '>↓</button></span>' : '';
         return '<div class="compte" data-id="' + esc(c.id) + '"><span class="pastille" style="background:' + esc(c.couleur) + '"></span>' +
           '<div style="min-width:0"><input type="text" class="cp-nom" value="' + esc(c.nom) + '" placeholder="' + esc(nomCourt(c)) + '" aria-label="Nom affiché">' +
           '<div class="doux" style="margin-top:4px;overflow-wrap:anywhere">' + esc(c.email || 'adresse inconnue') + '</div>' +
           '<div class="couleurs" style="margin-top:6px">' + COULEURS.map(function (k) { return '<span data-couleur="' + k + '" style="background:' + k + '"' + (k === c.couleur ? ' class="choisie"' : '') + '></span>'; }).join('') + '</div></div>' +
-          '<div class="actions"><button type="button" class="cp-retirer">Retirer</button></div></div>';
+          '<div class="actions">' + fleches + '<button type="button" class="cp-retirer">Retirer</button></div></div>';
       }).join('');
   }
   $('comptes').addEventListener('change', function (e) {
@@ -750,6 +1004,16 @@
     var id = l.getAttribute('data-id'), c = comptes.filter(function (x) { return x.id === id; })[0]; if (!c) return;
     var k = e.target.getAttribute('data-couleur');
     if (k) { c.couleur = k; garderComptes(); dessinerComptes(); dessinerNav(); }
+    var sens = e.target.classList.contains('cp-monter') ? -1 : (e.target.classList.contains('cp-descendre') ? 1 : 0);
+    if (sens) {
+      var i = comptes.indexOf(c), j = i + sens; if (j < 0 || j >= comptes.length) return;
+      comptes.splice(i, 1); comptes.splice(j, 0, c); garderComptes(); dessinerComptes(); dessinerNav();
+      // Le clavier reste sur la même flèche du même compte (ou sur l'autre flèche, arrivé au bout).
+      var li = [].filter.call($('comptes').querySelectorAll('.compte'), function (x) { return x.getAttribute('data-id') === id; })[0];
+      var bf = li && (li.querySelector(sens < 0 ? '.cp-monter:not(:disabled)' : '.cp-descendre:not(:disabled)') || li.querySelector('.ordre button:not(:disabled)'));
+      if (bf) bf.focus();
+      return;
+    }
     if (e.target.classList.contains('cp-retirer') && !e.target.hasAttribute('data-sur')) {
       /* pas de confirm() : la fenêtre de l'appli Mac ne l'affiche pas. Deux clics à la place. */
       var bt = e.target; bt.setAttribute('data-sur', '1'); bt.textContent = 'Retirer vraiment ?';
@@ -760,6 +1024,7 @@
       comptes = comptes.filter(function (x) { return x.id !== id; });
       copieEcrire('boite|' + id, null); delete reperes[id]; garderToutes();
       if (cadres[id]) { cadres[id].remove(); delete cadres[id]; delete sources[id]; }
+      delete demarre[id]; delete affiches[id]; delete aDire[id]; delete recus[id]; delete infos[id]; delete apercus[id]; garderInfos();
       garderComptes(); dessinerComptes(); dessinerNav();
       try { porte(c, 'deconnecterAppareil', []); } catch (er) { /* hors ligne : le jeton expirera */ }
     }

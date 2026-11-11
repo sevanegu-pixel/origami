@@ -38,6 +38,12 @@ jobs:
         working-directory: appli-boite
         run: npx tauri icon icone-1024.png
 
+      # Le numéro de cette fabrication est écrit dans l'appli (menu Réglages : « version N »), pour savoir laquelle est installée.
+      - name: Numéro de version dans l'appli
+        run: |
+          node -e "const fs=require('fs'),f='appli-boite/www/index.html';fs.writeFileSync(f,fs.readFileSync(f,'utf8').split('__VERSION_APPLI__').join('${{ github.run_number }}'))"
+          grep -c "var VERSION = '${{ github.run_number }}'" appli-boite/www/index.html
+
       - name: Fabrication (Mac Apple et Intel)
         working-directory: appli-boite
         run: npx tauri build --target universal-apple-darwin
