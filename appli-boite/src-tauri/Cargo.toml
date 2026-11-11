@@ -1,0 +1,17 @@
+[package]
+name = "boite-mail"
+version = "0.1.0"
+description = "Appli Boîte mail (plusieurs comptes)"
+edition = "2021"
+
+[lib]
+name = "boite_mail_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-deep-link = "2"

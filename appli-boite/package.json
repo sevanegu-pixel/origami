@@ -1,0 +1,8 @@
+{
+  "name": "boite-mail-appli",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Coquille de l'appli Boîte mail (plusieurs comptes Google). Rien des boîtes dedans : chaque boîte vient de son propre moteur.",
+  "scripts": { "tauri": "tauri" },
+  "devDependencies": { "@tauri-apps/cli": "^2.0.0" }
+}

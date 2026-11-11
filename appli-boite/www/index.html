@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Boîte mail</title>
+<style>
+  :root { --fond: #f4f2ee; --carte: #fff; --carte2: #f7f5f1; --ligne: #e3ded5; --texte: #22201c; --doux: #6d675d; --accent: #1f6feb; --ok: #2f8a4c; --barre: 240px; }
+  @media (prefers-color-scheme: dark) { :root { --fond: #16161a; --carte: #202027; --carte2: #2a2a33; --ligne: #383843; --texte: #eceaf2; --doux: #a19fae; --accent: #6ea8ff; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--fond); color: var(--texte); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  button { font: 600 14px/1.2 inherit; font-family: inherit; border-radius: 999px; padding: 9px 16px; border: 1px solid var(--ligne); background: var(--carte); color: var(--texte); cursor: pointer; }
+  button.prim { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:disabled { opacity: .6; cursor: default; }
+  .appli { display: grid; grid-template-columns: var(--barre) minmax(0, 1fr); height: 100%; }
+  nav { border-right: 1px solid var(--ligne); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; overflow: auto; background: var(--carte2); }
+  nav h1 { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; margin: 4px 8px 12px; }
+  .choix { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 10px; padding: 9px 10px; font-weight: 500; }
+  .choix:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .choix.actif { background: color-mix(in srgb, var(--accent) 15%, var(--carte)); font-weight: 650; }
+  .choix .nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .choix .nb { font-size: 12px; color: var(--doux); }
+  .pastille { flex: none; width: 12px; height: 12px; border-radius: 50%; }
+  .toutes .pastille { background: conic-gradient(#1f6feb 0 33%, #e0b100 0 66%, #2f8a4c 0); }
+  nav .plus { margin-top: 10px; color: var(--accent); }
+  main { position: relative; min-width: 0; height: 100%; overflow: hidden; }
+  .cadre { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--fond); display: none; }
+  .cadre.visible { display: block; }
+  .page { position: absolute; inset: 0; overflow: auto; padding: 18px 18px 60px; display: none; }
+  .page.visible { display: block; }
+  .page > .dans { max-width: 820px; margin: 0 auto; }
+  .page h2 { font-size: 21px; margin: 4px 0 6px; }
+  .sous { color: var(--doux); margin: 0 0 16px; }
+  .liste { display: flex; flex-direction: column; gap: 6px; }
+  .conv { display: grid; grid-template-columns: 4px minmax(0, 1fr) auto; gap: 10px; background: var(--carte); border: 1px solid var(--ligne); border-radius: 12px; padding: 10px 12px 10px 0; cursor: pointer; overflow: hidden; }
+  .conv:hover { box-shadow: 0 3px 10px rgba(0,0,0,.07); }
+  .conv .bord { border-radius: 0 4px 4px 0; }
+  .conv .haut { display: flex; gap: 8px; align-items: baseline; min-width: 0; }
+  .conv .qui { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv .cpt { font-size: 12px; color: var(--doux); white-space: nowrap; }
+  .conv .objet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv .extrait { color: var(--doux); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv .quand { font-size: 12px; color: var(--doux); white-space: nowrap; }
+  .conv.non-lu { background: color-mix(in srgb, var(--accent) 7%, var(--carte)); }
+  .conv.non-lu .qui, .conv.non-lu .objet { font-weight: 700; }
+  .etat { color: var(--doux); font-size: 13px; margin: 6px 0 12px; }
+  .boite { background: var(--carte); border: 1px solid var(--ligne); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .etape { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; padding: 10px 0; border-top: 1px solid var(--ligne); }
+  .etape:first-of-type { border-top: 0; }
+  .num { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+  .etape p { margin: 2px 0 8px; }
+  .doux { color: var(--doux); font-size: 13px; }
+  input[type=text], textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--ligne); background: var(--carte2); color: var(--texte); font: inherit; }
+  textarea { min-height: 70px; font: 12px/1.3 ui-monospace, Menlo, monospace; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .compte { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; background: var(--carte); border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .couleurs { display: flex; gap: 6px; }
+  .couleurs span { width: 22px; height: 22px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; }
+  .couleurs span.choisie { border-color: var(--texte); }
+  .message { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--texte); color: var(--fond); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); display: none; z-index: 9; }
+  .barre-tel { display: none; }
+  @media (max-width: 760px) {
+    .appli { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    nav { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--ligne); padding: 8px; overflow-x: auto; gap: 6px; }
+    nav h1 { display: none; }
+    .choix { width: auto; flex: none; border: 1px solid var(--ligne); border-radius: 999px; padding: 7px 12px; }
+    .choix .nom { max-width: 140px; }
+    nav .plus { margin-top: 0; }
+    .page { padding: 12px 12px 60px; }
+    .compte { grid-template-columns: auto minmax(0, 1fr); }
+    .compte .actions { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+<div class="appli">
+  <nav id="nav" aria-label="Comptes"></nav>
+  <main id="main">
+    <section class="page" id="page-toutes"><div class="dans">
+      <h2>Toutes les boîtes</h2>
+      <p class="etat" id="etat-toutes"></p>
+      <div class="liste" id="liste-toutes"></div>
+    </div></section>
+    <section class="page" id="page-ajouter"><div class="dans" id="ajouter"></div></section>
+    <section class="page" id="page-comptes"><div class="dans" id="comptes"></div></section>
+  </main>
+</div>
+<div class="message" id="message" role="status"></div>
+<script>
+/*
+ * Appli Boîte mail : coquille locale, plusieurs comptes Google.
+ * Chaque compte relié = une Boîte mail à elle (un « moteur » Apps Script dans le Drive de la personne), affichée dans un cadre
+ * avec son jeton d'appareil. « Toutes les boîtes » lit la boîte principale de chaque compte par sa porte (doPost).
+ * Ajouter un compte : copie guidée du modèle, puis « Relier à l'appli » dans la copie → lien boitemail://relier?c=… ou code collé.
+ * Rien de personnel dans la coquille : adresses et jetons sont gardés sur l'appareil seulement.
+ */
+(function () {
+  var MODELE = 'https://docs.google.com/spreadsheets/d/__MODELE__/copy'; // Boîte mail vierge à copier (rempli à la publication)
+  var CLE = 'boite-mail-comptes', CLE_VUE = 'boite-mail-vue';
+  var COULEURS = ['#1f6feb', '#e0b100', '#2f8a4c', '#c2410c', '#8b5cf6', '#db2777', '#0e7490', '#6b7280'];
+  var T = window.__TAURI__ || null;
+  var comptes = lireComptes(), vue = lireVue(), cadres = {}, sources = {}, minuterie = null;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function lireComptes() { try { var c = JSON.parse(localStorage.getItem(CLE) || '[]'); return Array.isArray(c) ? c : []; } catch (e) { return []; } }
+  function garderComptes() { try { localStorage.setItem(CLE, JSON.stringify(comptes)); } catch (e) { /* appareil sans mémoire */ } }
+  function lireVue() { try { return localStorage.getItem(CLE_VUE) || ''; } catch (e) { return ''; } }
+  function garderVue(v) { try { localStorage.setItem(CLE_VUE, v); } catch (e) { /* rien */ } }
+  function dire(t) { var m = $('message'); m.textContent = t; m.style.display = 'block'; clearTimeout(dire.t); dire.t = setTimeout(function () { m.style.display = 'none'; }, 5000); }
+  function ouvrirDehors(u) {
+    try { if (T && T.opener && T.opener.openUrl) { T.opener.openUrl(String(u)); return; } } catch (e) { /* plus bas */ }
+    try { if (T && T.core) { T.core.invoke('plugin:opener|open_url', { url: String(u) }); return; } } catch (e) { /* plus bas */ }
+    window.open(String(u), '_blank');
+  }
+  function porte(c, f, args) {
+    return fetch(c.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ f: f, jeton: c.jeton, args: args || [] }), redirect: 'follow' })
+      .then(function (r) { if (!r.ok) throw new Error('Le serveur ne répond pas (' + r.status + ').'); return r.json(); })
+      .then(function (x) { if (!x || !x.ok) throw new Error((x && x.erreur) || 'Réponse vide.'); return x.r; });
+  }
+  function nomCourt(c) { return c.nom || (c.email ? c.email.split('@')[0] : 'Boîte'); }
+
+  /* ---------- Barre des comptes ---------- */
+  function dessinerNav() {
+    var h = '<h1>Boîte mail</h1>';
+    if (comptes.length > 1) h += '<button type="button" class="choix toutes' + (vue === 'toutes' ? ' actif' : '') + '" data-vue="toutes"><span class="pastille"></span><span class="nom">Toutes les boîtes</span></button>';
+    comptes.forEach(function (c) {
+      h += '<button type="button" class="choix' + (vue === c.id ? ' actif' : '') + '" data-vue="' + esc(c.id) + '" title="' + esc(c.email || '') + '">' +
+        '<span class="pastille" style="background:' + esc(c.couleur) + '"></span><span class="nom">' + esc(nomCourt(c)) + '</span></button>';
+    });
+    h += '<button type="button" class="choix plus' + (vue === 'ajouter' ? ' actif' : '') + '" data-vue="ajouter">＋ <span class="nom">Ajouter un compte</span></button>';
+    if (comptes.length) h += '<button type="button" class="choix' + (vue === 'comptes' ? ' actif' : '') + '" data-vue="comptes">⚙ <span class="nom">Comptes reliés</span></button>';
+    $('nav').innerHTML = h;
+  }
+  $('nav').addEventListener('click', function (e) { var b = e.target.closest('[data-vue]'); if (b) montrer(b.getAttribute('data-vue')); });
+
+  function montrer(v) {
+    if (!comptes.length && v !== 'ajouter') v = 'ajouter';
+    if (v !== 'toutes' && v !== 'ajouter' && v !== 'comptes' && !comptes.some(function (c) { return c.id === v; })) v = comptes.length > 1 ? 'toutes' : (comptes[0] ? comptes[0].id : 'ajouter');
+    vue = v; garderVue(v);
+    [].forEach.call(document.querySelectorAll('.page'), function (p) { p.classList.remove('visible'); });
+    Object.keys(cadres).forEach(function (k) { cadres[k].classList.remove('visible'); });
+    clearInterval(minuterie); minuterie = null;
+    if (v === 'toutes') { $('page-toutes').classList.add('visible'); chargerToutes(); minuterie = setInterval(chargerToutes, 120000); }
+    else if (v === 'ajouter') { $('page-ajouter').classList.add('visible'); dessinerAjouter(); }
+    else if (v === 'comptes') { $('page-comptes').classList.add('visible'); dessinerComptes(); }
+    else cadre(v).classList.add('visible');
+    dessinerNav();
+  }
+
+  /* ---------- Une boîte : son écran dans un cadre (gardé ouvert pour revenir vite) ---------- */
+  function cadre(id) {
+    if (cadres[id]) return cadres[id];
+    var c = comptes.filter(function (x) { return x.id === id; })[0];
+    var f = document.createElement('iframe');
+    f.className = 'cadre'; f.title = 'Boîte ' + nomCourt(c); f.setAttribute('allow', 'clipboard-write');
+    f.src = c.url + '?fenetre=boite&cadre=1&jeton=' + encodeURIComponent(c.jeton);
+    $('main').appendChild(f);
+    cadres[id] = f;
+    return f;
+  }
+  // Messages des écrans de boîte : prêt (on garde sa fenêtre pour lui parler), liens vers l'extérieur.
+  window.addEventListener('message', function (ev) {
+    var d = ev.data || {};
+    if (d.boiteMail === 'ouvrir' && /^(https?:|mailto:|tel:)/i.test(String(d.url || ''))) ouvrirDehors(d.url);
+    if (d.boiteMail === 'pret') {
+      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) sources[k] = ev.source; } catch (e) { /* autre */ } });
+    }
+  });
+  function estDans(w, haut) { for (var i = 0; w && i < 6; i++) { if (w === haut) return true; if (w === w.parent) break; w = w.parent; } return false; }
+  function ouvrirFilDans(id, filId) {
+    montrer(id);
+    var essais = 0;
+    (function envoyer() {
+      var s = sources[id];
+      if (s) { s.postMessage({ boiteMail: 'ouvrirFil', id: filId }, '*'); return; }
+      if (++essais < 60) setTimeout(envoyer, 250); else dire('La boîte s\'ouvre : cherchez le mail dans la liste.');
+    })();
+  }
+
+  /* ---------- Toutes les boîtes ---------- */
+  var tout = {};
+  function chargerToutes() {
+    $('etat-toutes').textContent = 'Mise à jour…';
+    var req = { dossier: 'principale', libelle: '', recherche: '', debut: 0, jeton: '', contactsSeuls: false, sansRemises: true };
+    var fini = 0, erreurs = [];
+    comptes.forEach(function (c) {
+      porte(c, 'listeFils', [req]).then(function (r) { tout[c.id] = (r && r.fils) || []; }, function (e) { erreurs.push(nomCourt(c) + ' : ' + (e && e.message || e)); })
+        .then(function () { fini++; dessinerToutes(); if (fini === comptes.length) $('etat-toutes').textContent = erreurs.length ? 'Pas à jour : ' + erreurs.join(' · ') : 'Boîtes principales de ' + comptes.length + ' comptes, du plus récent au plus ancien.'; });
+    });
+  }
+  function quand(d) {
+    var t = Date.parse(String(d || '')); if (isNaN(t)) return '';
+    var x = new Date(t), auj = new Date();
+    if (x.toDateString() === auj.toDateString()) return ('0' + x.getHours()).slice(-2) + ':' + ('0' + x.getMinutes()).slice(-2);
+    return x.getDate() + '.' + (x.getMonth() + 1) + (x.getFullYear() !== auj.getFullYear() ? '.' + x.getFullYear() : '');
+  }
+  function dessinerToutes() {
+    var lignes = [];
+    comptes.forEach(function (c) { (tout[c.id] || []).forEach(function (f) { lignes.push({ c: c, f: f, t: Date.parse(String(f.date || '')) || 0 }); }); });
+    lignes.sort(function (a, b) { return b.t - a.t; });
+    $('liste-toutes').innerHTML = lignes.slice(0, 150).map(function (l) {
+      var f = l.f, qui = (f.contacts || []).map(function (x) { return x.nom || x.cle; }).join(', ') || f.de || '—';
+      return '<div class="conv' + (f.nonLu ? ' non-lu' : '') + '" data-compte="' + esc(l.c.id) + '" data-fil="' + esc(f.id) + '" role="button" tabindex="0">' +
+        '<span class="bord" style="background:' + esc(l.c.couleur) + '"></span>' +
+        '<div style="min-width:0"><div class="haut"><span class="qui">' + esc(qui) + '</span><span class="cpt">' + esc(nomCourt(l.c)) + '</span></div>' +
+        '<div class="objet">' + esc(f.objet) + (f.nb > 1 ? ' <span class="doux">(' + f.nb + ')</span>' : '') + '</div>' +
+        '<div class="extrait">' + esc(f.extrait) + '</div></div>' +
+        '<span class="quand">' + esc(quand(f.date)) + '</span></div>';
+    }).join('') || '<p class="doux">Rien pour l\'instant.</p>';
+  }
+  $('liste-toutes').addEventListener('click', function (e) { var d = e.target.closest('.conv'); if (d) ouvrirFilDans(d.getAttribute('data-compte'), d.getAttribute('data-fil')); });
+  $('liste-toutes').addEventListener('keydown', function (e) { if (e.key === 'Enter') { var d = e.target.closest('.conv'); if (d) ouvrirFilDans(d.getAttribute('data-compte'), d.getAttribute('data-fil')); } });
+
+  /* ---------- Ajouter un compte ---------- */
+  function dessinerAjouter() {
+    var pret = !/__MODELE__/.test(MODELE);
+    $('ajouter').innerHTML =
+      '<h2>Ajouter un compte</h2><p class="sous">Chaque compte Google a sa propre Boîte mail, dans son Drive. Ça prend une minute, dans votre navigateur, avec le compte à relier.</p>' +
+      '<div class="boite">' +
+      '<div class="etape"><span class="num">1</span><div><b>Créer la Boîte mail du compte</b><p class="doux">Une copie vierge s\'ouvre dans le navigateur. Vérifiez en haut à droite que c\'est le bon compte Google, puis « Créer une copie ».</p>' +
+        '<button type="button" class="prim" id="aj-copie"' + (pret ? '' : ' disabled') + '>Créer ma Boîte mail</button>' + (pret ? '' : ' <span class="doux">(bientôt)</span>') + '</div></div>' +
+      '<div class="etape"><span class="num">2</span><div><b>Relier à l\'appli</b><p class="doux">Dans la copie : menu <b>Boîte mail › Relier à l\'appli Boîte mail</b>, puis acceptez les autorisations Google (« appli non validée » : c\'est normal pour un outil à soi, « Paramètres avancés › Accéder »). La première fois, un interrupteur Google est demandé : la fenêtre explique.</p></div></div>' +
+      '<div class="etape"><span class="num">3</span><div><b>Ouvrir dans l\'appli</b><p class="doux">Cliquez « Ouvrir dans l\'appli Boîte mail » : le compte apparaît ici tout seul. Sinon, collez le code :</p>' +
+        '<textarea id="aj-code" placeholder="Code de liaison"></textarea><div class="actions"><button type="button" id="aj-ok">Relier avec ce code</button></div></div></div>' +
+      '</div>';
+    var b = $('aj-copie'); if (b && pret) b.onclick = function () { ouvrirDehors(MODELE); };
+    $('aj-ok').onclick = function () { relier($('aj-code').value); };
+  }
+  function decoder(code) {
+    var s = String(code || '').trim().replace(/^.*[?&]c=/, '').replace(/&.*$/, '');
+    s = decodeURIComponent(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
+    var o = JSON.parse(decodeURIComponent(escape(atob(s))));
+    if (!o || !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(o.u) || !/^[a-f0-9]{96}$/.test(o.j)) throw new Error('Code incomplet.');
+    return o;
+  }
+  function relier(code) {
+    var o;
+    try { o = decoder(code); } catch (e) { dire('Ce code n\'est pas reconnu. Recopiez-le en entier.'); return; }
+    var c = { id: 'c' + Date.now().toString(36), email: o.e || '', nom: '', url: o.u, jeton: o.j, couleur: COULEURS[comptes.length % COULEURS.length], ajoute: new Date().toISOString() };
+    dire('Vérification du compte…');
+    porte(c, 'etatAcces', []).then(function (r) {
+      if (!r || !r.valide) throw new Error('le code n\'est plus valable, refaites « Relier à l\'appli »');
+      var deja = comptes.filter(function (x) { return x.url === c.url; })[0];
+      if (deja) { deja.jeton = c.jeton; if (c.email) deja.email = c.email; delete cadres[deja.id]; c = deja; }
+      else comptes.push(c);
+      garderComptes(); dire('Compte relié : ' + (c.email || nomCourt(c))); montrer(c.id);
+    }, function (e) { dire('Pas pu relier : ' + (e && e.message || e)); });
+  }
+
+  /* ---------- Comptes reliés ---------- */
+  function dessinerComptes() {
+    $('comptes').innerHTML = '<h2>Comptes reliés</h2><p class="sous">Les boîtes que cette appli affiche. Retirer un compte ici ne touche pas à ses mails.</p>' +
+      comptes.map(function (c) {
+        return '<div class="compte" data-id="' + esc(c.id) + '"><span class="pastille" style="background:' + esc(c.couleur) + '"></span>' +
+          '<div style="min-width:0"><input type="text" class="cp-nom" value="' + esc(c.nom) + '" placeholder="' + esc(nomCourt(c)) + '" aria-label="Nom affiché">' +
+          '<div class="doux" style="margin-top:4px;overflow-wrap:anywhere">' + esc(c.email || 'adresse inconnue') + '</div>' +
+          '<div class="couleurs" style="margin-top:6px">' + COULEURS.map(function (k) { return '<span data-couleur="' + k + '" style="background:' + k + '"' + (k === c.couleur ? ' class="choisie"' : '') + '></span>'; }).join('') + '</div></div>' +
+          '<div class="actions"><button type="button" class="cp-retirer">Retirer</button></div></div>';
+      }).join('');
+  }
+  $('comptes').addEventListener('change', function (e) {
+    var l = e.target.closest('.compte'); if (!l || !e.target.classList.contains('cp-nom')) return;
+    var c = comptes.filter(function (x) { return x.id === l.getAttribute('data-id'); })[0]; if (!c) return;
+    c.nom = e.target.value.trim(); garderComptes(); dessinerNav();
+  });
+  $('comptes').addEventListener('click', function (e) {
+    var l = e.target.closest('.compte'); if (!l) return;
+    var id = l.getAttribute('data-id'), c = comptes.filter(function (x) { return x.id === id; })[0]; if (!c) return;
+    var k = e.target.getAttribute('data-couleur');
+    if (k) { c.couleur = k; garderComptes(); dessinerComptes(); dessinerNav(); }
+    if (e.target.classList.contains('cp-retirer') && confirm('Retirer « ' + nomCourt(c) + ' » de cette appli ? Ses mails ne sont pas touchés.')) {
+      comptes = comptes.filter(function (x) { return x.id !== id; });
+      if (cadres[id]) { cadres[id].remove(); delete cadres[id]; delete sources[id]; }
+      garderComptes(); dessinerComptes(); dessinerNav();
+      try { porte(c, 'deconnecterAppareil', []); } catch (er) { /* hors ligne : le jeton expirera */ }
+    }
+  });
+
+  /* ---------- Liens boitemail://relier?c=… ---------- */
+  function liens(urls) { (urls || []).forEach(function (u) { if (/^boitemail:\/\/relier/i.test(String(u))) relier(String(u)); }); }
+  try {
+    if (T && T.core) T.core.invoke('plugin:deep-link|get_current').then(liens, function () { /* aucun */ });
+    if (T && T.event) T.event.listen('deep-link://new-url', function (ev) { liens(ev.payload); });
+  } catch (e) { /* pas dans l'appli */ }
+  // Essai dans un navigateur : #relier=<code>
+  if (/^#relier=/.test(location.hash)) { relier(location.hash.slice(8)); history.replaceState(null, '', location.pathname); }
+
+  montrer(vue || (comptes.length > 1 ? 'toutes' : (comptes[0] ? comptes[0].id : 'ajouter')));
+})();
+</script>
+</body>
+</html>

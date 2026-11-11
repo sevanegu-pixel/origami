@@ -1,0 +1,65 @@
+# Fabrique l'appli Boîte mail pour Mac (coquille Tauri du dossier appli-boite/) et la publie comme « version » GitHub à télécharger.
+# La coquille ne contient aucune boîte : chaque compte relié montre l'écran de son propre moteur, avec son jeton d'appareil.
+name: Appli Boîte mail Mac
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "appli-boite/**"
+      - ".github/workflows/appli-boite-mac.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: appli-boite/src-tauri -> target
+
+      - name: Outils
+        working-directory: appli-boite
+        run: npm install --no-audit --no-fund
+
+      - name: Icônes
+        working-directory: appli-boite
+        run: npx tauri icon icone-1024.png
+
+      - name: Fabrication (Mac Apple et Intel)
+        working-directory: appli-boite
+        run: npx tauri build --target universal-apple-darwin
+
+      - name: Fichier à télécharger
+        run: |
+          f=$(ls appli-boite/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
+          cp "$f" "Boite-mail-Mac.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Boite-mail-Mac
+          path: Boite-mail-Mac.dmg
+
+      - name: Version à télécharger
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: appli-boite-${{ github.run_number }}
+          name: Appli Boîte mail pour Mac (${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: Boite-mail-Mac.dmg
+          body: |
+            Appli Boîte mail pour Mac (essai), plusieurs comptes Google. Ouvrir le fichier .dmg, glisser « Boîte mail » dans Applications.
+            Première ouverture : l'appli n'est pas signée par Apple ; Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
