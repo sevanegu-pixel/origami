@@ -5,14 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Boîte mail</title>
 <style>
-  :root { --fond: #f4f2ee; --carte: #fff; --carte2: #f7f5f1; --ligne: #e3ded5; --texte: #22201c; --doux: #6d675d; --accent: #1f6feb; --ok: #2f8a4c; --barre: 240px; }
+  :root { --fond: #f4f2ee; --carte: #fff; --carte2: #f7f5f1; --ligne: #e3ded5; --texte: #22201c; --doux: #6d675d; --accent: #1f6feb; --ok: #2f8a4c; --barre: 240px; --z: 1; }
   @media (prefers-color-scheme: dark) { :root { --fond: #16161a; --carte: #202027; --carte2: #2a2a33; --ligne: #383843; --texte: #eceaf2; --doux: #a19fae; --accent: #6ea8ff; } }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: var(--fond); color: var(--texte); font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
   button { font: 600 14px/1.2 inherit; font-family: inherit; border-radius: 999px; padding: 9px 16px; border: 1px solid var(--ligne); background: var(--carte); color: var(--texte); cursor: pointer; }
   button.prim { background: var(--accent); border-color: var(--accent); color: #fff; }
   button:disabled { opacity: .6; cursor: default; }
-  .appli { display: grid; grid-template-columns: var(--barre) minmax(0, 1fr); height: 100%; }
+  .appli { display: grid; grid-template-columns: calc(var(--barre) * var(--z)) minmax(0, 1fr); height: 100%; }
+  /* Taille de l'affichage (rouage) : le volet et les pages par « zoom », les boîtes (cadres) par une mise à l'échelle, qui marche partout. */
+  nav, .page { zoom: var(--z); }
   nav { border-right: 1px solid var(--ligne); padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; overflow: auto; background: var(--carte2); }
   nav h1 { font-size: 15px; letter-spacing: .14em; text-transform: uppercase; margin: 4px 8px 12px; }
   .choix { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 10px; padding: 9px 10px; font-weight: 500; }
@@ -23,8 +25,31 @@
   .pastille { flex: none; width: 12px; height: 12px; border-radius: 50%; }
   .toutes .pastille { background: conic-gradient(#1f6feb 0 33%, #e0b100 0 66%, #2f8a4c 0); }
   nav .plus { margin-top: 10px; color: var(--accent); }
+  /* Dossiers de la boîte affichée, en petit sous les comptes ; libellés repliés ; rouage des réglages tout en bas. */
+  .dossiers { display: flex; flex-direction: column; gap: 1px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--ligne); }
+  .dos { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 8px; padding: 4px 10px 4px 32px; font-size: 13px; font-weight: 450; color: var(--texte); }
+  .dos:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .dos.actif { background: color-mix(in srgb, var(--accent) 15%, var(--carte)); font-weight: 650; }
+  .dos .nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dos .nb { flex: none; font-size: 11px; color: var(--doux); font-weight: 600; }
+  .dos.titre { color: var(--doux); font-size: 12px; margin-top: 4px; }
+  .dos.titre .fleche { display: inline-block; width: 10px; transition: transform .15s; }
+  .dos.titre.ouvert .fleche { transform: rotate(90deg); }
+  .dos.lib { padding-left: 44px; }
+  nav .bas { margin-top: auto; padding-top: 10px; position: relative; }
+  .roue { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 10px; padding: 7px 10px; font-size: 13px; font-weight: 500; color: var(--doux); }
+  .roue:hover, .roue.actif { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--texte); }
+  .roue svg { width: 16px; height: 16px; flex: none; }
+  .menu-roue { position: fixed; z-index: 20; min-width: 210px; max-width: calc(100vw - 16px); background: var(--carte); border: 1px solid var(--ligne); border-radius: 12px; box-shadow: 0 12px 34px rgba(0,0,0,.2); padding: 6px; display: none; }
+  .menu-roue.visible { display: block; }
+  .menu-roue button { display: block; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 8px; padding: 8px 10px; font-weight: 500; }
+  .menu-roue button:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .menu-roue .taille { display: flex; align-items: center; gap: 6px; padding: 8px 10px 6px; border-top: 1px solid var(--ligne); margin-top: 4px; font-size: 13px; }
+  .menu-roue .taille span.nom { flex: 1; min-width: 0; }
+  .menu-roue .taille button { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--ligne); border-radius: 50%; font-size: 17px; font-weight: 600; text-align: center; }
+  .menu-roue .taille b { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
   main { position: relative; min-width: 0; height: 100%; overflow: hidden; }
-  .cadre { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--fond); display: none; }
+  .cadre { position: absolute; left: 0; top: 0; width: calc(100% / var(--z)); height: calc(100% / var(--z)); transform: scale(var(--z)); transform-origin: 0 0; border: 0; background: var(--fond); display: none; }
   .cadre.visible { display: block; }
   .page { position: absolute; inset: 0; overflow: auto; padding: 18px 18px 60px; display: none; }
   .page.visible { display: block; }
@@ -39,6 +64,7 @@
   .conv .qui { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .conv .cpt { font-size: 12px; color: var(--doux); white-space: nowrap; }
   .conv .objet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #liste-toutes { zoom: var(--txt, 1); }
   .conv .extrait { color: var(--doux); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .conv .quand { font-size: 12px; color: var(--doux); white-space: nowrap; }
   .conv.non-lu { background: color-mix(in srgb, var(--accent) 7%, var(--carte)); }
@@ -61,11 +87,16 @@
   .barre-tel { display: none; }
   @media (max-width: 760px) {
     .appli { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    nav { zoom: 1; }
     nav { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--ligne); padding: 8px; overflow-x: auto; gap: 6px; }
     nav h1 { display: none; }
     .choix { width: auto; flex: none; border: 1px solid var(--ligne); border-radius: 999px; padding: 7px 12px; }
     .choix .nom { max-width: 140px; }
     nav .plus { margin-top: 0; }
+    .dossiers { display: none; }
+    nav .bas { margin-top: 0; margin-left: auto; padding-top: 0; flex: none; }
+    .roue { width: auto; border: 1px solid var(--ligne); border-radius: 999px; padding: 7px 10px; }
+    .roue .nom { display: none; }
     .page { padding: 12px 12px 60px; }
     .compte { grid-template-columns: auto minmax(0, 1fr); }
     .compte .actions { grid-column: 1 / -1; }
@@ -85,6 +116,7 @@
     <section class="page" id="page-comptes"><div class="dans" id="comptes"></div></section>
   </main>
 </div>
+<div class="menu-roue" id="menu-roue" role="menu"></div>
 <div class="message" id="message" role="status"></div>
 <script>
 /*
@@ -100,6 +132,33 @@
   var COULEURS = ['#1f6feb', '#e0b100', '#2f8a4c', '#c2410c', '#8b5cf6', '#db2777', '#0e7490', '#6b7280'];
   var T = window.__TAURI__ || null;
   var comptes = lireComptes(), vue = lireVue(), cadres = {}, sources = {}, minuterie = null;
+  /* Dossier choisi : le même pour tous les comptes (Envoyés du compte A → Envoyés du compte B). */
+  var DOSSIERS = [['reception', 'Boîte de réception'], ['suivis', 'Suivis'], ['importants', 'Importants'], ['envoyes', 'Envoyés'], ['brouillons', 'Brouillons'], ['programmes', 'Programmés'], ['tous', 'Tous les messages'], ['spam', 'Spam'], ['corbeille', 'Corbeille']];
+  var CLE_DOSSIER = 'boite-mail-dossier', choix = lireChoix(), infos = {}, envoiLe = {}, libellesOuverts = false;
+  var ETROIT = window.matchMedia ? window.matchMedia('(max-width: 760px)') : { matches: false };
+  function lireChoix() { try { var d = JSON.parse(localStorage.getItem(CLE_DOSSIER) || '{}'); if (d && DOSSIERS.some(function (x) { return x[0] === d.dossier; })) return { dossier: d.dossier, libelle: '' }; } catch (e) { /* rien */ } return { dossier: 'reception', libelle: '' }; }
+  function garderChoix() { try { localStorage.setItem(CLE_DOSSIER, JSON.stringify({ dossier: choix.dossier || 'reception' })); } catch (e) { /* rien */ } }
+  /* Taille de l'affichage : un seul réglage pour tout l'écran, gardé sur l'appareil. */
+  var CLE_TAILLE = 'boite-mail-taille', taille = (function () { try { var t = Number(localStorage.getItem(CLE_TAILLE)); return t >= 0.7 && t <= 1.3 ? t : 1; } catch (e) { return 1; } })();
+  function poserTaille(t) {
+    taille = Math.round(Math.max(0.7, Math.min(1.3, t)) * 20) / 20;
+    document.documentElement.style.setProperty('--z', String(taille));
+    try { localStorage.setItem(CLE_TAILLE, String(taille)); } catch (e) { /* rien */ }
+    var b = $('taille-valeur'); if (b) b.textContent = Math.round(taille * 100) + ' %';
+  }
+  poserTaille(taille);
+  /* Texte des mails : seulement la liste des mails et le mail ouvert, dans chaque boîte (qui applique l'échelle elle-même). */
+  var CLE_TEXTE = 'boite-mail-texte', texte = (function () { try { var t = Number(localStorage.getItem(CLE_TEXTE)); return t >= 0.7 && t <= 1.3 ? t : 1; } catch (e) { return 1; } })();
+  function direTexte(id) { var s = sources[id]; if (s) { try { s.postMessage({ boiteMail: 'texte', echelle: texte }, '*'); } catch (e) { /* fermé */ } } }
+  function poserTexte(t) {
+    texte = Math.round(Math.max(0.7, Math.min(1.3, t)) * 20) / 20;
+    try { localStorage.setItem(CLE_TEXTE, String(texte)); } catch (e) { /* rien */ }
+    document.documentElement.style.setProperty('--txt', String(texte));
+    var b = $('texte-valeur'); if (b) b.textContent = Math.round(texte * 100) + ' %';
+    Object.keys(sources).forEach(direTexte);
+  }
+  document.documentElement.style.setProperty('--txt', String(texte));
+  function estCompte(v) { return comptes.some(function (c) { return c.id === v; }); }
 
   function $(id) { return document.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -121,6 +180,27 @@
   function nomCourt(c) { return c.nom || (c.email ? c.email.split('@')[0] : 'Boîte'); }
 
   /* ---------- Barre des comptes ---------- */
+  var ROUE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
+  /* Les dossiers s'affichent pour un compte dont la boîte sait les confier au volet (elle l'a dit), et pour « Toutes les boîtes ». */
+  function htmlDossiers() {
+    var surToutes = vue === 'toutes', info = infos[vue];
+    if (!surToutes && !(estCompte(vue) && info)) return '';
+    var nb = function (id) {
+      if (!surToutes) return (info.comptes || {})[id] || 0;
+      return comptes.reduce(function (n, c) { return n + ((infos[c.id] && infos[c.id].comptes && infos[c.id].comptes[id]) || 0); }, 0);
+    };
+    var h = '<div class="dossiers" aria-label="Dossiers">' + DOSSIERS.map(function (d) {
+      var n = nb(d[0]);
+      return '<button type="button" class="dos' + (!choix.libelle && choix.dossier === d[0] ? ' actif' : '') + '" data-dossier="' + d[0] + '"><span class="nom">' + d[1] + '</span>' + (n ? '<span class="nb">' + n + '</span>' : '') + '</button>';
+    }).join('');
+    var libs = surToutes ? [] : (info.libelles || []);
+    if (libs.length) {
+      var ouvert = libellesOuverts || !!choix.libelle;
+      h += '<button type="button" class="dos titre' + (ouvert ? ' ouvert' : '') + '" data-libelles="1" aria-expanded="' + ouvert + '"><span class="fleche">›</span><span class="nom">Libellés (' + libs.length + ')</span></button>';
+      if (ouvert) h += libs.map(function (l) { return '<button type="button" class="dos lib' + (choix.libelle === l.nom ? ' actif' : '') + '" data-libelle="' + esc(l.nom) + '" title="' + esc(l.nom) + '"><span class="nom">' + esc(l.nom) + '</span>' + (l.nonLus ? '<span class="nb">' + l.nonLus + '</span>' : '') + '</button>'; }).join('');
+    }
+    return h + '</div>';
+  }
   function dessinerNav() {
     var h = '<h1>Boîte mail</h1>';
     if (comptes.length > 1) h += '<button type="button" class="choix toutes' + (vue === 'toutes' ? ' actif' : '') + '" data-vue="toutes"><span class="pastille"></span><span class="nom">Toutes les boîtes</span></button>';
@@ -128,11 +208,47 @@
       h += '<button type="button" class="choix' + (vue === c.id ? ' actif' : '') + '" data-vue="' + esc(c.id) + '" title="' + esc(c.email || '') + '">' +
         '<span class="pastille" style="background:' + esc(c.couleur) + '"></span><span class="nom">' + esc(nomCourt(c)) + '</span></button>';
     });
-    h += '<button type="button" class="choix plus' + (vue === 'ajouter' ? ' actif' : '') + '" data-vue="ajouter">＋ <span class="nom">Ajouter un compte</span></button>';
-    if (comptes.length) h += '<button type="button" class="choix' + (vue === 'comptes' ? ' actif' : '') + '" data-vue="comptes">⚙ <span class="nom">Comptes reliés</span></button>';
+    h += htmlDossiers();
+    h += '<div class="bas"><button type="button" class="roue' + (vue === 'ajouter' || vue === 'comptes' ? ' actif' : '') + '" id="roue" aria-haspopup="menu" title="Réglages" aria-label="Réglages">' + ROUE + '<span class="nom">Réglages</span></button></div>';
     $('nav').innerHTML = h;
   }
-  $('nav').addEventListener('click', function (e) { var b = e.target.closest('[data-vue]'); if (b) montrer(b.getAttribute('data-vue')); });
+  $('nav').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-vue]'); if (b) return montrer(b.getAttribute('data-vue'));
+    if (e.target.closest('#roue')) return ouvrirMenuRoue();
+    if (e.target.closest('[data-libelles]')) { libellesOuverts = !(libellesOuverts || !!choix.libelle); if (!libellesOuverts && choix.libelle) return choisir('reception', ''); return dessinerNav(); }
+    var d = e.target.closest('[data-dossier], [data-libelle]'); if (d) choisir(d.getAttribute('data-dossier') || '', d.getAttribute('data-libelle') || '');
+  });
+  /* Rouage : tout ce qui est général (ajouter un compte, comptes reliés) dans un petit menu, pour laisser la place aux boîtes. */
+  function ouvrirMenuRoue() {
+    var m = $('menu-roue'), r = $('roue').getBoundingClientRect();
+    if (m.classList.contains('visible')) return m.classList.remove('visible');
+    m.innerHTML = '<button type="button" role="menuitem" data-vue="ajouter">＋ Ajouter un compte</button>' + (comptes.length ? '<button type="button" role="menuitem" data-vue="comptes">Comptes reliés</button>' : '') +
+      '<div class="taille"><span class="nom">Taille de l\'affichage</span><button type="button" data-taille="-1" aria-label="Plus petit" title="Plus petit">−</button><b id="taille-valeur">' + Math.round(taille * 100) + ' %</b><button type="button" data-taille="1" aria-label="Plus grand" title="Plus grand">+</button></div>' +
+      '<div class="taille" style="border-top:0;margin-top:0;padding-top:2px"><span class="nom">Texte des mails</span><button type="button" data-texte="-1" aria-label="Texte plus petit" title="Plus petit">−</button><b id="texte-valeur">' + Math.round(texte * 100) + ' %</b><button type="button" data-texte="1" aria-label="Texte plus grand" title="Plus grand">+</button></div>';
+    m.classList.add('visible');
+    var haut = r.top > window.innerHeight / 2;
+    m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - m.offsetWidth - 8)) + 'px';
+    m.style.top = (haut ? Math.max(8, r.top - m.offsetHeight - 6) : r.bottom + 6) + 'px';
+  }
+  $('menu-roue').addEventListener('click', function (e) { var t = e.target.closest('[data-taille]'); if (t) return poserTaille(taille + 0.05 * Number(t.getAttribute('data-taille'))); var x = e.target.closest('[data-texte]'); if (x) return poserTexte(texte + 0.05 * Number(x.getAttribute('data-texte'))); var b = e.target.closest('[data-vue]'); if (b) { $('menu-roue').classList.remove('visible'); montrer(b.getAttribute('data-vue')); } });
+  document.addEventListener('mousedown', function (e) { if (!e.target.closest('#menu-roue') && !e.target.closest('#roue')) $('menu-roue').classList.remove('visible'); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('menu-roue').classList.remove('visible'); });
+  window.addEventListener('blur', function () { $('menu-roue').classList.remove('visible'); }); // clic dans le cadre d'une boîte
+
+  /* Choix d'un dossier dans le volet : on le dit à la boîte affichée ; « Toutes les boîtes » relit ce dossier dans chaque compte. */
+  function choisir(dossier, libelle) {
+    choix = { dossier: libelle ? '' : (dossier || 'reception'), libelle: libelle || '' }; garderChoix();
+    if (vue === 'toutes') { if (choix.libelle) choix = { dossier: 'reception', libelle: '' }; tout = {}; dessinerToutes(); chargerToutes(); }
+    else if (estCompte(vue)) direDossier(vue, true);
+    dessinerNav();
+  }
+  function direVolet(id) { var s = sources[id]; if (s) { try { s.postMessage({ boiteMail: 'voletDossiers', actif: !ETROIT.matches }, '*'); } catch (e) { /* fermé */ } } }
+  function direDossier(id, montrerBoite) {
+    var s = sources[id]; if (!s || ETROIT.matches) return;
+    envoiLe[id] = Date.now();
+    try { s.postMessage({ boiteMail: 'dossier', dossier: choix.dossier, libelle: choix.libelle, montrer: !!montrerBoite }, '*'); } catch (e) { /* fermé */ }
+  }
+  if (ETROIT.addEventListener) ETROIT.addEventListener('change', function () { Object.keys(sources).forEach(direVolet); dessinerNav(); });
 
   function montrer(v) {
     if (!comptes.length && v !== 'ajouter') v = 'ajouter';
@@ -144,7 +260,7 @@
     if (v === 'toutes') { $('page-toutes').classList.add('visible'); chargerToutes(); minuterie = setInterval(chargerToutes, 120000); }
     else if (v === 'ajouter') { $('page-ajouter').classList.add('visible'); dessinerAjouter(); }
     else if (v === 'comptes') { $('page-comptes').classList.add('visible'); dessinerComptes(); }
-    else cadre(v).classList.add('visible');
+    else { cadre(v).classList.add('visible'); direDossier(v, false); }
     dessinerNav();
   }
 
@@ -164,7 +280,20 @@
     var d = ev.data || {};
     if (d.boiteMail === 'ouvrir' && /^(https?:|mailto:|tel:)/i.test(String(d.url || ''))) ouvrirDehors(d.url);
     if (d.boiteMail === 'pret') {
-      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) sources[k] = ev.source; } catch (e) { /* autre */ } });
+      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k); if (k === vue) direDossier(k, false); } } catch (e) { /* autre */ } });
+    }
+    // Une boîte annonce ses dossiers (compteurs, libellés, dossier affiché) : le volet les montre. Si on a changé de dossier dans la boîte
+    // elle-même (onglet, recherche…), le volet suit, sauf juste après notre propre demande (réponse en retard d'un autre dossier).
+    if (d.boiteMail === 'dossiers') {
+      var qui = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0]; if (!qui) return;
+      var premier = !infos[qui];
+      infos[qui] = { comptes: d.comptes || {}, libelles: Array.isArray(d.libelles) ? d.libelles.slice(0, 200) : [], dossier: String(d.dossier || ''), libelle: String(d.libelle || '') };
+      if (qui === vue) {
+        var pareil = infos[qui].libelle === choix.libelle && (choix.libelle || infos[qui].dossier === choix.dossier);
+        if (premier && !pareil) direDossier(qui, false);
+        else if (!pareil && Date.now() - (envoiLe[qui] || 0) > 2500) { choix = { dossier: infos[qui].libelle ? '' : (infos[qui].dossier || 'reception'), libelle: infos[qui].libelle }; garderChoix(); }
+      }
+      dessinerNav();
     }
   });
   function estDans(w, haut) { for (var i = 0; w && i < 6; i++) { if (w === haut) return true; if (w === w.parent) break; w = w.parent; } return false; }
@@ -182,11 +311,13 @@
   var tout = {};
   function chargerToutes() {
     $('etat-toutes').textContent = 'Mise à jour…';
-    var req = { dossier: 'principale', libelle: '', recherche: '', debut: 0, jeton: '', contactsSeuls: false, sansRemises: true };
+    var dos = choix.libelle ? 'reception' : (choix.dossier || 'reception'), nomDos = (DOSSIERS.filter(function (x) { return x[0] === dos; })[0] || DOSSIERS[0])[1];
+    var req = { dossier: dos === 'reception' ? 'principale' : dos, libelle: '', recherche: '', debut: 0, jeton: '', contactsSeuls: false, sansRemises: true };
+    var titre = document.querySelector('#page-toutes h2'); if (titre) titre.textContent = 'Toutes les boîtes · ' + nomDos;
     var fini = 0, erreurs = [];
     comptes.forEach(function (c) {
       porte(c, 'listeFils', [req]).then(function (r) { tout[c.id] = (r && r.fils) || []; }, function (e) { erreurs.push(nomCourt(c) + ' : ' + (e && e.message || e)); })
-        .then(function () { fini++; dessinerToutes(); if (fini === comptes.length) $('etat-toutes').textContent = erreurs.length ? 'Pas à jour : ' + erreurs.join(' · ') : 'Boîtes principales de ' + comptes.length + ' comptes, du plus récent au plus ancien.'; });
+        .then(function () { fini++; dessinerToutes(); if (fini === comptes.length) $('etat-toutes').textContent = erreurs.length ? 'Pas à jour : ' + erreurs.join(' · ') : nomDos + ' de ' + comptes.length + ' comptes, du plus récent au plus ancien.'; });
     });
   }
   function quand(d) {
