@@ -36,6 +36,14 @@
   .dos.titre .fleche { display: inline-block; width: 10px; transition: transform .15s; }
   .dos.titre.ouvert .fleche { transform: rotate(90deg); }
   .dos.lib { padding-left: 44px; }
+  /* Campagnes, Modèles, Carnet d'adresses de la boîte affichée : à part, sous les dossiers, avec leurs raccourcis « nouveau ». */
+  .rubriques { display: flex; flex-direction: column; gap: 1px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--ligne); }
+  .rub { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 8px; padding: 6px 10px; font-size: 14px; font-weight: 550; color: var(--texte); }
+  .rub svg { width: 15px; height: 15px; flex: none; color: var(--doux); }
+  .rub:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .rub.actif { background: color-mix(in srgb, var(--accent) 15%, var(--carte)); font-weight: 650; }
+  .rub .nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dos.plus-rub { color: var(--accent); padding-left: 33px; }
   nav .bas { margin-top: auto; padding-top: 10px; position: relative; }
   .roue { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 10px; padding: 7px 10px; font-size: 13px; font-weight: 500; color: var(--doux); }
   .roue:hover, .roue.actif { background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--texte); }
@@ -93,7 +101,7 @@
     .choix { width: auto; flex: none; border: 1px solid var(--ligne); border-radius: 999px; padding: 7px 12px; }
     .choix .nom { max-width: 140px; }
     nav .plus { margin-top: 0; }
-    .dossiers { display: none; }
+    .dossiers, .rubriques { display: none; }
     nav .bas { margin-top: 0; margin-left: auto; padding-top: 0; flex: none; }
     .roue { width: auto; border: 1px solid var(--ligne); border-radius: 999px; padding: 7px 10px; }
     .roue .nom { display: none; }
@@ -134,7 +142,7 @@
   var comptes = lireComptes(), vue = lireVue(), cadres = {}, sources = {}, minuterie = null;
   /* Dossier choisi : le même pour tous les comptes (Envoyés du compte A → Envoyés du compte B). */
   var DOSSIERS = [['reception', 'Boîte de réception'], ['suivis', 'Suivis'], ['importants', 'Importants'], ['envoyes', 'Envoyés'], ['brouillons', 'Brouillons'], ['programmes', 'Programmés'], ['tous', 'Tous les messages'], ['spam', 'Spam'], ['corbeille', 'Corbeille']];
-  var CLE_DOSSIER = 'boite-mail-dossier', choix = lireChoix(), infos = {}, envoiLe = {}, libellesOuverts = false;
+  var CLE_DOSSIER = 'boite-mail-dossier', choix = lireChoix(), vues = {}, infos = {}, envoiLe = {}, libellesOuverts = false;
   var ETROIT = window.matchMedia ? window.matchMedia('(max-width: 760px)') : { matches: false };
   function lireChoix() { try { var d = JSON.parse(localStorage.getItem(CLE_DOSSIER) || '{}'); if (d && DOSSIERS.some(function (x) { return x[0] === d.dossier; })) return { dossier: d.dossier, libelle: '' }; } catch (e) { /* rien */ } return { dossier: 'reception', libelle: '' }; }
   function garderChoix() { try { localStorage.setItem(CLE_DOSSIER, JSON.stringify({ dossier: choix.dossier || 'reception' })); } catch (e) { /* rien */ } }
@@ -183,7 +191,7 @@
   var ROUE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
   /* Les dossiers s'affichent pour un compte dont la boîte sait les confier au volet (elle l'a dit), et pour « Toutes les boîtes ». */
   function htmlDossiers() {
-    var surToutes = vue === 'toutes', info = infos[vue];
+    var surToutes = vue === 'toutes', info = infos[vue], surMails = surToutes || vueDe(vue) === 'messages';
     if (!surToutes && !(estCompte(vue) && info)) return '';
     var nb = function (id) {
       if (!surToutes) return (info.comptes || {})[id] || 0;
@@ -191,16 +199,29 @@
     };
     var h = '<div class="dossiers" aria-label="Dossiers">' + DOSSIERS.map(function (d) {
       var n = nb(d[0]);
-      return '<button type="button" class="dos' + (!choix.libelle && choix.dossier === d[0] ? ' actif' : '') + '" data-dossier="' + d[0] + '"><span class="nom">' + d[1] + '</span>' + (n ? '<span class="nb">' + n + '</span>' : '') + '</button>';
+      return '<button type="button" class="dos' + (surMails && !choix.libelle && choix.dossier === d[0] ? ' actif' : '') + '" data-dossier="' + d[0] + '"><span class="nom">' + d[1] + '</span>' + (n ? '<span class="nb">' + n + '</span>' : '') + '</button>';
     }).join('');
     var libs = surToutes ? [] : (info.libelles || []);
     if (libs.length) {
       var ouvert = libellesOuverts || !!choix.libelle;
       h += '<button type="button" class="dos titre' + (ouvert ? ' ouvert' : '') + '" data-libelles="1" aria-expanded="' + ouvert + '"><span class="fleche">›</span><span class="nom">Libellés (' + libs.length + ')</span></button>';
-      if (ouvert) h += libs.map(function (l) { return '<button type="button" class="dos lib' + (choix.libelle === l.nom ? ' actif' : '') + '" data-libelle="' + esc(l.nom) + '" title="' + esc(l.nom) + '"><span class="nom">' + esc(l.nom) + '</span>' + (l.nonLus ? '<span class="nb">' + l.nonLus + '</span>' : '') + '</button>'; }).join('');
+      if (ouvert) h += libs.map(function (l) { return '<button type="button" class="dos lib' + (surMails && choix.libelle === l.nom ? ' actif' : '') + '" data-libelle="' + esc(l.nom) + '" title="' + esc(l.nom) + '"><span class="nom">' + esc(l.nom) + '</span>' + (l.nonLus ? '<span class="nb">' + l.nonLus + '</span>' : '') + '</button>'; }).join('');
     }
     return h + '</div>';
   }
+  /* Rubriques de la boîte affichée (chaque boîte a ses campagnes, ses modèles et son carnet). */
+  var PICTO = { campagne: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/>', modeles: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>', contacts: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M16 5.2a3.2 3.2 0 0 1 0 5.6M18 20a6 6 0 0 0-2-4.5"/>' };
+  var RUBRIQUES = [['campagne', 'Campagnes', 'campagne', 'Nouvelle campagne'], ['modeles', 'Modèles', 'modele', 'Nouveau modèle'], ['contacts', 'Carnet d\'adresses', '', '']];
+  function vueDe(id) { return vues[id] || 'messages'; }
+  function htmlRubriques() {
+    if (!estCompte(vue) || !sources[vue]) return '';
+    var v = vueDe(vue);
+    return '<div class="rubriques" aria-label="Campagnes, modèles et carnet">' + RUBRIQUES.map(function (r) {
+      return '<button type="button" class="rub' + (v === r[0] ? ' actif' : '') + '" data-rubrique="' + r[0] + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + PICTO[r[0]] + '</svg><span class="nom">' + r[1] + '</span></button>' +
+        (r[2] ? '<button type="button" class="dos plus-rub" data-nouveau="' + r[2] + '"><span class="nom">＋ ' + r[3] + '</span></button>' : '');
+    }).join('') + '</div>';
+  }
+  function direBoite(id, m) { var s = sources[id]; if (!s) return false; try { s.postMessage(m, '*'); return true; } catch (e) { return false; } }
   function dessinerNav() {
     var h = '<h1>Boîte mail</h1>';
     if (comptes.length > 1) h += '<button type="button" class="choix toutes' + (vue === 'toutes' ? ' actif' : '') + '" data-vue="toutes"><span class="pastille"></span><span class="nom">Toutes les boîtes</span></button>';
@@ -209,12 +230,15 @@
         '<span class="pastille" style="background:' + esc(c.couleur) + '"></span><span class="nom">' + esc(nomCourt(c)) + '</span></button>';
     });
     h += htmlDossiers();
+    h += htmlRubriques();
     h += '<div class="bas"><button type="button" class="roue' + (vue === 'ajouter' || vue === 'comptes' ? ' actif' : '') + '" id="roue" aria-haspopup="menu" title="Réglages" aria-label="Réglages">' + ROUE + '<span class="nom">Réglages</span></button></div>';
     $('nav').innerHTML = h;
   }
   $('nav').addEventListener('click', function (e) {
     var b = e.target.closest('[data-vue]'); if (b) return montrer(b.getAttribute('data-vue'));
     if (e.target.closest('#roue')) return ouvrirMenuRoue();
+    var rb = e.target.closest('[data-rubrique]'); if (rb) { vues[vue] = rb.getAttribute('data-rubrique'); direBoite(vue, { boiteMail: 'vue', vue: vues[vue] }); return dessinerNav(); }
+    var nv = e.target.closest('[data-nouveau]'); if (nv) { direBoite(vue, { boiteMail: 'nouveau', quoi: nv.getAttribute('data-nouveau') }); return; }
     if (e.target.closest('[data-libelles]')) { libellesOuverts = !(libellesOuverts || !!choix.libelle); if (!libellesOuverts && choix.libelle) return choisir('reception', ''); return dessinerNav(); }
     var d = e.target.closest('[data-dossier], [data-libelle]'); if (d) choisir(d.getAttribute('data-dossier') || '', d.getAttribute('data-libelle') || '');
   });
@@ -239,10 +263,10 @@
   function choisir(dossier, libelle) {
     choix = { dossier: libelle ? '' : (dossier || 'reception'), libelle: libelle || '' }; garderChoix();
     if (vue === 'toutes') { if (choix.libelle) choix = { dossier: 'reception', libelle: '' }; tout = {}; dessinerToutes(); chargerToutes(); }
-    else if (estCompte(vue)) direDossier(vue, true);
+    else if (estCompte(vue)) { vues[vue] = 'messages'; direDossier(vue, true); }
     dessinerNav();
   }
-  function direVolet(id) { var s = sources[id]; if (s) { try { s.postMessage({ boiteMail: 'voletDossiers', actif: !ETROIT.matches }, '*'); } catch (e) { /* fermé */ } } }
+  function direVolet(id) { var s = sources[id]; if (s) { try { s.postMessage({ boiteMail: 'voletDossiers', actif: !ETROIT.matches }, '*'); s.postMessage({ boiteMail: 'voletRubriques', actif: !ETROIT.matches }, '*'); } catch (e) { /* fermé */ } } }
   function direDossier(id, montrerBoite) {
     var s = sources[id]; if (!s || ETROIT.matches) return;
     envoiLe[id] = Date.now();
@@ -280,10 +304,14 @@
     var d = ev.data || {};
     if (d.boiteMail === 'ouvrir' && /^(https?:|mailto:|tel:)/i.test(String(d.url || ''))) ouvrirDehors(d.url);
     if (d.boiteMail === 'pret') {
-      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k); if (k === vue) direDossier(k, false); } } catch (e) { /* autre */ } });
+      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k); if (k === vue) { direDossier(k, false); dessinerNav(); } } } catch (e) { /* autre */ } });
     }
     // Une boîte annonce ses dossiers (compteurs, libellés, dossier affiché) : le volet les montre. Si on a changé de dossier dans la boîte
     // elle-même (onglet, recherche…), le volet suit, sauf juste après notre propre demande (réponse en retard d'un autre dossier).
+    if (d.boiteMail === 'vue') { // la boîte dit quelle vue elle affiche (mails, campagnes, modèles, carnet)
+      var qv = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0];
+      if (qv && /^[a-z]{1,20}$/.test(String(d.vue || '')) && vues[qv] !== d.vue) { vues[qv] = d.vue; if (qv === vue) dessinerNav(); }
+    }
     if (d.boiteMail === 'dossiers') {
       var qui = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0]; if (!qui) return;
       var premier = !infos[qui];
