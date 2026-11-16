@@ -76,6 +76,12 @@
   .menu-roue .taille span.nom { flex: 1; min-width: 0; }
   .menu-roue .taille button { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--ligne); border-radius: 50%; font-size: 17px; font-weight: 600; text-align: center; }
   .menu-roue .taille b { min-width: 44px; text-align: center; font-variant-numeric: tabular-nums; }
+  .menu-roue .tele { padding: 8px 10px 6px; border-top: 1px solid var(--ligne); margin-top: 4px; font-size: 13px; display: grid; gap: 6px; }
+  .menu-roue .tele .ou { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .menu-roue .tele .ou b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .menu-roue .tele button { display: inline-block; width: auto; flex: none; border: 1px solid var(--ligne); border-radius: 8px; padding: 4px 9px; font-size: 12.5px; }
+  .menu-roue .tele label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .message button { margin-left: 10px; background: none; border: 1px solid currentColor; color: inherit; border-radius: 8px; padding: 3px 10px; font: inherit; cursor: pointer; }
   .menu-roue .version { padding: 6px 10px 4px; border-top: 1px solid var(--ligne); margin-top: 4px; font-size: 12px; color: var(--doux); }
   main { position: relative; min-width: 0; height: 100%; overflow: hidden; }
   .cadre { position: absolute; left: 0; top: 0; width: calc(100% / var(--z)); height: calc(100% / var(--z)); transform: scale(var(--z)); transform-origin: 0 0; border: 0; background: var(--fond); display: none; }
@@ -400,6 +406,60 @@
   function lireVue() { try { return localStorage.getItem(CLE_VUE) || ''; } catch (e) { return ''; } }
   function garderVue(v) { if (FEN) return; try { localStorage.setItem(CLE_VUE, v); } catch (e) { /* rien */ } }
   function dire(t) { var m = $('message'); m.textContent = t; m.style.display = 'block'; clearTimeout(dire.t); dire.t = setTimeout(function () { m.style.display = 'none'; }, 5000); }
+  document.addEventListener('click', function (e) { var m = $('message'); if (m && e.target === m) m.style.display = 'none'; });
+  /* Message avec boutons (« ✓ téléchargé » · Afficher dans le Finder · Ouvrir). */
+  function direActions(t, actions, duree) {
+    var m = $('message'); m.textContent = t;
+    (actions || []).forEach(function (a) { var b = document.createElement('button'); b.type = 'button'; b.textContent = a.texte; b.onclick = function () { m.style.display = 'none'; a.action(); }; m.appendChild(b); });
+    m.style.display = 'block'; clearTimeout(dire.t); dire.t = setTimeout(function () { m.style.display = 'none'; }, duree || ((actions || []).length ? 9000 : 5000));
+  }
+  /* ---------- Fichiers téléchargés (16.11) ----------
+     Une boîte confie à l'appli le fichier à enregistrer (message « telecharger »). Réglage (rouage) : toujours dans le même dossier
+     (« Téléchargements » au départ, ou un autre à choisir), ou demander l'endroit à chaque fois. L'appli dit quand c'est fait. */
+  var CLE_TELE = 'boite-mail-telechargements', DOSSIER_DEFAUT = '';
+  function lireTele() { try { var o = JSON.parse(localStorage.getItem(CLE_TELE) || '{}'); return { demander: !!(o && o.demander), dossier: String((o && o.dossier) || '') }; } catch (e) { return { demander: false, dossier: '' }; } }
+  function garderTele(o) { try { localStorage.setItem(CLE_TELE, JSON.stringify(o)); } catch (e) { /* rien */ } }
+  function appelMac(nom, args) { return T && T.core && T.core.invoke ? T.core.invoke(nom, args || {}) : Promise.reject(new Error('hors de l\'appli Mac')); }
+  function boiteDialogue(quoi, options) {
+    if (T && T.dialog && T.dialog[quoi]) return T.dialog[quoi](options);
+    return appelMac('plugin:dialog|' + quoi, { options: options });
+  }
+  function nomDossier(d) { d = String(d || '').replace(/\/+$/, ''); var n = d ? d.split('/').pop() : 'Téléchargements'; return ({ Downloads: 'Téléchargements', Desktop: 'Bureau', Movies: 'Vidéos', Pictures: 'Images', Music: 'Musique' })[n] || n; } // noms que montre le Finder
+  if (T) appelMac('dossier_telechargements').then(function (d) { DOSSIER_DEFAUT = String(d || ''); }, function () { /* appli plus ancienne */ });
+  function choisirDossierTele() {
+    var r = lireTele();
+    return boiteDialogue('open', { directory: true, multiple: false, title: 'Dossier des fichiers téléchargés', defaultPath: r.dossier || DOSSIER_DEFAUT || undefined }).then(function (d) {
+      if (!d || typeof d !== 'string') return;
+      r.dossier = d; r.demander = false; garderTele(r); dire('Les fichiers téléchargés iront dans « ' + nomDossier(d) + ' ».');
+    }, function (e) { dire('Le dossier n\'a pas pu être choisi : ' + String(e && e.message || e).slice(0, 120)); });
+  }
+  function enBase64(octets) { var a = new Uint8Array(octets), s = '', PAS = 0x8000; for (var i = 0; i < a.length; i += PAS) s += String.fromCharCode.apply(null, a.subarray(i, i + PAS)); return btoa(s); }
+  var teleEnCours = {};
+  function telecharger(d, source) {
+    var nom = String(d.nom || 'fichier').replace(/[\u0000-\u001f]/g, ' ').slice(0, 200), id = String(d.id || '');
+    var repondre = function (x) { try { source.postMessage(Object.assign({ boiteMail: 'telecharge', id: id, nom: nom }, x), '*'); } catch (e) { /* cadre fermé */ } };
+    var octets = d.octets; if (!(octets instanceof ArrayBuffer) || octets.byteLength > 80 * 1024 * 1024) { repondre({ erreur: 'fichier trop lourd ou illisible' }); return dire('« ' + nom + ' » n\'a pas pu être téléchargé.'); }
+    if (!T) { // hors de l'appli Mac (essais) : le navigateur le range dans ses téléchargements
+      var u = URL.createObjectURL(new Blob([octets])), a = document.createElement('a'); a.href = u; a.download = nom; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+      repondre({ ok: true }); return direActions('✓ « ' + nom + ' » téléchargé.', []);
+    }
+    var r = lireTele();
+    var ecrire = function (chemin) {
+      return appelMac('enregistrer_fichier', { nom: nom, base64: enBase64(octets), dossier: r.demander ? null : (r.dossier || null), chemin: chemin || null }).then(function (ou) {
+        ou = String(ou || ''); repondre({ ok: true });
+        var dossier = ou.split('/').slice(0, -1).join('/'), fichier = ou.split('/').pop() || nom;
+        direActions('✓ « ' + fichier + ' » téléchargé dans « ' + nomDossier(dossier) + ' ».', [
+          { texte: 'Afficher dans le Finder', action: function () { appelMac('montrer_fichier', { chemin: ou }).catch(function () { dire('Le fichier n\'a pas pu être montré.'); }); } },
+          { texte: 'Ouvrir', action: function () { appelMac('ouvrir_fichier', { chemin: ou }).catch(function () { dire('Le fichier n\'a pas pu être ouvert.'); }); } }]);
+      });
+    };
+    var echec = function (e) { var t = String(e && e.message || e).slice(0, 160); repondre({ erreur: t }); dire('« ' + nom + ' » n\'a pas pu être enregistré : ' + t); };
+    if (!r.demander) { dire('Téléchargement de « ' + nom + ' »…'); return ecrire('').catch(echec); }
+    boiteDialogue('save', { title: 'Enregistrer « ' + nom + ' »', defaultPath: (r.dossier || DOSSIER_DEFAUT ? (r.dossier || DOSSIER_DEFAUT).replace(/\/+$/, '') + '/' : '') + nom }).then(function (chemin) {
+      if (!chemin || typeof chemin !== 'string') { repondre({ annule: true }); return dire('Téléchargement de « ' + nom + ' » abandonné.'); }
+      return ecrire(chemin);
+    }).catch(echec);
+  }
   function ouvrirDehors(u) {
     try { if (T && T.opener && T.opener.openUrl) { T.opener.openUrl(String(u)); return; } } catch (e) { /* plus bas */ }
     try { if (T && T.core) { T.core.invoke('plugin:opener|open_url', { url: String(u) }); return; } } catch (e) { /* plus bas */ }
@@ -557,19 +617,27 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && glisse) finGlisse(null, true); });
   window.addEventListener('blur', function () { if (glisse && !glisse.actif) glisse = null; });
   /* Rouage : tout ce qui est général (ajouter un compte, comptes reliés) dans un petit menu, pour laisser la place aux boîtes. */
+  function htmlTele() {
+    var r = lireTele();
+    return '<div class="tele"><span class="nom">Fichiers téléchargés</span><div class="ou"><b title="' + esc(r.dossier || DOSSIER_DEFAUT || 'Téléchargements') + '">' + (r.demander ? 'Demander à chaque fois' : 'Dans « ' + esc(nomDossier(r.dossier || DOSSIER_DEFAUT)) + ' »') + '</b>' +
+      '<button type="button" data-tele="dossier">Changer de dossier</button></div>' +
+      '<label><input type="checkbox" data-tele="demander"' + (r.demander ? ' checked' : '') + '> Demander où l\'enregistrer à chaque fois</label></div>';
+  }
   function ouvrirMenuRoue() {
     var m = $('menu-roue'), r = $('roue').getBoundingClientRect();
     if (m.classList.contains('visible')) return m.classList.remove('visible');
     m.innerHTML = '<button type="button" role="menuitem" data-vue="ajouter">＋ Ajouter un compte</button>' + (comptes.length ? '<button type="button" role="menuitem" data-vue="comptes">Comptes reliés</button>' : '') +
       '<div class="taille"><span class="nom">Taille de l\'affichage</span><button type="button" data-taille="-1" aria-label="Plus petit" title="Plus petit">−</button><b id="taille-valeur">' + Math.round(taille * 100) + ' %</b><button type="button" data-taille="1" aria-label="Plus grand" title="Plus grand">+</button></div>' +
       '<div class="taille" style="border-top:0;margin-top:0;padding-top:2px"><span class="nom">Texte des mails</span><button type="button" data-texte="-1" aria-label="Texte plus petit" title="Plus petit">−</button><b id="texte-valeur">' + Math.round(texte * 100) + ' %</b><button type="button" data-texte="1" aria-label="Texte plus grand" title="Plus grand">+</button></div>' +
+      (T ? htmlTele() : '') +
       (/^\d+$/.test(VERSION) ? '<div class="version">Appli Boîte mail · version ' + VERSION + '</div>' : '');
     m.classList.add('visible');
     var haut = r.top > window.innerHeight / 2;
     m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - m.offsetWidth - 8)) + 'px';
     m.style.top = (haut ? Math.max(8, r.top - m.offsetHeight - 6) : r.bottom + 6) + 'px';
   }
-  $('menu-roue').addEventListener('click', function (e) { var t = e.target.closest('[data-taille]'); if (t) return poserTaille(taille + 0.05 * Number(t.getAttribute('data-taille'))); var x = e.target.closest('[data-texte]'); if (x) return poserTexte(texte + 0.05 * Number(x.getAttribute('data-texte'))); var b = e.target.closest('[data-vue]'); if (b) { $('menu-roue').classList.remove('visible'); montrer(b.getAttribute('data-vue')); } });
+  $('menu-roue').addEventListener('change', function (e) { var c = e.target.closest('[data-tele="demander"]'); if (!c) return; var r = lireTele(); r.demander = !!c.checked; garderTele(r); var b = $('menu-roue').querySelector('.tele .ou b'); if (b) b.textContent = r.demander ? 'Demander à chaque fois' : 'Dans « ' + nomDossier(r.dossier || DOSSIER_DEFAUT) + ' »'; });
+  $('menu-roue').addEventListener('click', function (e) { if (e.target.closest('[data-tele="dossier"]')) { $('menu-roue').classList.remove('visible'); return choisirDossierTele(); } var t = e.target.closest('[data-taille]'); if (t) return poserTaille(taille + 0.05 * Number(t.getAttribute('data-taille'))); var x = e.target.closest('[data-texte]'); if (x) return poserTexte(texte + 0.05 * Number(x.getAttribute('data-texte'))); var b = e.target.closest('[data-vue]'); if (b) { $('menu-roue').classList.remove('visible'); montrer(b.getAttribute('data-vue')); } });
   document.addEventListener('mousedown', function (e) { if (!e.target.closest('#menu-roue') && !e.target.closest('#roue')) $('menu-roue').classList.remove('visible'); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('menu-roue').classList.remove('visible'); });
   window.addEventListener('blur', function () { $('menu-roue').classList.remove('visible'); }); // clic dans le cadre d'une boîte
@@ -717,6 +785,8 @@
       return;
     }
     if (d.boiteMail === 'ouvrir' && /^(https?:|mailto:|tel:)/i.test(String(d.url || ''))) ouvrirDehors(d.url);
+    if (d.boiteMail === 'telecharger') { if (compteDuCadre(ev.source)) telecharger(d, ev.source); return; }
+    if (d.boiteMail === 'coquille?') { try { ev.source.postMessage({ boiteMail: 'coquille', telecharger: true }, '*'); } catch (x) { /* fermé */ } return; }
     if (d.boiteMail === 'fenetreEcrire' && !FEN) {
       var qf = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0];
       if (qf) ouvrirFenetreEcrire(qf, d.onglet && typeof d.onglet === 'object' ? d.onglet : null);
@@ -732,7 +802,7 @@
     }
     if (d.boiteMail === 'mailReduit' && FEN) versPrincipale('mail-reduit', { compte: fenDonnees && fenDonnees.compte });
     if (d.boiteMail === 'pret') {
-      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k);
+      Object.keys(cadres).forEach(function (k) { try { if (ev.source && cadres[k].contentWindow && estDans(ev.source, cadres[k].contentWindow)) { sources[k] = ev.source; direVolet(k); direTexte(k); try { ev.source.postMessage({ boiteMail: 'coquille', telecharger: true }, '*'); } catch (x) { /* fermé */ }
         try { if (FEN) { if (!fenDit) { fenDit = true; fenSource = ev.source;
             try { ev.source.postMessage({ boiteMail: 'calme' }, '*'); } catch (x) { /* fermée */ }
             if (fenDonnees && fenDonnees.reserve) { if (fenAttente) { fenEnvoyer(fenAttente.onglet); fenAttente = null; } try { T.event.emitTo('main', 'reserve-prete', { label: FEN }); } catch (x) { /* seule */ } }
