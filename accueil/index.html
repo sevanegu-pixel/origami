@@ -791,9 +791,12 @@ a.lien { color: var(--accent); }
 
   // ---- Diffusion « à zéro » : son propre moteur, dans le compte ; l'appareil y entre avec un jeton du moteur du compte ----
   // Version 1 : lecture seule. L'appareil garde les listes et l'empreinte de chacune ; un relevé ne rapporte que les listes changées.
-  var ETAPES = ["À contacter", "Dossier envoyé", "À relancer", "Intéressé", "Option", "Confirmé", "Déjà joué", "Refus"];
-  var FINIES = { "Refus": 1, "Confirmé": 1, "Déjà joué": 1 };
-  var STATUTS = ["À étudier", "Gardée", "Gardé", "Plus tard", "Candidature envoyée", "Envoyée", "Retenue", "Écartée", "Refusée"];
+  // Les huit étapes de Diffusion, dans l'ordre ; les anciens noms encore possibles dans un classeur sont rangés à leur place.
+  var ETAPES = ["À contacter", "Dossier envoyé", "À relancer", "Relancé", "Intéressé", "Venu voir", "Option", "Confirmé", "Date confirmée", "Déjà joué", "Déjà joué / A acheté", "Refus"];
+  var FINIES = { "Refus": 1, "Confirmé": 1, "Date confirmée": 1, "Déjà joué": 1, "Déjà joué / A acheté": 1 };
+  // Statuts d'une opportunité, dans l'ordre de Diffusion.
+  var STATUTS = ["À étudier", "À préparer", "En cours", "Envoyé", "Relancé", "Réponse reçue", "Retenu", "Refusé", "Abandonné", "Plus tard", "Écarté"];
+  var STATUT_CLOS = /écart|refus|abandon|envoy|relanc|réponse|retenu/i;   // plus de date limite à rappeler dans l'agenda
   var df = { onglet: "spectacles", spectacle: "", sous: "suivi", prospection: "contacts", cherche: "", groupe: "", archives: false, plus: 0 };
   var memDiff = {}, relevesDiff = {}, jetonsDiff = {};
   function grosse(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.grossesApplis) && e.grossesApplis.some(function (a) { return a && a.id === appli; })); }
@@ -981,7 +984,7 @@ a.lien { color: var(--accent); }
       var items = [];
       listeDiff(c.id, "dates").forEach(function (x) { var d0 = (x.du || x.au || "").slice(0, 10); if (d0 && (x.au || x.du).slice(0, 10) >= jour0) items.push({ d: d0, quoi: (x.type || "Date") + " · " + (x.structure || x.lieu || ""), detail: [nomSpectacle[x.projetId] || x.projet, x.au && x.au !== x.du ? "jusqu'au " + jour(x.au) : "", x.lieu, x.statut].filter(String).join(" · "), genre: x.statut === "Confirmé" ? "paye" : "" }); });
       listeDiff(c.id, "suivi").forEach(function (x) { if (x.relance && !FINIES[x.etape]) items.push({ d: x.relance.slice(0, 10), quoi: "Relancer " + (x.structure || x.contact || x.email), detail: [nomSpectacle[x.projetId] || x.projet, x.etape].filter(String).join(" · "), retard: x.relance.slice(0, 10) < jour0 }); });
-      listeDiff(c.id, "opportunites").forEach(function (x) { if (x.dateLimite && x.dateLimite.slice(0, 10) >= jour0 && !/écart|refus/i.test(x.statut || "")) items.push({ d: x.dateLimite.slice(0, 10), quoi: "Date limite · " + (x.titre || x.structure), detail: [x.structure, x.statut].filter(String).join(" · ") }); });
+      listeDiff(c.id, "opportunites").forEach(function (x) { if (x.dateLimite && x.dateLimite.slice(0, 10) >= jour0 && !STATUT_CLOS.test(x.statut || "")) items.push({ d: x.dateLimite.slice(0, 10), quoi: "Date limite · " + (x.titre || x.structure), detail: [x.structure, x.statut].filter(String).join(" · ") }); });
       listeDiff(c.id, "journal").forEach(function (x) { if (x.aFaire && x.le && !x.faitLe) items.push({ d: x.le.slice(0, 10), quoi: court(x.texte || "À faire", 80), detail: [x.structure || x.contact, nomSpectacle[x.projetId] || x.projet].filter(String).join(" · "), retard: x.le.slice(0, 10) < jour0 }); });
       items.sort(function (a, b) { return a.d.localeCompare(b.d); });
       var retards = items.filter(function (x) { return x.retard; }), avenir = items.filter(function (x) { return !x.retard; }), mois = "";
