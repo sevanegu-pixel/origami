@@ -347,6 +347,9 @@ h1, h2, h3, p { margin: 0; }
       etat.compte = "compagnie"; etat.vue = "accueil"; montrer();
     }
   });
+  // Adresse avec une ancre (…/accueil/#tickets) : ouvre directement cette appli du compte de la compagnie.
+  var ancre = (location.hash || "").slice(1);
+  if (APPLIS[ancre] && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
   montrer();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
 })();
