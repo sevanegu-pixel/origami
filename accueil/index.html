@@ -44,6 +44,7 @@ h1, h2, h3, p { margin: 0; }
 .entete { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; max-width: 1080px; margin: 0 auto 14px; }
 .entete h1 { font-size: 24px; line-height: 1.15; letter-spacing: -0.01em; }
 .entete p { color: var(--doux); font-size: 13px; }
+.entete .actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .choix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; max-width: 1080px; margin: 0 auto 14px; color: var(--doux); font-size: 13px; }
 .puce { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 10px 0 8px; border: 1px dashed #b9b3bf; border-radius: 999px; background: none; color: var(--doux); font-size: 13px; }
 .puce[aria-pressed="true"] { border: 1px solid var(--accent); background: var(--accent-clair); color: var(--texte); font-weight: 600; }
@@ -65,6 +66,15 @@ h1, h2, h3, p { margin: 0; }
 .info p { color: var(--doux); }
 .champ { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--doux); }
 .champ input { min-height: 32px; padding: 0 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--texte); font: inherit; }
+.champ textarea { min-height: 62px; padding: 6px 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--texte); font: 12px/1.4 ui-monospace, Menlo, monospace; resize: vertical; word-break: break-all; }
+.souci { color: #b42318; }
+.bouton[disabled] { opacity: 0.5; cursor: default; }
+.releve { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; max-width: 1080px; margin: 0 auto 10px; color: var(--doux); font-size: 13px; }
+.chiffres { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.chiffres strong { display: block; font-size: 20px; line-height: 1.15; }
+.chiffres span { color: var(--doux); font-size: 12px; }
+.rang { display: flex; justify-content: space-between; gap: 10px; }
+.rang em { flex: none; font-style: normal; }
 .couleurs { display: flex; gap: 8px; }
 .couleurs button { width: 22px; height: 22px; padding: 0; border: 2px solid transparent; border-radius: 50%; }
 .couleurs button[aria-pressed="true"] { border-color: var(--texte); box-shadow: inset 0 0 0 2px var(--fond); }
@@ -246,6 +256,100 @@ h1, h2, h3, p { margin: 0; }
     }
   });
 
+  // ---- Moteur Origami d'un compte : liaison par code, mémoire gardée sur l'appareil, relevé des seules corrections ----
+  // Le code de liaison (créé dans le classeur du compte) contient l'adresse du moteur et la clé de cet appareil.
+  // Ils restent dans la mémoire de l'appareil ; cette page ne les envoie qu'au moteur du compte lui-même.
+  var ADRESSE_MOTEUR = /^https:\/\/script\.google\.com\/(a\/[^\/]+\/)?macros\/s\/[\w-]+\/exec$/, FORME_CLE = /^[a-f0-9]{64}$/;
+  var moteurs = {}, memoires = {}, releves = {};
+  try {
+    var gardes = JSON.parse(lire("origami_appli_moteurs") || "null");
+    if (gardes && typeof gardes === "object") for (var km in gardes) if (compte(km) && gardes[km] && ADRESSE_MOTEUR.test(gardes[km].u) && FORME_CLE.test(gardes[km].c)) moteurs[km] = { u: gardes[km].u, c: gardes[km].c };
+  } catch (e) {}
+  function retenirMoteurs() { garder("origami_appli_moteurs", Object.keys(moteurs).length ? JSON.stringify(moteurs) : ""); }
+  function lireCode(t) {
+    try {
+      var b = String(t || "").replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+      if (!b || b.length > 2000) return null;
+      var o = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b), function (c) { return c.charCodeAt(0); })));
+      if (!o || o.v !== 1 || !ADRESSE_MOTEUR.test(o.u) || !FORME_CLE.test(o.c)) return null;
+      return { u: o.u, c: o.c, nom: typeof o.n === "string" ? o.n.trim().slice(0, 40) : "", couleur: COULEURS.indexOf(o.k) >= 0 ? o.k : "" };
+    } catch (e) { return null; }
+  }
+  function moteurAppel(id, fn, args) {
+    var m = moteurs[id];
+    if (!m) return Promise.reject(new Error("Ce compte n'est pas relié à son moteur."));
+    return fetch(m.u, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ prise: 1, cle: m.c, fn: fn, args: args || {} }) })
+      .then(function (r) { return r.json(); }, function () { return null; }).catch(function () { return null; })
+      .then(function (o) {
+        if (o && o.ok === true) return o.r;
+        throw new Error(o && typeof o.erreur === "string" ? o.erreur.slice(0, 200) : "Le moteur du compte ne répond pas.");
+      });
+  }
+  function baseOrigami(ok) { try { var r = indexedDB.open("origami-appli", 1); r.onupgradeneeded = function () { r.result.createObjectStore("comptes"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
+  function lireMemoire(id) {
+    return new Promise(function (ok) {
+      if (memoires[id]) return ok(memoires[id]);
+      function rendre(v) { if (!memoires[id]) memoires[id] = (v && typeof v === "object" && v.listes && typeof v.listes === "object") ? v : { version: 0, listes: {} }; ok(memoires[id]); }
+      baseOrigami(function (db) {
+        if (!db) return rendre(null);
+        try { var q = db.transaction("comptes").objectStore("comptes").get(id); q.onsuccess = function () { rendre(q.result); }; q.onerror = function () { rendre(null); }; } catch (e) { rendre(null); }
+      });
+    });
+  }
+  function garderMemoire(id) { baseOrigami(function (db) { if (!db) return; try { var s = db.transaction("comptes", "readwrite").objectStore("comptes"); if (memoires[id]) s.put(memoires[id], id); else s.delete(id); } catch (e) {} }); }
+  // Relevé : l'appareil dit sa version, le moteur ne rend que les lignes changées depuis (ou tout, la première fois).
+  function relever(id) {
+    if (!moteurs[id]) return Promise.resolve();
+    if (releves[id]) return releves[id];
+    releves[id] = lireMemoire(id).then(function (m) {
+      m.essai = Date.now();
+      return Promise.all([moteurAppel(id, "changements", { depuis: m.version || 0 }), moteurAppel(id, "etat"), moteurAppel(id, "tableauDeBord")]).then(function (r) {
+        var ch = r[0] || {};
+        if (ch.complet) m.listes = {};
+        for (var nom in (ch.listes || {})) {
+          var l = m.listes[nom] || (m.listes[nom] = {});
+          (ch.listes[nom] || []).forEach(function (o) { if (!o || typeof o.id !== "string") return; if (o.supprime) delete l[o.id]; else l[o.id] = o; });
+        }
+        m.version = Number(ch.version) || 0; m.etat = r[1] || null; m.tableau = r[2] || null; m.releve = Date.now(); m.panne = "";
+        if (moteurs[id]) garderMemoire(id);
+      }, function (e) { m.panne = String((e && e.message) || e); });
+    }).then(function () { delete releves[id]; if (etat.vue === "accueil") dessinerAccueil(); });
+    return releves[id];
+  }
+  function releverSiVieux(id) {
+    if (!moteurs[id] || releves[id]) return;
+    lireMemoire(id).then(function (m) { if (Date.now() - (m.essai || m.releve || 0) > 60000) { relever(id); } if (etat.vue === "accueil") dessinerAccueil(); });
+  }
+  function heure(t) { var d = new Date(t); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
+  function ligneMoteur(c) {
+    if (!moteurs[c.id]) return "";
+    var m = memoires[c.id] || {}, t;
+    if (releves[c.id]) t = "Relevé en cours…";
+    else if (m.panne) t = '<span class="souci">' + texte(m.panne) + "</span>" + (m.releve ? " Dernier relevé à " + heure(m.releve) + "." : "");
+    else if (m.releve) t = "Relevé à " + heure(m.releve) + ".";
+    else t = "Pas encore relevé.";
+    return '<div class="releve"><span>Relié à son moteur. ' + t + '</span><button class="bouton" data-relever="' + c.id + '"' + (releves[c.id] ? " disabled" : "") + '>Actualiser</button><button class="bouton" data-vue="relier" data-de="' + c.id + '">Liaison</button></div>';
+  }
+  // Blocs du tableau de bord donnés par le moteur : des chiffres, puis quelques lignes.
+  function blocsMoteur(c) {
+    var m = memoires[c.id], h = "";
+    if (!moteurs[c.id] || !m || !m.tableau || !Array.isArray(m.tableau.blocs)) return "";
+    m.tableau.blocs.slice(0, 12).forEach(function (b) {
+      if (!b) return;
+      h += '<article class="carte"><div class="titre"><h2>' + texte(b.nom || "") + "</h2></div>";
+      var x = b.bloc;
+      if (b.panne || !x) { h += "<p>Pas de chiffres pour l'instant.</p></article>"; return; }
+      if (Array.isArray(x.chiffres) && x.chiffres.length) {
+        h += '<div class="chiffres">';
+        x.chiffres.slice(0, 4).forEach(function (n) { h += "<div><strong>" + texte(n.valeur == null ? "" : n.valeur) + "</strong><span>" + texte(n.libelle || "") + "</span></div>"; });
+        h += "</div>";
+      }
+      if (Array.isArray(x.lignes)) x.lignes.slice(0, 5).forEach(function (n) { h += '<p class="rang"><span>' + texte(n.titre || "") + "</span>" + (n.detail ? "<em>" + texte(n.detail) + "</em>" : "") + "</p>"; });
+      h += "</article>";
+    });
+    return h;
+  }
+
   // ---- Écrans ----
   function affiches() { return comptes().filter(function (c) { return !etat.masques[c.id]; }); }
   function dessinerMenu() {
@@ -278,7 +382,12 @@ h1, h2, h3, p { margin: 0; }
   function dessinerAccueil() {
     var tous = etat.compte === "tous", c0 = compte(etat.compte), liste = tous ? affiches() : [c0];
     var h = '<div class="entete"><div><h1>Tableau de bord</h1><p>' + (tous ? "Tous les comptes" : texte(c0.nom)) + "</p></div>";
-    if (!tous && c0.id !== "compagnie") h += '<button class="bouton" data-retirer="' + c0.id + '">Retirer ce compte de l\'appli</button>';
+    if (!tous) {
+      h += '<div class="actions">';
+      if (!moteurs[c0.id]) h += '<button class="bouton" data-vue="relier">Relier au moteur du compte</button>';
+      if (c0.id !== "compagnie") h += '<button class="bouton" data-retirer="' + c0.id + '">Retirer ce compte de l\'appli</button>';
+      h += "</div>";
+    }
     h += "</div>";
     h += '<div class="choix tel" role="group" aria-label="Comptes"><button class="puce" data-compte="tous" aria-pressed="' + (tous ? "true" : "false") + '"><span class="point tous"></span>Tous</button>';
     comptes().forEach(function (c) { h += '<button class="puce" data-compte="' + c.id + '" aria-pressed="' + (etat.compte === c.id ? "true" : "false") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
@@ -290,21 +399,34 @@ h1, h2, h3, p { margin: 0; }
     }
     liste.forEach(function (c) {
       if (tous) h += '<h3 class="du-compte"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</h3>";
-      h += '<div class="cartes">';
+      h += ligneMoteur(c);
+      h += '<div class="cartes">' + blocsMoteur(c);
       c.applis.forEach(function (id) { h += carte(c, id); });
       h += "</div>";
     });
     if (!liste.length) h += '<p class="note">Aucun compte coché.</p>';
-    h += '<p class="note">Les chiffres du jour (mails à répondre, relances, agenda, tickets) arriveront ici quand le moteur Origami du compte sera installé.</p>';
+    h += '<p class="note">' + (liste.some(function (c) { return moteurs[c.id]; }) ? "Les chiffres du jour (mails à répondre, relances, agenda, tickets) arriveront ici avec les premières applis installées « à zéro »." : "Les chiffres du jour (mails à répondre, relances, agenda, tickets) arriveront ici quand le moteur Origami du compte sera installé.") + "</p>";
     accueil.innerHTML = h;
   }
   function dessinerPage(vue) {
     var h = '<div class="info">';
     if (vue === "ajouter") {
-      h += "<h1>Ajouter un compte</h1><p>Donne un nom et une couleur à ce compte. Il apparaît dans le menu et dans la vue « Tous les comptes ». Ses applis s'ajouteront quand Origami sera installé dans ce compte Google.</p>";
+      h += "<h1>Ajouter un compte</h1><p>Donne un nom et une couleur à ce compte. Il apparaît dans le menu et dans la vue « Tous les comptes ». Si Origami est déjà installé dans ce compte Google, colle aussi son code de liaison.</p>";
       h += '<label class="champ">Nom du compte<input id="nomCompte" maxlength="40" autocomplete="off"></label><div class="couleurs" role="group" aria-label="Couleur">';
       COULEURS.forEach(function (c, i) { h += '<button data-couleur="' + c + '" aria-pressed="' + (i === 1 ? "true" : "false") + '" aria-label="Couleur ' + (i + 1) + '" style="background:' + c + '"></button>'; });
-      h += '</div><div><button class="bouton fort" data-ajouter="1">Ajouter</button></div>';
+      h += '</div><label class="champ">Code de liaison (facultatif)<textarea id="codeCompte" autocomplete="off" spellcheck="false"></textarea></label>';
+      h += '<p id="messageCode" class="souci" role="status"></p><div><button class="bouton fort" data-ajouter="1">Ajouter</button></div>';
+    } else if (vue === "relier") {
+      var cr = compte(etat.compte);
+      if (moteurs[cr.id]) {
+        h += "<h1>" + texte(cr.nom) + " est relié à son moteur</h1><p>Cet appareil garde les informations du compte et ne relève que les corrections.</p>";
+        h += "<p>Si tu oublies la liaison ici, l'appareil reste dans la liste « Appareils reliés » du classeur du compte : retire-le là aussi.</p>";
+        h += '<div><button class="bouton" data-delier="' + cr.id + '">Oublier la liaison sur cet appareil</button></div>';
+      } else {
+        h += "<h1>Relier " + texte(cr.nom) + " à son moteur</h1><p>Dans ce compte Google, ouvre le classeur « Origami - Réglages du compte », menu Origami, puis « Relier un appareil ». Colle ici le code obtenu.</p>";
+        h += '<label class="champ">Code de liaison<textarea id="codeCompte" autocomplete="off" spellcheck="false"></textarea></label>';
+        h += '<p id="messageCode" class="souci" role="status"></p><div><button class="bouton fort" data-relier="' + cr.id + '">Relier</button></div>';
+      }
     } else if (vue === "boite") {
       h += "<h1>Boîte mail</h1><p>Pour l'instant, la Boîte mail s'ouvre dans son appli sur le Mac. Elle rejoindra cette fenêtre avec le moteur Origami, sans rien changer à l'appli actuelle.</p>";
     } else if (vue === "frais") {
@@ -317,15 +439,15 @@ h1, h2, h3, p { margin: 0; }
   function montrer() {
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = APPLIS[vue] && APPLIS[vue].genre === "cadre" && c0 && c0.id === "compagnie";
-    if (vue !== "accueil" && vue !== "ajouter" && !(APPLIS[vue] && c0 && c0.applis.indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = false; }
+    if (vue !== "accueil" && vue !== "ajouter" && !(vue === "relier" && c0) && !(APPLIS[vue] && c0 && c0.applis.indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = false; }
     if (cadre) ouvrirCadre(vue);
     for (var id in cadres) cadres[id].hidden = !(cadre && id === vue);
     accueil.hidden = vue !== "accueil";
     page.hidden = cadre || vue === "accueil";
     if (!cadre) attente.hidden = true;
-    if (vue === "accueil") dessinerAccueil(); else if (!cadre) dessinerPage(vue);
+    if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); } else if (!cadre) dessinerPage(vue);
     dessinerMenu();
-    document.title = vue === "accueil" || vue === "ajouter" ? "Origami" : APPLIS[vue].nom + " · Origami";
+    document.title = APPLIS[vue] ? APPLIS[vue].nom + " · Origami" : "Origami";
     retenir();
   }
   document.addEventListener("click", function (ev) {
@@ -338,12 +460,25 @@ h1, h2, h3, p { margin: 0; }
     if (d.couleur) { [].forEach.call(b.parentNode.children, function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); }); return; }
     if (d.ajouter) {
       var nom = (document.getElementById("nomCompte").value || "").trim().slice(0, 40), choisie = page.querySelector('[data-couleur][aria-pressed="true"]');
+      var saisi = (document.getElementById("codeCompte").value || "").trim(), code = saisi ? lireCode(saisi) : null;
+      if (saisi && !code) { document.getElementById("messageCode").textContent = "Ce code n'est pas reconnu. Copie-le en entier depuis le classeur du compte."; return; }
+      if (!nom && code) nom = code.nom;
       if (!nom) { document.getElementById("nomCompte").focus(); return; }
       var nouveau = { id: "c" + Date.now().toString(36), nom: nom, couleur: choisie ? choisie.dataset.couleur : COULEURS[1], applis: ["boite"] };
+      if (code) { moteurs[nouveau.id] = { u: code.u, c: code.c }; memoires[nouveau.id] = { version: 0, listes: {} }; retenirMoteurs(); }
       etat.ajoutes.push(nouveau); etat.compte = nouveau.id; etat.vue = "accueil"; montrer(); return;
     }
+    if (d.relier && compte(d.relier)) {
+      var recu = lireCode(document.getElementById("codeCompte").value);
+      if (!recu) { document.getElementById("messageCode").textContent = "Ce code n'est pas reconnu. Copie-le en entier depuis le classeur du compte."; return; }
+      moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; retenirMoteurs(); garderMemoire(d.relier);
+      etat.vue = "accueil"; montrer(); return;
+    }
+    if (d.delier) { delete moteurs[d.delier]; delete memoires[d.delier]; retenirMoteurs(); garderMemoire(d.delier); etat.vue = "accueil"; montrer(); return; }
+    if (d.relever) { relever(d.relever); dessinerAccueil(); return; }
     if (d.retirer) {
       etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
+      delete moteurs[d.retirer]; delete memoires[d.retirer]; retenirMoteurs(); garderMemoire(d.retirer);
       etat.compte = "compagnie"; etat.vue = "accueil"; montrer();
     }
   });
