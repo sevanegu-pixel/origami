@@ -1,7 +1,7 @@
 {
   "name": "Origami",
   "short_name": "Origami",
-  "id": "/origami/appli/",
+  "id": "/origami/accueil/",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",
