@@ -192,6 +192,21 @@ h1, h2, h3, p { margin: 0; }
   function lireCache(ok) { base(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get("diffusion_jeton_donnees"); q.onsuccess = function () { ok(q.result || ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
   function ecrireCache(t) { base(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, "diffusion_jeton_donnees"); else s.delete("diffusion_jeton_donnees"); } catch (e) {} }); }
   var apercu = null;
+  // Appli Mac (coquille Tauri) : les liens s'ouvrent dans le navigateur du Mac, « Détacher » ouvre une vraie fenêtre.
+  var MAC = window.__TAURI__ || null;
+  function fenetreCompta(url) {
+    try {
+      var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
+      if (W) { new W("compta-" + Date.now().toString(36), { url: url, title: "Compta", width: 1100, height: 900 }); return; }
+    } catch (e) {}
+    window.open(url, "_blank", "popup=yes,width=1100,height=900");
+  }
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest ? ev.target.closest('a[target="_blank"]') : null;
+    if (!a || !MAC || !MAC.opener || !MAC.opener.openUrl) return;
+    ev.preventDefault();
+    try { MAC.opener.openUrl(a.href); } catch (e) {}
+  });
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
     var d = ev.data, id = d ? appliDe(ev.source) : "";
@@ -206,8 +221,9 @@ h1, h2, h3, p { margin: 0; }
     }
     if (id === "compta") {
       if (d.origami === "jeton") { garder("origami_jeton", FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); return; }
-      if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { window.open("../index.html?ouvrir=" + d.ouvrir, "_blank", "popup=yes,width=1100,height=900"); return; }
+      if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { fenetreCompta(new URL("../index.html?ouvrir=" + d.ouvrir, location.href).href); return; }
       if (d.origami === "apercu" && typeof d.html === "string" && d.html.length < 8e6) {
+        if (MAC) return;   // appli Mac : pas encore de fenêtre d'aperçu à part
         if (!apercu || apercu.closed) {
           if (!d.ouvrir) return;
           apercu = window.open("", "apercuCompta", "popup=yes,width=900,height=1000");
