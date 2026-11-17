@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Origami</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f3f1ed">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Origami">
+<link rel="apple-touch-icon" href="icone-180.png">
+<link rel="icon" href="icone-192.png">
+<style>
+:root { --fond: #f3f1ed; --carte: #ffffff; --carte2: #f8f7f4; --texte: #15131a; --doux: #67626e; --ligne: #e4e0e6; --accent: #1f5cff; --accent-clair: #dde7ff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--fond); color: var(--texte); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+h1, h2, h3, p { margin: 0; }
+[hidden] { display: none !important; }
+#origami { display: flex; height: 100%; }
+
+/* Menu de gauche */
+#menu { flex: none; width: 232px; display: flex; flex-direction: column; gap: 18px; padding: 18px 10px calc(14px + env(safe-area-inset-bottom)); border-right: 1px solid var(--ligne); overflow-y: auto; }
+#menu .marque { padding: 0 10px; font-size: 13px; font-weight: 700; letter-spacing: 0.2em; }
+.groupe { display: flex; flex-direction: column; gap: 1px; }
+.groupe h2 { padding: 0 10px 5px; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--doux); }
+.ligne { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 30px; padding: 0 10px; border: 0; border-radius: 8px; background: none; text-align: left; }
+.ligne:hover { background: rgba(21, 19, 26, 0.05); }
+.ligne[aria-current="true"] { background: var(--accent-clair); font-weight: 600; }
+.ligne .nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ligne svg { flex: none; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ligne.plus { color: var(--accent); font-weight: 600; font-size: 13px; }
+.ligne .ouverte { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.point { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+.point.tous { background: conic-gradient(#1f5cff 0 33.4%, #e0a800 0 66.7%, #15803d 0); }
+#menu .bas { margin-top: auto; padding: 10px 10px 0; border-top: 1px solid var(--ligne); color: var(--doux); font-size: 12px; }
+
+/* Scène : accueil, applis ouvertes, pages d'information */
+#scene { flex: 1; min-width: 0; position: relative; }
+#scene > section { position: absolute; inset: 0; overflow-y: auto; padding: 22px 26px 40px; }
+#scene iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--fond); }
+.entete { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; max-width: 1080px; margin: 0 auto 14px; }
+.entete h1 { font-size: 24px; line-height: 1.15; letter-spacing: -0.01em; }
+.entete p { color: var(--doux); font-size: 13px; }
+.choix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; max-width: 1080px; margin: 0 auto 14px; color: var(--doux); font-size: 13px; }
+.puce { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 10px 0 8px; border: 1px dashed #b9b3bf; border-radius: 999px; background: none; color: var(--doux); font-size: 13px; }
+.puce[aria-pressed="true"] { border: 1px solid var(--accent); background: var(--accent-clair); color: var(--texte); font-weight: 600; }
+.puce[aria-pressed="false"] .point { opacity: 0.45; }
+.cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr)); gap: 12px; max-width: 1080px; margin: 0 auto; }
+.carte { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 12px; border-radius: 14px; background: var(--carte); box-shadow: 0 1px 2px rgba(17, 16, 20, 0.06); }
+.carte .titre { display: flex; align-items: center; gap: 8px; }
+.carte .titre svg { flex: none; width: 28px; height: 28px; padding: 6px; border-radius: 8px; background: var(--fond); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.carte h2 { flex: 1; min-width: 0; font-size: 15.5px; }
+.du-compte { display: flex; align-items: center; gap: 7px; max-width: 1080px; margin: 16px auto 8px; font-size: 13px; font-weight: 600; }
+.du-compte .point { width: 9px; height: 9px; }
+.carte p { color: var(--doux); font-size: 13px; }
+.carte .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 2px; }
+.bouton { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 11px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); font-size: 13px; font-weight: 500; text-decoration: none; color: var(--texte); }
+.bouton.fort { border-color: var(--accent); background: var(--accent); color: #ffffff; font-weight: 600; }
+.note { max-width: 1080px; margin: 16px auto 0; color: var(--doux); font-size: 13px; }
+.info { max-width: 560px; margin: 8vh auto 0; display: flex; flex-direction: column; gap: 10px; }
+.info h1 { font-size: 22px; }
+.info p { color: var(--doux); }
+.champ { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--doux); }
+.champ input { min-height: 32px; padding: 0 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--texte); font: inherit; }
+.couleurs { display: flex; gap: 8px; }
+.couleurs button { width: 22px; height: 22px; padding: 0; border: 2px solid transparent; border-radius: 50%; }
+.couleurs button[aria-pressed="true"] { border-color: var(--texte); box-shadow: inset 0 0 0 2px var(--fond); }
+#attente { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 3; padding: 4px 12px; border-radius: 999px; background: var(--texte); color: var(--fond); font-size: 12.5px; pointer-events: none; }
+
+/* Téléphone : le menu devient une barre en bas */
+#barre, .choix.tel { display: none; }
+@media (max-width: 760px) {
+  .choix.tel { display: flex; }
+  #origami { flex-direction: column; }
+  #menu { display: none; }
+  #scene > section { padding: 16px 14px 28px; }
+  #barre { flex: none; display: flex; gap: 2px; padding: 4px 6px calc(4px + env(safe-area-inset-bottom)); border-top: 1px solid var(--ligne); background: var(--carte); overflow-x: auto; }
+  #barre button { flex: 1 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 58px; padding: 4px 6px; border: 0; border-radius: 8px; background: none; color: var(--doux); font-size: 11px; }
+  #barre button[aria-current="true"] { color: var(--accent); font-weight: 600; }
+  #barre svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .entete h1 { font-size: 21px; }
+}
+</style>
+</head>
+<body>
+<div id="origami">
+  <nav id="menu" aria-label="Comptes et applis"></nav>
+  <main id="scene">
+    <div id="attente" role="status" hidden>Ouverture…</div>
+    <section id="accueil"></section>
+    <section id="page" hidden></section>
+  </main>
+  <nav id="barre" aria-label="Applis"></nav>
+</div>
+<script>
+(function () {
+  "use strict";
+  // Appli Origami, première brique : une seule fenêtre pour les applis qui existent déjà.
+  // Cette page ne contient aucun code Apps Script : seulement l'adresse publique de chaque appli,
+  // la même que dans sa propre page installable. Chaque appli garde son PIN ou son code d'accès.
+  var ADRESSES = {
+    diffusion: "https://script.google.com/macros/s/AKfycbwbBlZSN1CCqGxq7vdJMerEC1khp3YUPK4LVz1OC-gFMsDRtHuwO00jDLmDzk2URziJwg/exec",
+    compta: "https://script.google.com/macros/s/AKfycbwKllC_RGceJ1vjtyWwUhgaEo2Ub-sL7ShZbkgn8r4aMEZFp-K2z0Kfn9xEo5uOrBhx/exec",
+    tickets: "https://script.google.com/macros/s/AKfycbwfZp2gYNFsZxXvW3CZGf17PRRZ3WgC6IwpPPpO5iKiZUZmesmlbUMQJR2UF3jKYJ3C/exec"
+  };
+  var ICONES = {
+    accueil: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/>',
+    boite: '<rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3.5 7.5l8.5 6 8.5-6"/>',
+    diffusion: '<path d="M21 3L10 14"/><path d="M21 3l-7 18-4-7-7-4 18-7z"/>',
+    compta: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+    frais: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6"/>',
+    tickets: '<path d="M3 9V6.5A1.5 1.5 0 014.5 5h15A1.5 1.5 0 0121 6.5V9a3 3 0 000 6v2.5a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5V15a3 3 0 000-6z"/><path d="M14 8v8" stroke-dasharray="1.5 3"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>'
+  };
+  function icone(n) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONES[n] + "</svg>"; }
+  var APPLIS = {
+    boite: { nom: "Boîte mail", texte: "Tes mails, dans l'appli Boîte mail du Mac.", genre: "info" },
+    diffusion: { nom: "Diffusion", texte: "Suivi des lieux, relances, candidatures, agenda.", genre: "cadre", titre: "Diffusion Origami", droits: "clipboard-read; clipboard-write; camera", sansCompte: true },
+    compta: { nom: "Compta", texte: "Devis, factures, salaires, journal.", genre: "cadre", titre: "Compta", droits: "clipboard-read; clipboard-write; camera", sansCompte: true },
+    frais: { nom: "Frais", texte: "Notes de frais et défraiements.", genre: "lien", lien: "https://sevanegu-pixel.github.io/frais/" },
+    tickets: { nom: "Tickets", texte: "Justificatifs envoyés par mail, suivi des paiements.", genre: "cadre", titre: "Tickets", droits: "camera; clipboard-write" }
+  };
+  var COULEURS = ["#1f5cff", "#e0a800", "#15803d", "#b42318", "#7d3c5e", "#0e7490"];
+  // Le compte de la compagnie est là d'office, avec les applis qui existent. Les autres comptes sont ajoutés
+  // sur l'appareil et restent dans sa mémoire (rien n'est envoyé).
+  var COMPTE_COMPAGNIE = { id: "compagnie", nom: "Compagnie Origami", couleur: "#1f5cff", applis: ["boite", "diffusion", "compta", "frais", "tickets"] };
+
+  function lire(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function garder(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
+  function texte(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  // ---- Mémoire de l'appareil : comptes ajoutés, compte et appli ouverts, comptes cochés ----
+  var etat = { compte: "compagnie", vue: "accueil", ajoutes: [], masques: {} };
+  try {
+    var garde = JSON.parse(lire("origami_appli_etat") || "null");
+    if (garde && typeof garde === "object") {
+      if (Array.isArray(garde.ajoutes)) etat.ajoutes = garde.ajoutes.filter(function (c) { return c && /^c[0-9a-z]{4,12}$/.test(c.id) && typeof c.nom === "string" && COULEURS.indexOf(c.couleur) >= 0; }).slice(0, 12).map(function (c) { return { id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, applis: ["boite"] }; });
+      if (garde.masques && typeof garde.masques === "object") etat.masques = garde.masques;
+      if (typeof garde.compte === "string") etat.compte = garde.compte;
+      if (typeof garde.vue === "string") etat.vue = garde.vue;
+    }
+  } catch (e) {}
+  function comptes() { return [COMPTE_COMPAGNIE].concat(etat.ajoutes); }
+  function compte(id) { return comptes().filter(function (c) { return c.id === id; })[0] || null; }
+  if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = "compagnie";
+  function retenir() { garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques })); }
+
+  var menu = document.getElementById("menu"), barre = document.getElementById("barre"), scene = document.getElementById("scene");
+  var accueil = document.getElementById("accueil"), page = document.getElementById("page"), attente = document.getElementById("attente");
+  var cadres = {};   // applis déjà ouvertes : elles restent en mémoire, on y revient sans recharger
+
+  // ---- Applis ouvertes dans la fenêtre ----
+  var FORME_DIFFUSION = /^[A-Za-z0-9_-]{32,200}$/, FORME_COMPTA = /^[a-f0-9]{96}$/;
+  function adresse(id) {
+    if (id === "diffusion") {
+      var j = lire("diffusion_jeton"), ap = null, param = "";
+      try { ap = JSON.parse(lire("diffusion_apparence") || "null"); } catch (e) { ap = null; }
+      if (ap && ap.apparence) param = "&apparence=" + encodeURIComponent(JSON.stringify(ap.apparence));
+      return ADRESSES.diffusion + (FORME_DIFFUSION.test(j) ? "?jeton=" + encodeURIComponent(j) + param : (param ? "?" + param.slice(1) : ""));
+    }
+    if (id === "compta") { var jc = lire("origami_jeton"); return ADRESSES.compta + (FORME_COMPTA.test(jc) ? "?jeton=" + jc : ""); }
+    return ADRESSES[id];
+  }
+  function ouvrirCadre(id) {
+    if (cadres[id]) return cadres[id];
+    var a = APPLIS[id], f = document.createElement("iframe");
+    f.title = a.titre; f.setAttribute("allow", a.droits);
+    if (a.sansCompte) f.setAttribute("credentialless", "");
+    f.hidden = true;
+    attente.hidden = false;
+    f.addEventListener("load", function () { setTimeout(function () { attente.hidden = true; }, 1200); });
+    f.src = adresse(id);
+    scene.appendChild(f);
+    cadres[id] = f;
+    return f;
+  }
+  // De quelle appli ouverte vient un message ? (lui-même ou un cadre placé dedans, jamais une autre page)
+  function appliDe(w) {
+    try {
+      for (var i = 0; w && i < 6; i++) {
+        for (var id in cadres) if (cadres[id].contentWindow === w) return id;
+        if (w === w.parent) return "";
+        w = w.parent;
+      }
+    } catch (e) {}
+    return "";
+  }
+  function base(ok) { try { var r = indexedDB.open("diffusion-coquille", 1); r.onupgradeneeded = function () { r.result.createObjectStore("c"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
+  function lireCache(ok) { base(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get("diffusion_jeton_donnees"); q.onsuccess = function () { ok(q.result || ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
+  function ecrireCache(t) { base(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, "diffusion_jeton_donnees"); else s.delete("diffusion_jeton_donnees"); } catch (e) {} }); }
+  var apercu = null;
+  window.addEventListener("message", function (ev) {
+    if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
+    var d = ev.data, id = d ? appliDe(ev.source) : "";
+    if (!id) return;
+    // Chaque appli garde ici ce que sa propre page installable garde : mêmes noms, donc la même mémoire.
+    if (id === "diffusion") {
+      if (d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
+      if (d.diffusion === "cache-ecrire") { ecrireCache(typeof d.texte === "string" ? d.texte : ""); return; }
+      if (d.diffusion === "apparence" && d.apparence) { garder("diffusion_apparence", JSON.stringify({ apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} })); attente.hidden = true; return; }
+      if (d.origami === "jeton" || d.diffusion === "jeton") garder("diffusion_jeton", FORME_DIFFUSION.test(d.jeton || "") ? d.jeton : "");
+      return;
+    }
+    if (id === "compta") {
+      if (d.origami === "jeton") { garder("origami_jeton", FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); return; }
+      if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { window.open("../index.html?ouvrir=" + d.ouvrir, "_blank", "popup=yes,width=1100,height=900"); return; }
+      if (d.origami === "apercu" && typeof d.html === "string" && d.html.length < 8e6) {
+        if (!apercu || apercu.closed) {
+          if (!d.ouvrir) return;
+          apercu = window.open("", "apercuCompta", "popup=yes,width=900,height=1000");
+          if (!apercu) return;
+        }
+        try {
+          // L'aperçu partage l'adresse de cette page : on y interdit tout script.
+          apercu.document.open();
+          apercu.document.write('<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="script-src \'none\'; object-src \'none\'; base-uri \'none\'; form-action \'none\'">');
+          apercu.document.write(d.html); apercu.document.close();
+          if (typeof d.titre === "string") apercu.document.title = d.titre.slice(0, 120);
+          if (d.ouvrir) apercu.focus();
+        } catch (e) { apercu = null; }
+      }
+      return;
+    }
+    if (id === "tickets") {
+      if (d.tickets === "code-lire") { try { ev.source.postMessage({ tickets: "code", code: lire("tickets_code") }, ev.origin); } catch (e) {} return; }
+      if (d.tickets === "code-garder") { garder("tickets_code", typeof d.code === "string" && d.code.length <= 100 ? d.code : ""); attente.hidden = true; }
+    }
+  });
+
+  // ---- Écrans ----
+  function affiches() { return comptes().filter(function (c) { return !etat.masques[c.id]; }); }
+  function dessinerMenu() {
+    var h = '<div class="marque">ORIGAMI</div><div class="groupe"><h2>Comptes</h2>';
+    h += '<button class="ligne" data-compte="tous"' + (etat.compte === "tous" ? ' aria-current="true"' : "") + '><span class="point tous"></span><span class="nom">Tous les comptes</span></button>';
+    comptes().forEach(function (c) {
+      h += '<button class="ligne" data-compte="' + c.id + '"' + (etat.compte === c.id ? ' aria-current="true"' : "") + '><span class="point" style="background:' + c.couleur + '"></span><span class="nom">' + texte(c.nom) + "</span></button>";
+    });
+    h += '<button class="ligne plus" data-vue="ajouter">' + icone("plus") + "<span>Ajouter un compte</span></button></div>";
+    var c0 = compte(etat.compte);
+    h += '<div class="groupe"><h2>' + (c0 ? "Applis de ce compte" : "Dans tous les comptes") + "</h2>";
+    h += '<button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>';
+    var liste = c0 ? c0.applis : [];
+    liste.forEach(function (id) {
+      h += '<button class="ligne" data-vue="' + id + '"' + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + APPLIS[id].nom + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>";
+    });
+    h += '</div><div class="bas">Première version : tes applis actuelles, dans une seule fenêtre.</div>';
+    menu.innerHTML = h;
+    var b = '<button data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + "Accueil</button>";
+    (c0 ? c0.applis : COMPTE_COMPAGNIE.applis).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + APPLIS[id].nom + "</button>"; });
+    barre.innerHTML = b;
+  }
+  function carte(c, id) {
+    var a = APPLIS[id], action;
+    if (a.genre === "cadre" && c.id === "compagnie") action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[id] ? "Revenir" : "Ouvrir") + "</button>";
+    else if (a.genre === "lien" && c.id === "compagnie") action = '<a class="bouton" href="' + a.lien + '" target="_blank" rel="noopener">Ouvrir à part</a>';
+    else action = '<button class="bouton" data-vue="' + id + '" data-de="' + c.id + '">En savoir plus</button>';
+    return '<article class="carte"><div class="titre">' + icone(id) + "<h2>" + a.nom + "</h2></div><p>" + a.texte + '</p><div class="actions">' + action + "</div></article>";
+  }
+  function dessinerAccueil() {
+    var tous = etat.compte === "tous", c0 = compte(etat.compte), liste = tous ? affiches() : [c0];
+    var h = '<div class="entete"><div><h1>Tableau de bord</h1><p>' + (tous ? "Tous les comptes" : texte(c0.nom)) + "</p></div>";
+    if (!tous && c0.id !== "compagnie") h += '<button class="bouton" data-retirer="' + c0.id + '">Retirer ce compte de l\'appli</button>';
+    h += "</div>";
+    h += '<div class="choix tel" role="group" aria-label="Comptes"><button class="puce" data-compte="tous" aria-pressed="' + (tous ? "true" : "false") + '"><span class="point tous"></span>Tous</button>';
+    comptes().forEach(function (c) { h += '<button class="puce" data-compte="' + c.id + '" aria-pressed="' + (etat.compte === c.id ? "true" : "false") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
+    h += '<button class="puce" data-vue="ajouter">+ Compte</button></div>';
+    if (tous) {
+      h += '<div class="choix" role="group" aria-label="Comptes affichés"><span>Comptes affichés</span>';
+      comptes().forEach(function (c) { h += '<button class="puce" data-cocher="' + c.id + '" aria-pressed="' + (etat.masques[c.id] ? "false" : "true") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
+      h += "</div>";
+    }
+    liste.forEach(function (c) {
+      if (tous) h += '<h3 class="du-compte"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</h3>";
+      h += '<div class="cartes">';
+      c.applis.forEach(function (id) { h += carte(c, id); });
+      h += "</div>";
+    });
+    if (!liste.length) h += '<p class="note">Aucun compte coché.</p>';
+    h += '<p class="note">Les chiffres du jour (mails à répondre, relances, agenda, tickets) arriveront ici quand le moteur Origami du compte sera installé.</p>';
+    accueil.innerHTML = h;
+  }
+  function dessinerPage(vue) {
+    var h = '<div class="info">';
+    if (vue === "ajouter") {
+      h += "<h1>Ajouter un compte</h1><p>Donne un nom et une couleur à ce compte. Il apparaît dans le menu et dans la vue « Tous les comptes ». Ses applis s'ajouteront quand Origami sera installé dans ce compte Google.</p>";
+      h += '<label class="champ">Nom du compte<input id="nomCompte" maxlength="40" autocomplete="off"></label><div class="couleurs" role="group" aria-label="Couleur">';
+      COULEURS.forEach(function (c, i) { h += '<button data-couleur="' + c + '" aria-pressed="' + (i === 1 ? "true" : "false") + '" aria-label="Couleur ' + (i + 1) + '" style="background:' + c + '"></button>'; });
+      h += '</div><div><button class="bouton fort" data-ajouter="1">Ajouter</button></div>';
+    } else if (vue === "boite") {
+      h += "<h1>Boîte mail</h1><p>Pour l'instant, la Boîte mail s'ouvre dans son appli sur le Mac. Elle rejoindra cette fenêtre avec le moteur Origami, sans rien changer à l'appli actuelle.</p>";
+    } else if (vue === "frais") {
+      h += '<h1>Frais</h1><p>Frais s\'ouvre à part, avec ton lien personnel.</p><div><a class="bouton fort" href="' + APPLIS.frais.lien + '" target="_blank" rel="noopener">Ouvrir Frais</a></div>';
+    } else {
+      h += "<h1>" + APPLIS[vue].nom + "</h1><p>Cette appli n'est pas encore installée dans ce compte. L'installation « à zéro » par compte arrive dans une prochaine étape.</p>";
+    }
+    page.innerHTML = h + "</div>";
+  }
+  function montrer() {
+    var vue = etat.vue, c0 = compte(etat.compte);
+    var cadre = APPLIS[vue] && APPLIS[vue].genre === "cadre" && c0 && c0.id === "compagnie";
+    if (vue !== "accueil" && vue !== "ajouter" && !(APPLIS[vue] && c0 && c0.applis.indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = false; }
+    if (cadre) ouvrirCadre(vue);
+    for (var id in cadres) cadres[id].hidden = !(cadre && id === vue);
+    accueil.hidden = vue !== "accueil";
+    page.hidden = cadre || vue === "accueil";
+    if (!cadre) attente.hidden = true;
+    if (vue === "accueil") dessinerAccueil(); else if (!cadre) dessinerPage(vue);
+    dessinerMenu();
+    document.title = vue === "accueil" || vue === "ajouter" ? "Origami" : APPLIS[vue].nom + " · Origami";
+    retenir();
+  }
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest("button") : null;
+    if (!b) return;
+    var d = b.dataset;
+    if (d.compte) { etat.compte = d.compte; if (d.compte === "tous" || !compte(d.compte) || compte(d.compte).applis.indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
+    if (d.vue) { if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return; }
+    if (d.cocher) { if (etat.masques[d.cocher]) delete etat.masques[d.cocher]; else etat.masques[d.cocher] = 1; montrer(); return; }
+    if (d.couleur) { [].forEach.call(b.parentNode.children, function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); }); return; }
+    if (d.ajouter) {
+      var nom = (document.getElementById("nomCompte").value || "").trim().slice(0, 40), choisie = page.querySelector('[data-couleur][aria-pressed="true"]');
+      if (!nom) { document.getElementById("nomCompte").focus(); return; }
+      var nouveau = { id: "c" + Date.now().toString(36), nom: nom, couleur: choisie ? choisie.dataset.couleur : COULEURS[1], applis: ["boite"] };
+      etat.ajoutes.push(nouveau); etat.compte = nouveau.id; etat.vue = "accueil"; montrer(); return;
+    }
+    if (d.retirer) {
+      etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
+      etat.compte = "compagnie"; etat.vue = "accueil"; montrer();
+    }
+  });
+  montrer();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
+})();
+</script>
+</body>
+</html>
