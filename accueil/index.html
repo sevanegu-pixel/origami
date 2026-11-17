@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<meta name="origami-version" content="2026-11-17.3">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -129,6 +130,7 @@ a.lien { color: var(--accent); }
 #avis { position: fixed; left: 50%; bottom: 18px; z-index: 12; display: flex; flex-direction: column; align-items: center; gap: 6px; width: max-content; max-width: calc(100% - 28px); transform: translateX(-50%); pointer-events: none; }
 #avis div { padding: 6px 14px; border-radius: 12px; background: var(--texte); color: var(--fond); font-size: 13px; text-align: center; }
 #avis div.souci { background: #b42318; color: #ffffff; }
+#nouvelle { position: fixed; right: 18px; bottom: 18px; z-index: 13; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; max-width: calc(100% - 28px); padding: 7px 8px 7px 14px; border: 1px solid var(--ligne); border-radius: 12px; background: var(--carte); box-shadow: 0 6px 24px rgba(21, 19, 26, 0.16); font-size: 13px; }
 
 /* Téléphone : le menu devient une barre en bas */
 #barre, .choix.tel { display: none; }
@@ -136,6 +138,7 @@ a.lien { color: var(--accent); }
   #voile { align-items: flex-end; padding: 0; }
   .feuille { max-width: none; padding-bottom: calc(18px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; }
   #avis { top: calc(10px + env(safe-area-inset-top)); bottom: auto; }
+  #nouvelle { left: 14px; right: 14px; bottom: calc(66px + env(safe-area-inset-bottom)); }
   .champ input, .champ select, .champ textarea.simple { font-size: 16px; }
   .choix.tel { display: flex; }
   #origami { flex-direction: column; }
@@ -892,6 +895,8 @@ a.lien { color: var(--accent); }
     }
     if (d.delier) { delete moteurs[d.delier]; delete memoires[d.delier]; file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "accueil"; montrer(); return; }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
+    if (d.recharger) { b.disabled = true; fetch(location.href.split("#")[0], { cache: "reload" }).catch(function () {}).then(function () { location.reload(); }); return; }
+    if (d.plusTard) { bandeauVersion.hidden = true; return; }
     if (d.retirer) {
       etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
       delete moteurs[d.retirer]; delete memoires[d.retirer]; file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
@@ -904,6 +909,23 @@ a.lien { color: var(--accent); }
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (Object.keys(moteurs).length) Promise.all(Object.keys(moteurs).map(lireMemoire)).then(function () { montrer(); }, function () { montrer(); });
   else montrer();
+  // Une page restée ouverte apprend qu'une version plus récente est en ligne. Elle ne se recharge pas toute seule : un travail
+  // peut être en cours dans une des applis. Au plus une demande toutes les dix minutes, quand on revient sur la page.
+  var VERSION_PAGE = (document.querySelector('meta[name="origami-version"]') || {}).content || "", vuVersion = Date.now(), bandeauVersion = null;
+  function chercherVersion() {
+    if (!VERSION_PAGE || bandeauVersion || document.hidden || Date.now() - vuVersion < 600000) return;
+    vuVersion = Date.now();
+    fetch(location.href.split("#")[0], { cache: "no-store" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) {
+      var m = /<meta name="origami-version" content="([^"]{1,40})">/.exec(t);
+      if (!m || m[1] === VERSION_PAGE || bandeauVersion) return;
+      bandeauVersion = document.createElement("div"); bandeauVersion.id = "nouvelle"; bandeauVersion.setAttribute("role", "status");
+      bandeauVersion.innerHTML = '<span>Une nouvelle version d\'Origami est en ligne.</span><button class="bouton fort" data-recharger="1">Recharger</button><button class="bouton" data-plus-tard="1">Plus tard</button>';
+      document.body.appendChild(bandeauVersion);
+    }).catch(function () {});
+  }
+  document.addEventListener("visibilitychange", chercherVersion);
+  window.addEventListener("focus", chercherVersion);
+  setInterval(chercherVersion, 900000);
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
 })();
 </script>
