@@ -842,7 +842,7 @@ a.lien { color: var(--accent); }
       return appelDiffusion(id, "releve", { empreintes: connues }).then(function (r) {
         if (memDiff[id] !== m) return;
         Object.keys(r.listes || {}).forEach(function (n) { if (Array.isArray(r.listes[n])) m.listes[n] = r.listes[n]; });
-        m.empreintes = (r && r.empreintes) || {}; m.manquants = Array.isArray(r.manquants) ? r.manquants : []; m.releve = Date.now(); m.panne = "";
+        m.empreintes = (r && r.empreintes) || {}; m.manquants = Array.isArray(r.manquants) ? r.manquants : []; m.donnees = typeof r.donnees === "string" ? r.donnees : ""; m.releve = Date.now(); m.panne = "";
         garderDiff(id);
       }, function (e) { m.panne = String((e && e.message) || e); });
     }).then(function () { delete relevesDiff[id]; rafraichir(id); });
@@ -879,12 +879,15 @@ a.lien { color: var(--accent); }
     if (!m) { page.innerHTML = '<div class="appli"><p class="vide">Ouverture…</p></div>'; lireDiff(c.id).then(function () { if (etat.vue === "diffusion0") dessinerDiffusion(); }); return; }
     var spectacles = listeDiff(c.id, "spectacles");
     if (df.spectacle && !spectacles.some(function (s) { return s.id === df.spectacle; })) df.spectacle = "";
-    var cadre = [c.id, df.onglet, df.sous, df.prospection, df.spectacle, df.groupe, df.archives, spectacles.length].join("|"), racine = page.firstElementChild;
+    var cadre = [c.id, df.onglet, df.sous, df.prospection, df.spectacle, df.groupe, df.archives, spectacles.length, m.donnees || ""].join("|"), racine = page.firstElementChild;
     if (!racine || racine.getAttribute("data-cadre") !== cadre) {
       var h = '<div class="appli large" data-cadre="' + texte(cadre) + '"><div class="entete"><div><h1>' + nomAppli(c, "diffusion0") + '</h1><p>' + texte(c.nom) + ' · <span id="dfReleve"></span></p></div><div class="actions">';
       h += '<button class="bouton" data-df="actualiser">Actualiser</button>';
       if (c.applis.indexOf("diffusion") >= 0) h += '<button class="bouton" data-vue="diffusion" data-de="' + c.id + '">Ouvrir ta Diffusion actuelle</button>';
-      h += '</div></div><p class="aide">Lecture seule pour l\'instant' + (c.applis.indexOf("diffusion") >= 0 ? " : pour noter une étape ou écrire un mail, passe par ta Diffusion actuelle. Les deux lisent les mêmes données." : ".") + "</p>";
+      // Trois cas : le moteur lit le classeur de la Diffusion actuelle ; il travaille sur une copie ; le compte part de zéro.
+      h += '</div></div><p class="aide">Lecture seule pour l\'instant' + (m.donnees === "classeur actuel" ? " : pour noter une étape ou écrire un mail, passe par ta Diffusion actuelle. Les deux lisent les mêmes données."
+        : c.applis.indexOf("diffusion") >= 0 ? ", sur une copie de tes données. Ce que tu fais dans ta Diffusion actuelle n\'arrive pas ici : pour noter une étape ou écrire un mail, passe encore par elle."
+        : " : noter et ajouter arrivent avec le prochain morceau.") + "</p>";
       h += '<div class="onglets" role="tablist">';
       [["spectacles", "Spectacles"], ["prospection", "Prospection"], ["agenda", "Agenda"]].forEach(function (o) { h += '<button role="tab" data-df-onglet="' + o[0] + '" aria-selected="' + (df.onglet === o[0] ? "true" : "false") + '">' + o[1] + "</button>"; });
       h += "</div>";
