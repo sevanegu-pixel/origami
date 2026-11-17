@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-17.3">
+<meta name="origami-version" content="2026-11-17.4">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -65,6 +65,10 @@ h1, h2, h3, p { margin: 0; }
 .info { max-width: 560px; margin: 8vh auto 0; display: flex; flex-direction: column; gap: 10px; }
 .info h1 { font-size: 22px; }
 .info p { color: var(--doux); }
+.info details { padding: 8px 12px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--carte2); font-size: 13px; }
+.info summary { cursor: pointer; font-weight: 600; }
+.info details ol { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.info details a { color: var(--accent); }
 .champ { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--doux); }
 .champ input { min-height: 32px; padding: 0 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--texte); font: inherit; }
 .champ textarea { min-height: 62px; padding: 6px 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--texte); font: 12px/1.4 ui-monospace, Menlo, monospace; resize: vertical; word-break: break-all; }
@@ -106,6 +110,17 @@ h1, h2, h3, p { margin: 0; }
 .lien.rouge { color: #b42318; }
 a.lien { color: var(--accent); }
 #tkDest { margin-bottom: 14px; }
+.appli.large { max-width: 900px; }
+.appli .choix { margin: 0 0 10px; }
+.puce .compte { color: var(--doux); font-weight: 400; }
+.puce .compte:empty { display: none; }
+#dfListe .rangee .detail { flex-basis: 240px; }
+.champ.recherche { margin: 0 0 10px; }
+.champ.recherche input { width: 100%; }
+.cache { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.doux { color: var(--doux); }
+.sous-titre.souci { color: #b42318; }
+.actions.centre { display: flex; justify-content: center; margin: 8px 0; }
 .vide { padding: 22px 10px; color: var(--doux); font-size: 13px; text-align: center; }
 .inter { flex: none; position: relative; width: 34px; height: 20px; padding: 0; border: 0; border-radius: 999px; background: #c9c4cf; }
 .inter::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #ffffff; transition: left 0.15s; }
@@ -184,7 +199,7 @@ a.lien { color: var(--accent); }
     tickets: '<path d="M3 9V6.5A1.5 1.5 0 014.5 5h15A1.5 1.5 0 0121 6.5V9a3 3 0 000 6v2.5a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5V15a3 3 0 000-6z"/><path d="M14 8v8" stroke-dasharray="1.5 3"/>',
     plus: '<path d="M12 5v14M5 12h14"/>'
   };
-  ICONES.tickets0 = ICONES.tickets;
+  ICONES.tickets0 = ICONES.tickets; ICONES.diffusion0 = ICONES.diffusion;
   function icone(n) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONES[n] + "</svg>"; }
   var APPLIS = {
     boite: { nom: "Boîte mail", texte: "Tes mails, dans l'appli Boîte mail du Mac.", genre: "info" },
@@ -193,8 +208,12 @@ a.lien { color: var(--accent); }
     frais: { nom: "Frais", texte: "Notes de frais et défraiements.", genre: "lien", lien: "https://sevanegu-pixel.github.io/frais/" },
     tickets: { nom: "Tickets", texte: "Justificatifs envoyés par mail, suivi des paiements.", genre: "cadre", titre: "Tickets", droits: "camera; clipboard-write" },
     // Tickets « à zéro » : installé dans le compte par son moteur, affiché par cette page (pas de cadre).
-    tickets0: { nom: "Tickets", texte: "Justificatifs envoyés par mail, rangés dans le Drive de ce compte.", genre: "moteur" }
+    tickets0: { nom: "Tickets", texte: "Justificatifs envoyés par mail, rangés dans le Drive de ce compte.", genre: "moteur" },
+    // Diffusion « à zéro » : son propre moteur dans le compte, affichée par cette page (lecture seule pour commencer).
+    diffusion0: { nom: "Diffusion", texte: "Spectacles, suivi des lieux, prospection et agenda, lus dans ce compte.", genre: "moteur" }
   };
+  // Classeur modèle du moteur Origami, à copier dans un compte Google où il n'est pas encore installé (vide : pas de guide).
+  var MODELE_MOTEUR = "";
   var COULEURS = ["#1f5cff", "#e0a800", "#15803d", "#b42318", "#7d3c5e", "#0e7490"];
   // Le compte de la compagnie est là d'office, avec les applis qui existent. Les autres comptes sont ajoutés
   // sur l'appareil et restent dans sa mémoire (rien n'est envoyé).
@@ -395,7 +414,10 @@ a.lien { color: var(--accent); }
         m.etat = r[0].r || null; m.tableau = r[1] || null; m.releve = Date.now(); m.panne = "";
         if (moteurs[id] && memoires[id] === m) garderMemoire(id);
       }, function (e) { m.panne = String((e && e.message) || e); });
-    }).then(function () { delete releves[id]; dessinerMenu(); rafraichir(id); });
+    }).then(function () {
+      delete releves[id]; dessinerMenu(); rafraichir(id);
+      if (etat.vue === "accueil" && grosse(id, "diffusion")) releverDiffusionSiVieux(id, 600000);   // Diffusion vient d'apparaître : ses chiffres
+    });
     return releves[id];
   }
   function releverSiVieux(id) {
@@ -406,6 +428,7 @@ a.lien { color: var(--accent); }
   function rafraichir(id) {
     if (etat.vue === "accueil") dessinerAccueil();
     else if (etat.vue === "tickets0" && etat.compte === id) dessinerTickets();
+    else if (etat.vue === "diffusion0" && etat.compte === id) dessinerDiffusion();
   }
   function heure(t) { var d = new Date(t); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
   function ligneMoteur(c) {
@@ -445,8 +468,12 @@ a.lien { color: var(--accent); }
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
   function offre(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.installables) && e.installables.some(function (a) { return a && a.id === appli; })); }
   function installee(id, appli) { var e = etatMoteur(id); return (e && Array.isArray(e.applis) ? e.applis : []).filter(function (a) { return a && a.id === appli; })[0] || null; }
-  function applisDe(c) { return offre(c.id, "tickets") ? c.applis.concat(["tickets0"]) : c.applis; }
-  function nomAppli(c, id) { return id === "tickets0" && c.applis.indexOf("tickets") >= 0 ? "Tickets (nouveau)" : APPLIS[id].nom; }
+  function applisDe(c) { var l = c.applis.slice(); if (offre(c.id, "tickets")) l.push("tickets0"); if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
+  function nomAppli(c, id) {
+    if (id === "tickets0" && c.applis.indexOf("tickets") >= 0) return "Tickets (nouveau)";
+    if (id === "diffusion0" && c.applis.indexOf("diffusion") >= 0) return "Diffusion (nouveau)";
+    return APPLIS[id].nom;
+  }
   function lignes(id, nom) {
     var m = memoires[id], l = (m && m.listes && m.listes[nom]) || {}, r = [];
     Object.keys(l).forEach(function (k) {
@@ -762,6 +789,254 @@ a.lien { color: var(--accent); }
   document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && !voile.hidden) fermerVoile(); });
   voile.addEventListener("input", function () { var z = document.getElementById("tkSouci"); if (z && voile.contains(z)) z.textContent = ""; });
 
+  // ---- Diffusion « à zéro » : son propre moteur, dans le compte ; l'appareil y entre avec un jeton du moteur du compte ----
+  // Version 1 : lecture seule. L'appareil garde les listes et l'empreinte de chacune ; un relevé ne rapporte que les listes changées.
+  // Les huit étapes de Diffusion, dans l'ordre ; les anciens noms encore possibles dans un classeur sont rangés à leur place.
+  var ETAPES = ["À contacter", "Dossier envoyé", "À relancer", "Relancé", "Intéressé", "Venu voir", "Option", "Confirmé", "Date confirmée", "Déjà joué", "Déjà joué / A acheté", "Refus"];
+  var FINIES = { "Refus": 1, "Confirmé": 1, "Date confirmée": 1, "Déjà joué": 1, "Déjà joué / A acheté": 1 };
+  // Statuts d'une opportunité, dans l'ordre de Diffusion.
+  var STATUTS = ["À étudier", "À préparer", "En cours", "Envoyé", "Relancé", "Réponse reçue", "Retenu", "Refusé", "Abandonné", "Plus tard", "Écarté"];
+  var STATUT_CLOS = /écart|refus|abandon|envoy|relanc|réponse|retenu/i;   // plus de date limite à rappeler dans l'agenda
+  var df = { onglet: "spectacles", spectacle: "", sous: "suivi", prospection: "contacts", cherche: "", groupe: "", archives: false, plus: 0 };
+  var memDiff = {}, relevesDiff = {}, jetonsDiff = {};
+  function grosse(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.grossesApplis) && e.grossesApplis.some(function (a) { return a && a.id === appli; })); }
+  function lireDiff(id) {
+    return new Promise(function (ok) {
+      if (memDiff[id]) return ok(memDiff[id]);
+      function rendre(v) { if (!memDiff[id]) memDiff[id] = (v && typeof v === "object" && v.listes && typeof v.listes === "object") ? v : { empreintes: {}, listes: {} }; ok(memDiff[id]); }
+      baseOrigami(function (db) {
+        if (!db) return rendre(null);
+        try { var q = db.transaction("comptes").objectStore("comptes").get("diffusion:" + id); q.onsuccess = function () { rendre(q.result); }; q.onerror = function () { rendre(null); }; } catch (e) { rendre(null); }
+      });
+    });
+  }
+  function garderDiff(id) { baseOrigami(function (db) { if (!db) return; try { var s = db.transaction("comptes", "readwrite").objectStore("comptes"); if (memDiff[id] && moteurs[id]) s.put(memDiff[id], "diffusion:" + id); else s.delete("diffusion:" + id); } catch (e) {} }); }
+  // Un jeton pour Diffusion, demandé au moteur du compte avec la clé de l'appareil ; gardé en mémoire tant qu'il vaut.
+  function jetonDiffusion(id) {
+    var j = jetonsDiff[id];
+    if (j && j.fin - Date.now() > 300000) return Promise.resolve(j);
+    return moteurAppel(id, "jeton.appli", { app: "diffusion" }, { sans: true }).then(function (r) {
+      if (!r || !/^[a-f0-9]{48}$/.test(r.jeton) || !ADRESSE_MOTEUR.test(r.adresse)) throw new Error("Le moteur du compte n'a pas ouvert Diffusion.");
+      return (jetonsDiff[id] = { jeton: r.jeton, fin: Number(r.fin) || 0, adresse: r.adresse });
+    });
+  }
+  function appelDiffusion(id, fn, args, encore) {
+    return jetonDiffusion(id).then(function (j) {
+      var envoi = { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ prise: 1, jeton: j.jeton, fn: fn, args: args || {} }) }, minuterie = 0;
+      try { var arret = new AbortController(); envoi.signal = arret.signal; minuterie = setTimeout(function () { arret.abort(); }, 90000); } catch (e) {}
+      return fetch(j.adresse, envoi).then(function (r) { return r.json(); }).catch(function () { return null; }).then(function (o) {
+        clearTimeout(minuterie);
+        if (o && o.ok === true) return o.r;
+        if (o && o.jeton === true && !encore) { delete jetonsDiff[id]; return appelDiffusion(id, fn, args, true); }   // jeton périmé : un neuf, une fois
+        throw new Error(o && typeof o.erreur === "string" ? o.erreur.slice(0, 200) : "Le moteur Diffusion ne répond pas.");
+      });
+    });
+  }
+  function releverDiffusion(id) {
+    if (!moteurs[id]) return Promise.resolve();
+    if (relevesDiff[id]) return relevesDiff[id];
+    relevesDiff[id] = lireDiff(id).then(function (m) {
+      m.essai = Date.now(); rafraichir(id);
+      var connues = {};
+      Object.keys(m.empreintes || {}).forEach(function (n) { if (Array.isArray(m.listes[n])) connues[n] = m.empreintes[n]; });
+      return appelDiffusion(id, "releve", { empreintes: connues }).then(function (r) {
+        if (memDiff[id] !== m) return;
+        Object.keys(r.listes || {}).forEach(function (n) { if (Array.isArray(r.listes[n])) m.listes[n] = r.listes[n]; });
+        m.empreintes = (r && r.empreintes) || {}; m.manquants = Array.isArray(r.manquants) ? r.manquants : []; m.donnees = typeof r.donnees === "string" ? r.donnees : ""; m.releve = Date.now(); m.panne = "";
+        garderDiff(id);
+      }, function (e) { m.panne = String((e && e.message) || e); });
+    }).then(function () { delete relevesDiff[id]; rafraichir(id); });
+    return relevesDiff[id];
+  }
+  function releverDiffusionSiVieux(id, delai) {
+    if (!moteurs[id] || relevesDiff[id]) return;
+    lireDiff(id).then(function (m) { if (Date.now() - (m.essai || m.releve || 0) > (delai || 120000)) releverDiffusion(id); else rafraichir(id); });
+  }
+  function oublierDiff(id) { delete memDiff[id]; delete jetonsDiff[id]; garderDiff(id); }
+  function listeDiff(id, nom) { var m = memDiff[id]; return (m && Array.isArray(m.listes[nom])) ? m.listes[nom] : []; }
+  function aujourdhui() { var d = new Date(); return d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2); }
+  function court(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "…" : t; }
+  function duSpectacle(x, s) { return !s || x.projetId === s.id || (!x.projetId && x.projet && x.projet === s.nom); }
+  function enRetard(s) { return s.relance && s.relance.slice(0, 10) < aujourdhui() && !FINIES[s.etape]; }
+  function nomContact(c) { return court(((c.prenom || "") + " " + (c.nom || "")).trim() || c.structure || c.email || "Sans nom", 80); }
+  function carteDiffusion(c) {
+    var h = '<article class="carte"><div class="titre">' + icone("diffusion0") + "<h2>" + nomAppli(c, "diffusion0") + "</h2></div>", m = memDiff[c.id];
+    if (!m || !m.releve) return h + "<p>" + APPLIS.diffusion0.texte + '</p><div class="actions"><button class="bouton fort" data-vue="diffusion0" data-de="' + c.id + '">Ouvrir</button></div></article>';
+    var suivi = listeDiff(c.id, "suivi"), retard = suivi.filter(enRetard).length, jour0 = aujourdhui();
+    var dates = listeDiff(c.id, "dates").filter(function (x) { return (x.au || x.du || "").slice(0, 10) >= jour0; }).length;
+    h += '<div class="chiffres"><div><strong>' + suivi.length + "</strong><span>lieux suivis</span></div><div><strong>" + retard + "</strong><span>relance" + (retard > 1 ? "s" : "") + " en retard</span></div><div><strong>" + dates + "</strong><span>date" + (dates > 1 ? "s" : "") + " à venir</span></div></div>";
+    return h + '<div class="actions"><button class="bouton fort" data-vue="diffusion0" data-de="' + c.id + '">Ouvrir</button></div></article>';
+  }
+  function etatReleveDiff(id) {
+    var m = memDiff[id] || {};
+    if (relevesDiff[id]) return "Relevé en cours…";
+    if (m.panne) return '<span class="souci">' + texte(m.panne) + "</span>" + (m.releve ? " Dernier relevé à " + heure(m.releve) + "." : "");
+    return m.releve ? "Relevé à " + heure(m.releve) + "." : "Pas encore relevé.";
+  }
+  // Le cadre (en-tête, onglets, filtres) n'est refait que si un choix change : une recherche en cours garde son curseur.
+  function dessinerDiffusion() {
+    var c = compte(etat.compte), m = memDiff[c.id];
+    if (!m) { page.innerHTML = '<div class="appli"><p class="vide">Ouverture…</p></div>'; lireDiff(c.id).then(function () { if (etat.vue === "diffusion0") dessinerDiffusion(); }); return; }
+    var spectacles = listeDiff(c.id, "spectacles");
+    if (df.spectacle && !spectacles.some(function (s) { return s.id === df.spectacle; })) df.spectacle = "";
+    var cadre = [c.id, df.onglet, df.sous, df.prospection, df.spectacle, df.groupe, df.archives, spectacles.length, m.donnees || ""].join("|"), racine = page.firstElementChild;
+    if (!racine || racine.getAttribute("data-cadre") !== cadre) {
+      var h = '<div class="appli large" data-cadre="' + texte(cadre) + '"><div class="entete"><div><h1>' + nomAppli(c, "diffusion0") + '</h1><p>' + texte(c.nom) + ' · <span id="dfReleve"></span></p></div><div class="actions">';
+      h += '<button class="bouton" data-df="actualiser">Actualiser</button>';
+      if (c.applis.indexOf("diffusion") >= 0) h += '<button class="bouton" data-vue="diffusion" data-de="' + c.id + '">Ouvrir ta Diffusion actuelle</button>';
+      // Trois cas : le moteur lit le classeur de la Diffusion actuelle ; il travaille sur une copie ; le compte part de zéro.
+      h += '</div></div><p class="aide">Lecture seule pour l\'instant' + (m.donnees === "classeur actuel" ? " : pour noter une étape ou écrire un mail, passe par ta Diffusion actuelle. Les deux lisent les mêmes données."
+        : c.applis.indexOf("diffusion") >= 0 ? ", sur une copie de tes données. Ce que tu fais dans ta Diffusion actuelle n\'arrive pas ici : pour noter une étape ou écrire un mail, passe encore par elle."
+        : " : noter et ajouter arrivent avec le prochain morceau.") + "</p>";
+      h += '<div class="onglets" role="tablist">';
+      [["spectacles", "Spectacles"], ["prospection", "Prospection"], ["agenda", "Agenda"]].forEach(function (o) { h += '<button role="tab" data-df-onglet="' + o[0] + '" aria-selected="' + (df.onglet === o[0] ? "true" : "false") + '">' + o[1] + "</button>"; });
+      h += "</div>";
+      if (df.onglet === "spectacles") {
+        h += '<div class="choix gauche" role="group" aria-label="Spectacle"><button class="puce" data-df-spectacle="" aria-pressed="' + (!df.spectacle) + '">Tous</button>';
+        spectacles.forEach(function (s) { h += '<button class="puce" data-df-spectacle="' + texte(s.id) + '" aria-pressed="' + (df.spectacle === s.id) + '">' + texte(court(s.nom || "Sans nom", 40)) + "</button>"; });
+        h += '</div><div class="choix gauche" role="group" aria-label="Vue">';
+        [["suivi", "Suivi des lieux"], ["candidatures", "Candidatures"], ["dates", "Dates"]].forEach(function (o) { h += '<button class="puce" data-df-sous="' + o[0] + '" aria-pressed="' + (df.sous === o[0]) + '">' + o[1] + ' <span class="compte" id="dfN-' + o[0] + '"></span></button>'; });
+        h += "</div>";
+      } else if (df.onglet === "prospection") {
+        h += '<div class="choix gauche" role="group" aria-label="Vue">';
+        [["contacts", "Contacts"], ["opportunites", "Opportunités"]].forEach(function (o) { h += '<button class="puce" data-df-prospection="' + o[0] + '" aria-pressed="' + (df.prospection === o[0]) + '">' + o[1] + ' <span class="compte" id="dfN-' + o[0] + '"></span></button>'; });
+        h += '</div><label class="champ recherche"><span class="cache">Chercher</span><input id="dfCherche" type="search" autocomplete="off" placeholder="' + (df.prospection === "contacts" ? "Chercher un nom, une ville, un mail…" : "Chercher un titre, un lieu, un pays…") + '" value="' + texte(df.cherche) + '"></label>';
+        if (df.prospection === "contacts") {
+          var groupes = {};
+          listeDiff(c.id, "contacts").forEach(function (x) { (x.groupes || []).forEach(function (g) { groupes[g] = (groupes[g] || 0) + 1; }); });
+          var noms = Object.keys(groupes).sort(function (a, b) { return a.localeCompare(b, "fr"); });
+          {
+            h += '<div class="choix gauche" role="group" aria-label="Groupes"><button class="puce" data-df-groupe="" aria-pressed="' + (!df.groupe) + '">Tous les contacts</button>';
+            noms.forEach(function (g) { h += '<button class="puce" data-df-groupe="' + texte(g) + '" aria-pressed="' + (df.groupe === g) + '">' + texte(court(g, 30)) + " · " + groupes[g] + "</button>"; });
+            h += '<button class="puce" data-df-archives="1" aria-pressed="' + df.archives + '">Archivés aussi</button></div>';
+          }
+        }
+      }
+      h += '<div id="dfListe"></div><p class="note" id="dfPied"></p></div>';
+      page.innerHTML = h;
+    }
+    majDiffusion();
+  }
+  function rangee(quoi, detail, etiquettes, droite) {
+    return '<div class="rangee"><div><span class="quoi">' + quoi + "</span>" + (droite ? '<span class="combien">' + droite + "</span>" : "") + "</div>" + (detail || etiquettes ? "<div>" + (detail ? '<span class="detail">' + detail + "</span>" : "") + (etiquettes || "") + "</div>" : "") + "</div>";
+  }
+  function etiquette(t, genre) { return '<span class="etiquette' + (genre ? " " + genre : "") + '">' + texte(t) + "</span>"; }
+  function plusDe(n, total) { return total > n ? '<div class="actions centre"><button class="bouton" data-df="plus">Afficher plus (' + (total - n) + " de plus)</button></div>" : ""; }
+  function majDiffusion() {
+    var c = compte(etat.compte), m = memDiff[c.id], zone = document.getElementById("dfListe");
+    if (!zone || !m) return;
+    var r = document.getElementById("dfReleve"); if (r) r.innerHTML = etatReleveDiff(c.id);
+    var pied = document.getElementById("dfPied"), h = "", jour0 = aujourdhui(), limite = 150 + df.plus;
+    var spectacles = listeDiff(c.id, "spectacles"), s = spectacles.filter(function (x) { return x.id === df.spectacle; })[0] || null;
+    var nomSpectacle = {}; spectacles.forEach(function (x) { nomSpectacle[x.id] = x.nom; });
+    function spect(x) { return !s && (nomSpectacle[x.projetId] || x.projet) ? etiquette(court(nomSpectacle[x.projetId] || x.projet, 30)) : ""; }
+    function n(id, v) { var e = document.getElementById("dfN-" + id); if (e) e.textContent = v; }
+    if (!m.releve && !Object.keys(m.listes).length) { zone.innerHTML = '<p class="vide">' + (relevesDiff[c.id] ? "Premier relevé en cours : la première fois, toutes tes listes arrivent d'un coup." : "Rien en mémoire pour l'instant.") + "</p>"; return; }
+    if (df.onglet === "spectacles") {
+      var suivi = listeDiff(c.id, "suivi").filter(function (x) { return duSpectacle(x, s); });
+      var cand = listeDiff(c.id, "opportunites").filter(function (x) { return (x.projetId || x.projet) && duSpectacle(x, s); });
+      var dates = listeDiff(c.id, "dates").filter(function (x) { return duSpectacle(x, s); }).sort(function (a, b) { return String(a.du).localeCompare(String(b.du)); });
+      n("suivi", suivi.length); n("candidatures", cand.length); n("dates", dates.length);
+      if (df.sous === "suivi") {
+        var parEtape = {};
+        suivi.forEach(function (x) { var e = x.etape || "Sans étape"; (parEtape[e] = parEtape[e] || []).push(x); });
+        var ordre = ETAPES.filter(function (e) { return parEtape[e]; }).concat(Object.keys(parEtape).filter(function (e) { return ETAPES.indexOf(e) < 0; }));
+        var retard = suivi.filter(enRetard);
+        if (retard.length) h += '<h3 class="sous-titre souci">Relances en retard · ' + retard.length + "</h3>" + retard.sort(function (a, b) { return a.relance.localeCompare(b.relance); }).map(function (x) { return rangee(texte(court(x.structure || x.contact || x.email, 80)), texte([x.contact, x.etape].filter(String).join(" · ")), spect(x), '<span class="souci">' + jour(x.relance) + "</span>"); }).join("");
+        ordre.forEach(function (e) {
+          var l = parEtape[e].sort(function (a, b) { return String(b.dateEtape).localeCompare(String(a.dateEtape)); });
+          h += '<h3 class="sous-titre">' + texte(e) + " · " + l.length + "</h3>";
+          h += l.map(function (x) {
+            var detail = [x.contact && x.structure ? x.contact : "", x.dateEtape ? "depuis le " + jour(x.dateEtape) : "", x.relance && !FINIES[x.etape] ? "relance le " + jour(x.relance) : "", x.motifRefus ? "motif : " + x.motifRefus : "", x.recontacter ? "recontacter le " + jour(x.recontacter) : ""].filter(String).join(" · ");
+            return rangee(texte(court(x.structure || x.contact || x.email || "Sans nom", 80)), texte(detail) + (x.notes ? '<br><span class="doux">' + texte(court(x.notes, 160)) + "</span>" : ""), spect(x));
+          }).join("");
+        });
+        if (!suivi.length) h += '<p class="vide">Aucun lieu suivi' + (s ? " pour ce spectacle" : "") + ".</p>";
+      } else if (df.sous === "candidatures") {
+        h += parStatut(cand, spect);
+        if (!cand.length) h += '<p class="vide">Aucune candidature' + (s ? " pour ce spectacle" : "") + ".</p>";
+      } else {
+        var futures = dates.filter(function (x) { return (x.au || x.du || "").slice(0, 10) >= jour0; }), passees = dates.filter(function (x) { return futures.indexOf(x) < 0; }).reverse();
+        if (futures.length) h += '<h3 class="sous-titre">À venir · ' + futures.length + "</h3>" + futures.map(ligneDate).join("");
+        if (passees.length) h += '<h3 class="sous-titre">Passées · ' + passees.length + "</h3>" + passees.map(ligneDate).join("");
+        if (!dates.length) h += '<p class="vide">Aucune date' + (s ? " pour ce spectacle" : "") + ".</p>";
+      }
+      if (pied) pied.textContent = s && s.description ? court(s.description, 300) : "";
+    } else if (df.onglet === "prospection") {
+      var mots = df.cherche.toLowerCase().split(/\s+/).filter(String);
+      function trouve(x, champs) { var t = champs.map(function (k) { return Array.isArray(x[k]) ? x[k].join(" ") : String(x[k] || ""); }).join(" ").toLowerCase(); return mots.every(function (w) { return t.indexOf(w) >= 0; }); }
+      var contacts = listeDiff(c.id, "contacts"), opps = listeDiff(c.id, "opportunites");
+      var vusC = contacts.filter(function (x) { return (df.archives || !x.archive) && (!df.groupe || (x.groupes || []).indexOf(df.groupe) >= 0) && trouve(x, ["prenom", "nom", "structure", "ville", "canton", "pays", "email", "role", "groupes", "typeStructure"]); });
+      var vusO = opps.filter(function (x) { return trouve(x, ["titre", "structure", "lieu", "pays", "canton", "region", "categorie", "nature", "statut", "projet"]); });
+      n("contacts", vusC.length); n("opportunites", vusO.length);
+      if (df.prospection === "contacts") {
+        vusC.sort(function (a, b) { return nomContact(a).localeCompare(nomContact(b), "fr"); });
+        h += vusC.slice(0, limite).map(function (x) {
+          var lieu = [x.ville, x.canton || x.pays].filter(String).join(", "), et = (x.groupes || []).map(function (g) { return etiquette(court(g, 24)); }).join("") + (x.desinscrit ? etiquette("désinscrit", "rate") : "") + (x.archive ? etiquette("archivé") : "");
+          return rangee(texte(nomContact(x)), texte([x.prenom || x.nom ? x.structure : "", x.role, lieu, x.email].filter(String).join(" · ")), et);
+        }).join("") + plusDe(limite, vusC.length);
+        if (!vusC.length) h += '<p class="vide">' + (contacts.length ? "Aucun contact ne correspond." : "Aucun contact pour l'instant.") + "</p>";
+        if (pied) pied.textContent = contacts.length + " contacts en tout" + (df.archives ? "." : ", sans les archivés.");
+      } else {
+        h += parStatut(vusO.slice(0, limite), spect) + plusDe(limite, vusO.length);
+        if (!vusO.length) h += '<p class="vide">' + (opps.length ? "Aucune opportunité ne correspond." : "Aucune opportunité pour l'instant.") + "</p>";
+        if (pied) pied.textContent = opps.length + " opportunités en tout.";
+      }
+    } else {
+      // Agenda : relances et choses à faire en retard, puis les dates, relances et dates limites à venir, mois par mois.
+      var items = [];
+      listeDiff(c.id, "dates").forEach(function (x) { var d0 = (x.du || x.au || "").slice(0, 10); if (d0 && (x.au || x.du).slice(0, 10) >= jour0) items.push({ d: d0, quoi: (x.type || "Date") + " · " + (x.structure || x.lieu || ""), detail: [nomSpectacle[x.projetId] || x.projet, x.au && x.au !== x.du ? "jusqu'au " + jour(x.au) : "", x.lieu, x.statut].filter(String).join(" · "), genre: x.statut === "Confirmé" ? "paye" : "" }); });
+      listeDiff(c.id, "suivi").forEach(function (x) { if (x.relance && !FINIES[x.etape]) items.push({ d: x.relance.slice(0, 10), quoi: "Relancer " + (x.structure || x.contact || x.email), detail: [nomSpectacle[x.projetId] || x.projet, x.etape].filter(String).join(" · "), retard: x.relance.slice(0, 10) < jour0 }); });
+      listeDiff(c.id, "opportunites").forEach(function (x) { if (x.dateLimite && x.dateLimite.slice(0, 10) >= jour0 && !STATUT_CLOS.test(x.statut || "")) items.push({ d: x.dateLimite.slice(0, 10), quoi: "Date limite · " + (x.titre || x.structure), detail: [x.structure, x.statut].filter(String).join(" · ") }); });
+      listeDiff(c.id, "journal").forEach(function (x) { if (x.aFaire && x.le && !x.faitLe) items.push({ d: x.le.slice(0, 10), quoi: court(x.texte || "À faire", 80), detail: [x.structure || x.contact, nomSpectacle[x.projetId] || x.projet].filter(String).join(" · "), retard: x.le.slice(0, 10) < jour0 }); });
+      items.sort(function (a, b) { return a.d.localeCompare(b.d); });
+      var retards = items.filter(function (x) { return x.retard; }), avenir = items.filter(function (x) { return !x.retard; }), mois = "";
+      if (retards.length) h += '<h3 class="sous-titre souci">En retard · ' + retards.length + "</h3>" + retards.map(function (x) { return rangee(texte(court(x.quoi, 90)), texte(x.detail), "", '<span class="souci">' + jour(x.d) + "</span>"); }).join("");
+      avenir.slice(0, limite).forEach(function (x) {
+        var mm = new Date(x.d + "T12:00:00").toLocaleDateString("fr-CH", { month: "long", year: "numeric" });
+        if (mm !== mois) { mois = mm; h += '<h3 class="sous-titre">' + texte(mm) + "</h3>"; }
+        h += rangee(texte(court(x.quoi, 90)), texte(x.detail), x.genre ? etiquette("confirmé", "paye") : "", jour(x.d));
+      });
+      h += plusDe(limite, avenir.length);
+      if (!items.length) h += '<p class="vide">Rien à venir.</p>';
+      if (pied) pied.textContent = "";
+    }
+    if (m.manquants && m.manquants.length) h += '<p class="note">Onglets introuvables dans le classeur : ' + texte(m.manquants.join(", ")) + ".</p>";
+    zone.innerHTML = h;
+  }
+  function ligneDate(x) {
+    var quand = jour(x.du) + (x.au && x.au !== x.du ? " au " + jour(x.au) : "");
+    var et = (x.statut ? etiquette(x.statut, x.statut === "Confirmé" ? "paye" : "") : "");
+    return rangee(texte((x.type || "Date") + " · " + court(x.structure || x.lieu || x.libelle || "", 70)), texte([x.lieu, x.representations ? x.representations + " représentation" + (Number(x.representations) > 1 ? "s" : "") : "", x.cession ? "prix de cession " + x.cession : "", x.festival].filter(String).join(" · ")), et, quand);
+  }
+  function parStatut(l, spect) {
+    var groupes = {}, h = "";
+    l.forEach(function (x) { var st = x.statut || "Sans statut"; (groupes[st] = groupes[st] || []).push(x); });
+    STATUTS.filter(function (st) { return groupes[st]; }).concat(Object.keys(groupes).filter(function (st) { return STATUTS.indexOf(st) < 0; })).forEach(function (st) {
+      h += '<h3 class="sous-titre">' + texte(st) + " · " + groupes[st].length + "</h3>";
+      h += groupes[st].sort(function (a, b) { return String(a.dateLimite || "9999").localeCompare(String(b.dateLimite || "9999")); }).map(function (x) {
+        var et = (x.categorie ? etiquette(x.categorie) : "") + (x.nature === "Spontanée" ? etiquette("spontanée") : "") + (spect ? spect(x) : "");
+        var lien = /^https:\/\//.test(x.lien || "") ? ' <a class="lien" href="' + texte(x.lien) + '" target="_blank" rel="noopener">Ouvrir</a>' : "";
+        return rangee(texte(court(x.titre || x.structure || "Sans titre", 90)) + lien, texte([x.titre ? x.structure : "", x.lieu, x.canton || x.pays, x.datesResidence || x.datesDiffusion].filter(String).join(" · ")), et, x.dateLimite ? "avant le " + jour(x.dateLimite) : "");
+      }).join("");
+    });
+    return h;
+  }
+  function clicDiffusion(b, d) {
+    if (etat.vue !== "diffusion0" || !compte(etat.compte)) return false;
+    var id = etat.compte;
+    if (d.df === "actualiser") { releverDiffusion(id); return true; }
+    if (d.df === "plus") { df.plus += 200; majDiffusion(); return true; }
+    if (d.dfOnglet) { df.onglet = d.dfOnglet; df.plus = 0; dessinerDiffusion(); return true; }
+    if (d.dfSpectacle !== undefined) { df.spectacle = d.dfSpectacle; df.plus = 0; dessinerDiffusion(); return true; }
+    if (d.dfSous) { df.sous = d.dfSous; df.plus = 0; dessinerDiffusion(); return true; }
+    if (d.dfProspection) { df.prospection = d.dfProspection; df.plus = 0; dessinerDiffusion(); return true; }
+    if (d.dfGroupe !== undefined) { df.groupe = d.dfGroupe; df.plus = 0; dessinerDiffusion(); return true; }
+    if (d.dfArchives) { df.archives = !df.archives; dessinerDiffusion(); return true; }
+    return false;
+  }
+  document.addEventListener("input", function (ev) { if (ev.target && ev.target.id === "dfCherche") { df.cherche = ev.target.value; df.plus = 0; majDiffusion(); } });
+
   // ---- Écrans ----
   function affiches() { return comptes().filter(function (c) { return !etat.masques[c.id]; }); }
   function dessinerMenu() {
@@ -790,6 +1065,7 @@ a.lien { color: var(--accent); }
   function carte(c, id) {
     var a = APPLIS[id], action;
     if (id === "tickets0") return carteTickets(c);
+    if (id === "diffusion0") return carteDiffusion(c);
     if (a.genre === "cadre" && c.id === "compagnie") action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[id] ? "Revenir" : "Ouvrir") + "</button>";
     else if (a.genre === "lien" && c.id === "compagnie") action = '<a class="bouton" href="' + a.lien + '" target="_blank" rel="noopener">Ouvrir à part</a>';
     else action = '<button class="bouton" data-vue="' + id + '" data-de="' + c.id + '">En savoir plus</button>';
@@ -831,6 +1107,14 @@ a.lien { color: var(--accent); }
       h += '<label class="champ">Nom du compte<input id="nomCompte" maxlength="40" autocomplete="off"></label><div class="couleurs" role="group" aria-label="Couleur">';
       COULEURS.forEach(function (c, i) { h += '<button data-couleur="' + c + '" aria-pressed="' + (i === 1 ? "true" : "false") + '" aria-label="Couleur ' + (i + 1) + '" style="background:' + c + '"></button>'; });
       h += '</div><label class="champ">Code de liaison (facultatif)<textarea id="codeCompte" autocomplete="off" spellcheck="false"></textarea></label>';
+      if (/^[\w-]{20,80}$/.test(MODELE_MOTEUR)) {
+        h += "<details><summary>Origami n'est pas encore installé dans ce compte Google ?</summary><ol>";
+        h += '<li><a href="https://docs.google.com/spreadsheets/d/' + MODELE_MOTEUR + '/copy" target="_blank" rel="noopener">Copier le classeur Origami</a> dans le Drive de ce compte (connecte-toi d\'abord à ce compte).</li>';
+        h += "<li>Dans la copie, menu Origami, puis « Relier un appareil ». La première fois, Google demande une autorisation : accepte, puis clique de nouveau sur « Relier un appareil ».</li>";
+        h += "<li>La fenêtre te guide pour publier le moteur, une seule fois, puis te donne un code.</li>";
+        h += "<li>Colle ce code ci-dessus, puis « Ajouter ».</li></ol>";
+        h += "<p>Si Google affiche une erreur, c'est souvent que plusieurs comptes sont ouverts dans le navigateur : refais ces étapes dans une fenêtre de navigation privée, connectée à ce seul compte.</p></details>";
+      }
       h += '<p id="messageCode" class="souci" role="status"></p><div><button class="bouton fort" data-ajouter="1">Ajouter</button></div>';
     } else if (vue === "relier") {
       var cr = compte(etat.compte);
@@ -861,8 +1145,9 @@ a.lien { color: var(--accent); }
     accueil.hidden = vue !== "accueil";
     page.hidden = cadre || vue === "accueil";
     if (!cadre) attente.hidden = true;
-    if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); }
+    if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "tickets0") { dessinerTickets(); releverSiVieux(c0.id); }
+    else if (vue === "diffusion0") { dessinerDiffusion(); releverSiVieux(c0.id); releverDiffusionSiVieux(c0.id); }
     else if (!cadre) dessinerPage(vue);
     dessinerMenu();
     document.title = APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : "Origami";
@@ -873,6 +1158,7 @@ a.lien { color: var(--accent); }
     if (!b) return;
     var d = b.dataset;
     if (clicTickets(b, d)) return;
+    if (clicDiffusion(b, d)) return;
     if (d.compte) { etat.compte = d.compte; if (d.compte === "tous" || !compte(d.compte) || applisDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
     if (d.vue) { if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return; }
     if (d.cocher) { if (etat.masques[d.cocher]) delete etat.masques[d.cocher]; else etat.masques[d.cocher] = 1; montrer(); return; }
@@ -893,13 +1179,13 @@ a.lien { color: var(--accent); }
       moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; retenirMoteurs(); garderMemoire(d.relier);
       etat.vue = "accueil"; montrer(); return;
     }
-    if (d.delier) { delete moteurs[d.delier]; delete memoires[d.delier]; file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "accueil"; montrer(); return; }
+    if (d.delier) { delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "accueil"; montrer(); return; }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
     if (d.recharger) { b.disabled = true; fetch(location.href.split("#")[0], { cache: "reload" }).catch(function () {}).then(function () { location.reload(); }); return; }
     if (d.plusTard) { bandeauVersion.hidden = true; return; }
     if (d.retirer) {
       etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
-      delete moteurs[d.retirer]; delete memoires[d.retirer]; file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
+      delete moteurs[d.retirer]; delete memoires[d.retirer]; oublierDiff(d.retirer); file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
       etat.compte = "compagnie"; etat.vue = "accueil"; montrer();
     }
   });
