@@ -65,6 +65,10 @@ h1, h2, h3, p { margin: 0; }
 .info { max-width: 560px; margin: 8vh auto 0; display: flex; flex-direction: column; gap: 10px; }
 .info h1 { font-size: 22px; }
 .info p { color: var(--doux); }
+.info details { padding: 8px 12px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--carte2); font-size: 13px; }
+.info summary { cursor: pointer; font-weight: 600; }
+.info details ol { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.info details a { color: var(--accent); }
 .champ { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--doux); }
 .champ input { min-height: 32px; padding: 0 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--texte); font: inherit; }
 .champ textarea { min-height: 62px; padding: 6px 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--texte); font: 12px/1.4 ui-monospace, Menlo, monospace; resize: vertical; word-break: break-all; }
@@ -195,6 +199,8 @@ a.lien { color: var(--accent); }
     // Tickets « à zéro » : installé dans le compte par son moteur, affiché par cette page (pas de cadre).
     tickets0: { nom: "Tickets", texte: "Justificatifs envoyés par mail, rangés dans le Drive de ce compte.", genre: "moteur" }
   };
+  // Classeur modèle du moteur Origami, à copier dans un compte Google où il n'est pas encore installé (vide : pas de guide).
+  var MODELE_MOTEUR = "";
   var COULEURS = ["#1f5cff", "#e0a800", "#15803d", "#b42318", "#7d3c5e", "#0e7490"];
   // Le compte de la compagnie est là d'office, avec les applis qui existent. Les autres comptes sont ajoutés
   // sur l'appareil et restent dans sa mémoire (rien n'est envoyé).
@@ -831,6 +837,14 @@ a.lien { color: var(--accent); }
       h += '<label class="champ">Nom du compte<input id="nomCompte" maxlength="40" autocomplete="off"></label><div class="couleurs" role="group" aria-label="Couleur">';
       COULEURS.forEach(function (c, i) { h += '<button data-couleur="' + c + '" aria-pressed="' + (i === 1 ? "true" : "false") + '" aria-label="Couleur ' + (i + 1) + '" style="background:' + c + '"></button>'; });
       h += '</div><label class="champ">Code de liaison (facultatif)<textarea id="codeCompte" autocomplete="off" spellcheck="false"></textarea></label>';
+      if (/^[\w-]{20,80}$/.test(MODELE_MOTEUR)) {
+        h += "<details><summary>Origami n'est pas encore installé dans ce compte Google ?</summary><ol>";
+        h += '<li><a href="https://docs.google.com/spreadsheets/d/' + MODELE_MOTEUR + '/copy" target="_blank" rel="noopener">Copier le classeur Origami</a> dans le Drive de ce compte (connecte-toi d\'abord à ce compte).</li>';
+        h += "<li>Dans la copie, menu Origami, puis « Relier un appareil ». La première fois, Google demande une autorisation : accepte, puis clique de nouveau sur « Relier un appareil ».</li>";
+        h += "<li>La fenêtre te guide pour publier le moteur, une seule fois, puis te donne un code.</li>";
+        h += "<li>Colle ce code ci-dessus, puis « Ajouter ».</li></ol>";
+        h += "<p>Si Google affiche une erreur, c'est souvent que plusieurs comptes sont ouverts dans le navigateur : refais ces étapes dans une fenêtre de navigation privée, connectée à ce seul compte.</p></details>";
+      }
       h += '<p id="messageCode" class="souci" role="status"></p><div><button class="bouton fort" data-ajouter="1">Ajouter</button></div>';
     } else if (vue === "relier") {
       var cr = compte(etat.compte);
