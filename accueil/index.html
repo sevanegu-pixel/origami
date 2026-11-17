@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-17.4">
+<meta name="origami-version" content="2026-11-18.1">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -799,7 +799,9 @@ a.lien { color: var(--accent); }
   var STATUT_CLOS = /écart|refus|abandon|envoy|relanc|réponse|retenu/i;   // plus de date limite à rappeler dans l'agenda
   var df = { onglet: "spectacles", spectacle: "", sous: "suivi", prospection: "contacts", cherche: "", groupe: "", archives: false, plus: 0 };
   var memDiff = {}, relevesDiff = {}, jetonsDiff = {};
-  function grosse(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.grossesApplis) && e.grossesApplis.some(function (a) { return a && a.id === appli; })); }
+  // 18.11.2026 : la Diffusion « en listes » est retirée du menu (Sévane garde sa Diffusion d'origine). Elle ne revient que pour les essais.
+  var DIFFUSION_LISTES = /[?&]diffusion-listes=1(&|$)/.test(location.search);
+  function grosse(id, appli) { if (appli === "diffusion" && !DIFFUSION_LISTES) return false; var e = etatMoteur(id); return !!(e && Array.isArray(e.grossesApplis) && e.grossesApplis.some(function (a) { return a && a.id === appli; })); }
   function lireDiff(id) {
     return new Promise(function (ok) {
       if (memDiff[id]) return ok(memDiff[id]);
