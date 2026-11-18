@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.18">
+<meta name="origami-version" content="2026-11-18.19">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -327,8 +327,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.18"></script>
-<script src="repertoire.js?v=2026-11-18.18"></script>
+<script src="agenda.js?v=2026-11-18.19"></script>
+<script src="repertoire.js?v=2026-11-18.19"></script>
 <script>
 (function () {
   "use strict";
@@ -349,7 +349,8 @@ button.tuile:hover { border-color: var(--ligne); }
     frais: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6"/>',
     tickets: '<path d="M3 9V6.5A1.5 1.5 0 014.5 5h15A1.5 1.5 0 0121 6.5V9a3 3 0 000 6v2.5a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5V15a3 3 0 000-6z"/><path d="M14 8v8" stroke-dasharray="1.5 3"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',
-    reglages: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/>'
+    // Roue dentée de la Boîte mail (même dessin, pour que Réglages se reconnaisse d'une appli à l'autre).
+    reglages: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>'
   };
   ICONES.tickets0 = ICONES.tickets; ICONES.diffusion0 = ICONES.diffusion;
   ICONES.spectacle = '<path d="M12 3l2.6 5.6 6 .7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9.3l6-.7z"/>';
