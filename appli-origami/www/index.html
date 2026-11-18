@@ -26,9 +26,15 @@ button { font: inherit; min-height: 28px; padding: 0 12px; border: 1px solid #1f
   var texte = document.getElementById("texte"), encore = document.getElementById("encore");
   function ouvrir() {
     texte.textContent = "Ouverture…"; encore.hidden = true;
-    fetch(ADRESSE, { mode: "no-cors", cache: "no-store" }).then(function () { location.replace(ADRESSE); }).catch(function () {
+    fetch(ADRESSE, { mode: "no-cors", cache: "no-store" }).then(partir).catch(function () {
       texte.textContent = "Pas de connexion à Internet pour l'instant."; encore.hidden = false;
     });
+  }
+  // Ouverte par Origami avec un lien « Relier » (version 0.3 et plus) : on part sur ce lien, l'appli démarre déjà reliée.
+  function partir() {
+    var T = window.__TAURI__;
+    if (!T || !T.core || !T.core.invoke) { location.replace(ADRESSE); return; }
+    T.core.invoke("lire_liaison").then(function (l) { location.replace(l || ADRESSE); }, function () { location.replace(ADRESSE); });
   }
   encore.onclick = ouvrir;
   ouvrir();

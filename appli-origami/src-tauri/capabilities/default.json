@@ -1,9 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Fenêtre principale et fenêtres d'appli (appli-compta, appli-tickets, appli-frais) : la page Origami en ligne peut ouvrir un lien dans le navigateur du Mac (ou dans l'appli Boîte mail, adresses boitemail:), ouvrir une fenêtre à part et la ramener devant. Rien d'autre.",
-  "windows": ["main", "appli-*"],
-  "remote": { "urls": ["https://sevanegu-pixel.github.io/origami/accueil/*"] },
+  "description": "Fenêtre principale et fenêtres d'appli (appli-compta, appli-tickets, appli-frais) : la page Origami en ligne peut ouvrir un lien dans le navigateur du Mac (ou dans l'appli Boîte mail, adresses boitemail:), ouvrir une fenêtre à part et la ramener devant ; dans l'appli mère, installer et ouvrir les applis Origami du Mac (fichiers des versions du dépôt Origami seulement), leur transmettre un lien Relier, signaler un compte à revoir dans la barre des menus. Rien d'autre.",
+  "windows": [
+    "main",
+    "appli-*"
+  ],
+  "remote": {
+    "urls": [
+      "https://sevanegu-pixel.github.io/origami/accueil/*"
+    ]
+  },
   "permissions": [
     "core:default",
     "core:webview:allow-create-webview-window",
@@ -11,7 +18,26 @@
     "core:window:allow-unminimize",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://*" }, { "url": "mailto:*" }, { "url": "boitemail:*" }]
-    }
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "mailto:*"
+        },
+        {
+          "url": "boitemail:*"
+        }
+      ]
+    },
+    "allow-applis-mac",
+    "allow-installer-appli",
+    "allow-relancer-origami",
+    "allow-ouvrir-appli",
+    "allow-lire-liaison",
+    "allow-barre-alertes",
+    "allow-demarrage-auto",
+    "allow-montrer-dans-finder",
+    "allow-desinstaller-appli"
   ]
 }
