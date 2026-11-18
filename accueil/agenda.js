@@ -214,7 +214,7 @@
     if (!cs.length) return '<p class="ag-note">Aucun compte coché.</p>';
     cs.forEach(function (c) {
       var d = donnees[c.id];
-      if (!c.relie) h += '<p class="ag-note"><span class="ag-pt" style="background:' + couleurSure(c.couleur) + '"></span>' + texte(c.nom) + " n'est pas relié à son moteur Origami : ses agendas n'apparaissent pas.</p>";
+      if (!c.relie) h += '<p class="ag-note"><span class="ag-pt" style="background:' + couleurSure(c.couleur) + '"></span>' + "Origami n'est pas encore relié au compte " + texte(c.nom) + " sur cet appareil. Une seule liaison suffit pour tout Origami (Agenda, Tickets, Répertoire…)." + (P.relier ? ' <button class="ag-b" data-ag-relier="' + texte(c.id) + '">Relier Origami</button>' : "") + "</p>";
       else if (d && d.panne && !d.cals) h += '<p class="ag-note ag-souci"><span class="ag-pt" style="background:' + couleurSure(c.couleur) + '"></span>' + texte(c.nom) + " : " + texte(d.panne) + "</p>";
     });
     return h;
@@ -225,7 +225,7 @@
     comptes().forEach(function (c) {
       var d = donnees[c.id] || {}, plusieurs = comptes().length > 1;
       h += '<div class="ag-groupe"><h2>' + (plusieurs ? '<span class="ag-pt" style="background:' + couleurSure(c.couleur) + '"></span>' + texte(c.nom) : "Mes agendas") + "</h2>";
-      if (!c.relie) h += '<p class="ag-mini-note">Pas relié à son moteur.</p>';
+      if (!c.relie) h += '<p class="ag-mini-note">Origami n\'est pas encore relié à ce compte sur cet appareil.</p>';
       else if (!d.cals) h += '<p class="ag-mini-note">' + (d.panne ? texte(d.panne) : "Chargement…") + "</p>";
       else {
         var propres = d.cals.filter(function (k) { return k.acces === "owner"; }), autres = d.cals.filter(function (k) { return k.acces !== "owner"; });
@@ -807,6 +807,7 @@
       appel.then(function () { fermer(); avis(d.agCalCreer ? "Agenda créé." : "Agenda ajouté."); donnees[cid3].cals = null; charger(); }, function (e) { s3.textContent = erreurLisible(e); b.disabled = false; });
       return;
     }
+    if (d.agRelier) { fermer(); if (P.relier) P.relier(d.agRelier); return; }
     if (d.agDiffusion) { fermer(); if (P.ouvrir) P.ouvrir(d.agDiffusion === "boite" ? "boite" : "agendaDiff"); return; }
     switch (d.ag) {
       case "auj": ag.date = aujourdhui(); ag.mini = ""; ag.recherche = null; ag.garderDefile = false; charger(); dessiner(); return;
