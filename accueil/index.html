@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.20">
+<meta name="origami-version" content="2026-11-18.21">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -570,7 +570,7 @@ button.tuile:hover { border-color: var(--ligne); }
   var BOITE_DIRECT = true;
   var fenCompta = null;
   function boiteDirecte() { return BOITE_BROUILLON && BOITE_DIRECT && lire("origami_boite20") === "1" && boitePossible(); }
-  function direBoiteCompta() { if (!fenCompta) return; try { fenCompta.w.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible(), directe: boiteDirecte() }, fenCompta.o); } catch (e) {} }
+  function direBoiteCompta() { if (!fenCompta) return; try { fenCompta.w.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible(), directe: boiteDirecte(), liens: boitePossible() }, fenCompta.o); } catch (e) {} }
   // Sur le Mac la Compta vit dans sa propre fenêtre : elle apprend le réglage changé dans la fenêtre d'Origami.
   window.addEventListener("storage", function (ev) { if (ev.key === "origami_boite20") direBoiteCompta(); });
   var ID_GMAIL = /^[A-Za-z0-9_-]{6,40}$/;   // ce que la Boîte mail accepte comme identifiant
@@ -716,6 +716,8 @@ button.tuile:hover { border-color: var(--ligne); }
         return;
       }
       if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { fenetreCompta(d.ouvrir); return; }
+      // Appli Mac : le cadre de la Compta ne peut pas ouvrir de fenêtre ; il confie ses liens (justificatif, PDF, Drive, Gmail) à la page, qui les ouvre dans le navigateur du Mac.
+      if (d.origami === "lien") { var lu = String(d.url || ""); if (boitePossible() && lu.length <= 6000 && /^(https:\/\/|mailto:)/i.test(lu)) { try { Promise.resolve(MAC.opener.openUrl(lu)).then(function () {}, function () { avis("Le lien ne s'est pas ouvert.", true); }); } catch (e) {} } return; }
       if (d.origami === "apercu" && typeof d.html === "string" && d.html.length < 8e6) {
         if (MAC) { apercuMac(d); return; }   // appli Mac : une vraie fenêtre, qui relit le document dans la mémoire de l'appareil
         if (!apercu || apercu.closed) {
