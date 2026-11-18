@@ -2065,7 +2065,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // ---- Tableau de bord : ce que les applis ont laissé sur cet appareil, rassemblé ----
   // Diffusion confie déjà sa copie de données à cette page (message « cache-ecrire ») ; la Compta dit quelques totaux (« resume »).
   // Aucun serveur n'est interrogé pour dessiner cet écran. Les chiffres d'une appli ne s'affichent que si l'appareil a encore sa clé.
-  var BLOCS = [["jour", "Le point du jour"], ["relances", "Relances"], ["mails", "Mails"], ["dates", "Prochaines dates"], ["appels", "Appels à projets"], ["compta", "Compta"], ["suivi", "Suivi des spectacles"], ["campagnes", "Campagnes"], ["tickets", "Tickets"], ["moteur", "Autres chiffres du compte"]];
+  var BLOCS = [["jour", "Le point du jour"], ["applis", "Applis du compte"], ["relances", "Relances"], ["mails", "Mails"], ["dates", "Prochaines dates"], ["appels", "Appels à projets"], ["compta", "Compta"], ["suivi", "Suivi des spectacles"], ["campagnes", "Campagnes"], ["tickets", "Tickets"], ["moteur", "Autres chiffres du compte"]];
   var bord = { caches: {}, ordre: [] };
   try { var gb = JSON.parse(lire("origami_bord") || "null"); if (gb && typeof gb === "object") { if (gb.caches && typeof gb.caches === "object") bord.caches = gb.caches; if (Array.isArray(gb.ordre)) bord.ordre = gb.ordre; } } catch (e) {}
   function ordreBlocs() {
@@ -2234,6 +2234,20 @@ button.tuile:hover { border-color: var(--ligne); }
     if (bm) h.moteur = bm;
     return { h: h, le: D ? D.le : 0, diff: !!D };
   }
+  // Les applis d'un compte relié, chacune avec son bouton (18.11, demande de Sévane : l'installation ne doit pas être cachée
+  // dans les Réglages). La Compta d'un compte neuf ne s'installe pas encore d'ici.
+  function blocApplis(c, tk) {
+    function rang(id, nom, detail, bouton) { return '<div class="rang-r"><span class="nom">' + nom + (detail ? "<small>" + detail + "</small>" : "") + "</span>" + (bouton || "") + "</div>"; }
+    var h = '<article class="bloc" data-bloc="applis"><div class="tete"><h2>Applis du compte</h2></div>', mac = !FENETRE && boitePossible();
+    if (tk) h += rang("tickets", "Tickets", "Installé.", '<button class="bouton" data-vue="tickets0" data-de="' + c.id + '">Ouvrir</button>');
+    else if (offre(c.id, "tickets")) h += rang("tickets", "Tickets", "Justificatifs envoyés par mail, rangés dans ton Drive.", '<button class="bouton fort" data-vue="tickets0" data-de="' + c.id + '">Installer</button>');
+    h += rang("boite", "Boîte mail", "L'appli des mails de tous tes comptes, sur le Mac.", (mac ? '<button class="bouton" data-vue="boite" data-de="' + c.id + '">Ouvrir</button>' : "") + '<button class="bouton' + (mac ? "" : " fort") + '" data-vue="boite" data-de="' + c.id + '" data-infos="1">Installer</button>');
+    h += rang("agenda", "Agenda", "Déjà là : tes agendas Google.", '<button class="bouton" data-vue="agenda" data-de="' + c.id + '">Ouvrir</button>');
+    if (comptaDe(c.id)) h += rang("compta", "Compta", "Installée.", '<button class="bouton" data-vue="compta" data-de="' + c.id + '">Ouvrir</button>');
+    else h += rang("compta", "Compta", "Pas encore installable d'ici : demande-la à Claude pour l'instant.", "");
+    h += rang("frais", "Frais", "Arrive avec la Compta.", "");
+    return h + "</article>";
+  }
   function bordAutre(c) {
     var h = {}, tk = installee(c.id, "tickets");
     if (tk) {
@@ -2242,6 +2256,7 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     var bm = blocsMoteur(c);
     if (bm) h.moteur = bm;
+    if (moteurs[c.id]) h.applis = blocApplis(c, tk);
     return { h: h, le: 0, diff: false };
   }
   function dessinerAccueil() {
