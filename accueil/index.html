@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.3">
+<meta name="origami-version" content="2026-11-18.4">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -223,7 +223,7 @@ a.lien { color: var(--accent); }
   };
   // Fichiers d'installation pour Mac, une appli par fichier (fabriqués par GitHub ; la Boîte mail a les siens).
   var VERSIONS_MAC = "https://github.com/sevanegu-pixel/origami/releases/download/";
-  var DMG = { boite: VERSIONS_MAC + "appli-boite-17/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg" };
+  var DMG = { boite: VERSIONS_MAC + "appli-boite-17/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
   // Classeur modèle du moteur Origami, à copier dans un compte Google où il n'est pas encore installé (vide : pas de guide).
   var MODELE_MOTEUR = "";
@@ -303,10 +303,19 @@ a.lien { color: var(--accent); }
   // Appli Mac (coquille Tauri) : les liens s'ouvrent dans le navigateur du Mac, « Détacher » ouvre une vraie fenêtre.
   var MAC = window.__TAURI__ || null;
   // Adresse …/accueil/?fenetre=compta : cette fenêtre ne montre que cette appli (une fenêtre de l'appli Mac, ou l'appli installée seule).
-  var FENETRE = (/[?&]fenetre=(compta|tickets)(&|$)/.exec(location.search) || [])[1] || "";
+  var FENETRE = (/[?&]fenetre=(compta|tickets|frais)(&|$)/.exec(location.search) || [])[1] || "";
   if (FENETRE) document.documentElement.classList.add("fenetre");
-  // Appli Mac : Compta et Tickets s'ouvrent chacune dans sa fenêtre ; une fenêtre déjà ouverte revient devant.
-  var FENETRES_MAC = { compta: 1, tickets: 1 };
+  // Frais a sa propre page (même site, donc même mémoire) : elle s'ouvre avec le lien personnel reçu de la compagnie, gardé sous ce nom.
+  // Dans une fenêtre Frais, un lien déjà connu ouvre Frais tout de suite ; sinon l'écran demande de le coller une fois.
+  var CLE_FRAIS = "origami_frais_cle", FORME_CLE_FRAIS = /^[A-Za-z0-9]{16,64}$/;
+  function cleFrais() { var v = ""; try { v = localStorage.getItem(CLE_FRAIS) || ""; } catch (e) {} return FORME_CLE_FRAIS.test(v) ? v : ""; }
+  function lireLienFrais(saisi) {
+    var t = String(saisi || "").trim(), m = /[?&]cle=([A-Za-z0-9]{16,64})(?![A-Za-z0-9])/.exec(t);
+    return m ? m[1] : FORME_CLE_FRAIS.test(t) ? t : "";
+  }
+  var versFrais = FENETRE === "frais" && !!cleFrais();
+  // Appli Mac : Compta, Tickets et Frais s'ouvrent chacune dans sa fenêtre ; une fenêtre déjà ouverte revient devant.
+  var FENETRES_MAC = { compta: 1, tickets: 1, frais: 1 };
   function ouvrirFenetre(id) {
     var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
     if (!W || FENETRE || !FENETRES_MAC[id]) return false;
@@ -1112,6 +1121,7 @@ a.lien { color: var(--accent); }
     if (id === "tickets0") return carteTickets(c);
     if (id === "diffusion0") return carteDiffusion(c);
     if (a.genre === "cadre" && c.id === "compagnie") action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[id] ? "Revenir" : "Ouvrir") + "</button>";
+    else if (a.genre === "lien" && c.id === "compagnie" && MAC && FENETRES_MAC[id] && !FENETRE) action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">Ouvrir</button>';
     else if (a.genre === "lien" && c.id === "compagnie") action = '<a class="bouton" href="' + a.lien + '" target="_blank" rel="noopener">Ouvrir à part</a>';
     else action = '<button class="bouton" data-vue="' + id + '" data-de="' + c.id + '">En savoir plus</button>';
     // Sur un Mac : chaque appli se télécharge aussi seule, pour s'installer et s'ouvrir sans passer par Origami.
@@ -1177,7 +1187,11 @@ a.lien { color: var(--accent); }
     } else if (vue === "boite") {
       h += "<h1>Boîte mail</h1><p>Pour l'instant, la Boîte mail s'ouvre dans son appli sur le Mac. Elle rejoindra cette fenêtre avec le moteur Origami, sans rien changer à l'appli actuelle.</p>";
     } else if (vue === "frais") {
-      h += '<h1>Frais</h1><p>Frais s\'ouvre à part, avec ton lien personnel.</p><div><a class="bouton fort" href="' + APPLIS.frais.lien + '" target="_blank" rel="noopener">Ouvrir Frais</a></div>';
+      if (FENETRE === "frais") {
+        h += "<h1>Frais</h1><p>Frais s'ouvre avec ton lien personnel. Colle-le ici une fois : cette appli le garde ensuite.</p><p>Tu le trouves dans la Compta : Outils, puis Défraiements du personnel.</p>";
+        h += '<label class="champ">Lien personnel<textarea id="lienFrais" autocomplete="off" spellcheck="false"></textarea></label>';
+        h += '<p id="messageFrais" class="souci" role="status"></p><div><button class="bouton fort" data-frais="1">Ouvrir Frais</button></div>';
+      } else h += '<h1>Frais</h1><p>Frais s\'ouvre à part, avec ton lien personnel.</p><div><a class="bouton fort" href="' + APPLIS.frais.lien + '" target="_blank" rel="noopener">Ouvrir Frais</a></div>';
     } else {
       h += "<h1>" + APPLIS[vue].nom + "</h1><p>Cette appli n'est pas encore installée dans ce compte. L'installation « à zéro » par compte arrive dans une prochaine étape.</p>";
     }
@@ -1211,6 +1225,14 @@ a.lien { color: var(--accent); }
     if (d.vue) {
       if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
       if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return;
+    }
+    if (d.frais) {
+      // Le lien personnel est gardé dans la mémoire de cet appareil (là où la page Frais le cherche), il ne voyage pas dans l'adresse.
+      var cf = lireLienFrais(document.getElementById("lienFrais").value);
+      if (!cf) { document.getElementById("messageFrais").textContent = "Ce n'est pas un lien personnel Frais. Copie-le en entier depuis la Compta."; return; }
+      try { localStorage.setItem(CLE_FRAIS, cf); } catch (e) {}
+      if (!cleFrais()) { document.getElementById("messageFrais").textContent = "Cet appareil n'a pas pu garder le lien."; return; }
+      location.replace(APPLIS.frais.lien); return;
     }
     if (d.cocher) { if (etat.masques[d.cocher]) delete etat.masques[d.cocher]; else etat.masques[d.cocher] = 1; montrer(); return; }
     if (d.couleur) { [].forEach.call(b.parentNode.children, function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); }); return; }
@@ -1246,7 +1268,8 @@ a.lien { color: var(--accent); }
   if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE; }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
-  if (Object.keys(moteurs).length) Promise.all(Object.keys(moteurs).map(lireMemoire)).then(function () { montrer(); }, function () { montrer(); });
+  if (versFrais) location.replace(APPLIS.frais.lien);   // fenêtre Frais avec un lien déjà connu : la page Frais prend la place
+  else if (Object.keys(moteurs).length) Promise.all(Object.keys(moteurs).map(lireMemoire)).then(function () { montrer(); }, function () { montrer(); });
   else montrer();
   // Une page restée ouverte apprend qu'une version plus récente est en ligne. Elle ne se recharge pas toute seule : un travail
   // peut être en cours dans une des applis. Au plus une demande toutes les dix minutes, quand on revient sur la page.
