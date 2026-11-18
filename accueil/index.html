@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.17">
+<meta name="origami-version" content="2026-11-18.18">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -327,8 +327,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.17"></script>
-<script src="repertoire.js?v=2026-11-18.17"></script>
+<script src="agenda.js?v=2026-11-18.18"></script>
+<script src="repertoire.js?v=2026-11-18.18"></script>
 <script>
 (function () {
   "use strict";
@@ -1953,6 +1953,9 @@ button.tuile:hover { border-color: var(--ligne); }
   });
   // Adresse avec une ancre (…/accueil/#tickets) : ouvre directement cette appli du compte de la compagnie.
   var ancre = (location.hash || "").slice(1);
+  // Au démarrage et au rechargement, on revient à un écran du volet. Diffusion entière (ouverte depuis les Réglages) et son
+  // agenda d'origine n'y sont pas : sans cela on retombait sur l'écran « Aujourd'hui » de Diffusion, sans rien de surligné.
+  if (!FENETRE && (etat.vue === "agendaDiff" || (etat.vue === "diffusion" && modulesDe(COMPTE_COMPAGNIE).length))) etat.vue = "accueil";
   if (ancre === "reglages") etat.vue = "reglages";
   if (APPLIS[ancre] && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
   if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE; }
