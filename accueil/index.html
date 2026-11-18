@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.5">
+<meta name="origami-version" content="2026-11-18.6">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -301,7 +301,7 @@ a.lien { color: var(--accent); }
   // Modules : Origami dit à Diffusion quelle rubrique montrer sans sa barre ('' : Diffusion entière, avec sa barre).
   // Une Diffusion qui ne connaît pas encore ce message l'ignore et s'affiche entière.
   var fenDiffusion = null, moduleVoulu = "";
-  function direModule() { if (!fenDiffusion) return; try { fenDiffusion.w.postMessage({ origami: "module", vue: moduleVoulu }, fenDiffusion.o); } catch (e) {} }
+  function direModule() { if (!fenDiffusion) return; try { fenDiffusion.w.postMessage({ origami: "module", vue: moduleVoulu, boite: BOITE_LIEN && boitePossible() }, fenDiffusion.o); } catch (e) {} }
   // Appli Mac (coquille Tauri) : les liens s'ouvrent dans le navigateur du Mac, « Détacher » ouvre une vraie fenêtre.
   var MAC = window.__TAURI__ || null;
   // Adresse …/accueil/?fenetre=compta : cette fenêtre ne montre que cette appli (une fenêtre de l'appli Mac, ou l'appli installée seule).
@@ -330,6 +330,46 @@ a.lien { color: var(--accent); }
     } catch (e) { creer(); }
     return true;
   }
+  // ---- Lien avec l'appli Boîte mail du Mac ----
+  // Une appli ouverte ici (un module de Diffusion, la Compta) peut demander d'ouvrir un mail dans l'appli Boîte mail :
+  // la page fabrique une adresse boitemail:// et la confie au Mac. Seulement dans l'appli Origami du Mac ; jamais de texte
+  // de mail dans l'adresse. Tant que l'appli Boîte mail ne sait pas recevoir ces adresses, les deux réglages restent
+  // fermés : personne n'est prévenu et rien ne change nulle part. « ?boite-lien=1 » les ouvre pour l'essai de la page.
+  var ESSAI_BOITE = /[?&]boite-lien=1(&|$)/.test(location.search);
+  var BOITE_LIEN = ESSAI_BOITE;        // écrire, relancer, ouvrir une conversation (appli Boîte mail v18)
+  var BOITE_BROUILLON = ESSAI_BOITE;   // ouvrir un brouillon préparé par une autre appli, pièce jointe comprise (moteur Boîte mail @28)
+  var ID_GMAIL = /^[A-Za-z0-9_-]{4,80}$/;
+  function boitePossible() { return !!(MAC && MAC.opener && typeof MAC.opener.openUrl === "function"); }
+  function adresseBoite(d) {
+    var u = "", n = 0;
+    function champ(k, v, max, brut) {
+      v = String(v == null ? "" : v).replace(/\s+/g, " ").trim().slice(0, max);
+      if (!v) return;
+      var morceau = (n ? "&" : "") + k + "=" + (brut ? v : encodeURIComponent(v));
+      if (u.length + morceau.length > 1900) return;   // adresse trop longue : ce champ est laissé de côté
+      u += morceau; n++;
+    }
+    var boite = String(d.boite || "");
+    function debut(geste) { u = "boitemail://" + geste + "?"; if (boite === "diffusion" || /^[^\s@"<>]{1,64}@[^\s@"<>]{1,120}$/.test(boite)) champ("boite", boite, 190); }
+    if (d.geste === "conversation") { if (!ID_GMAIL.test(d.id || "")) return ""; debut("conversation"); champ("id", d.id, 80); return u; }
+    if (d.geste === "brouillon") { if (!ID_GMAIL.test(d.id || "") || !ID_GMAIL.test(d.conversation || "")) return ""; debut("brouillon"); champ("id", d.id, 80); champ("conversation", d.conversation, 80); return u; }
+    if (d.geste !== "ecrire") return "";
+    debut("ecrire");
+    champ("mode", d.mode === "relancer" ? "relancer" : "nouveau", 10); champ("a", d.a, 400);
+    if (ID_GMAIL.test(d.conversation || "")) champ("conversation", d.conversation, 80);
+    champ("spectacle", d.spectacle, 80); champ("lieu", d.lieu, 120);
+    if (/^\d{1,6}$/.test(String(d.appel == null ? "" : d.appel))) champ("appel", d.appel, 6);
+    champ("objet", d.objet, 200); champ("modele", d.modele, 80); champ("cc", d.cc, 300);
+    if (Array.isArray(d.pieces)) champ("pieces", d.pieces.slice(0, 12).map(function (x) { return encodeURIComponent(String(x == null ? "" : x).replace(/\s+/g, " ").trim().slice(0, 80)); }).filter(Boolean).join("|"), 1200, true);
+    return u;
+  }
+  // L'appli qui demande apprend si le Mac a pris l'adresse ; sinon elle garde sa façon de faire habituelle.
+  function ouvrirBoite(d, source, origine) {
+    var num = typeof d.n === "number" ? d.n : 0, u = boitePossible() ? adresseBoite(d) : "";
+    function dire(quoi) { try { source.postMessage({ origami: quoi, n: num }, origine); } catch (e) {} }
+    if (!u) { dire("boite-refus"); return; }
+    try { Promise.resolve(MAC.opener.openUrl(u)).then(function () { dire("boite-ouverte"); }, function () { dire("boite-refus"); }); } catch (e) { dire("boite-refus"); }
+  }
   function fenetreCompta(url) {
     try {
       var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
@@ -351,6 +391,12 @@ a.lien { color: var(--accent); }
     if (id === "diffusion") {
       fenDiffusion = { w: ev.source, o: ev.origin };
       if (d.diffusion === "pret") { direModule(); return; }
+      // Un geste de mail d'un module : il s'ouvre dans l'appli Boîte mail, dans la boîte du compte qui porte Diffusion.
+      if (d.diffusion === "mail") {
+        if (BOITE_LIEN && (d.geste === "ecrire" || d.geste === "conversation")) ouvrirBoite({ n: d.n, geste: d.geste, boite: "diffusion", id: d.id, mode: d.mode, a: d.a, cc: d.cc, objet: d.objet, spectacle: d.spectacle, lieu: d.lieu, conversation: d.conversation, modele: d.modele, pieces: d.pieces, appel: d.appel }, ev.source, ev.origin);
+        else { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} }
+        return;
+      }
       if (d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
       if (d.diffusion === "cache-ecrire") { ecrireCache(typeof d.texte === "string" ? d.texte : ""); return; }
       if (d.diffusion === "apparence" && d.apparence) { garder("diffusion_apparence", JSON.stringify({ apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} })); attente.hidden = true; return; }
@@ -359,6 +405,13 @@ a.lien { color: var(--accent); }
     }
     if (id === "compta") {
       if (d.origami === "jeton") { garder("origami_jeton", FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); return; }
+      // La Compta demande si un brouillon (PDF joint) peut s'ouvrir dans l'appli Boîte mail, puis le demande.
+      if (d.origami === "boite-demande") { try { ev.source.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible() }, ev.origin); } catch (e) {} return; }
+      if (d.origami === "boite-ouvrir") {
+        if (BOITE_BROUILLON && d.geste === "brouillon") ouvrirBoite({ n: d.n, geste: "brouillon", boite: d.boite, id: d.id, conversation: d.conversation }, ev.source, ev.origin);
+        else { try { ev.source.postMessage({ origami: "boite-refus", n: 0 }, ev.origin); } catch (e) {} }
+        return;
+      }
       if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { fenetreCompta(new URL("../index.html?ouvrir=" + d.ouvrir, location.href).href); return; }
       if (d.origami === "apercu" && typeof d.html === "string" && d.html.length < 8e6) {
         if (MAC) return;   // appli Mac : pas encore de fenêtre d'aperçu à part
