@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.13">
+<meta name="origami-version" content="2026-11-18.14">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -17,6 +17,10 @@
   r.classList.add("sombre"); r.style.setProperty("--fond", m[1] === "compta" ? "#070707" : "#161616");
   if (t) t.content = m[1] === "compta" ? "#070707" : "#0d0d0d";
 })();
+</script>
+<script>
+// Taille de l'affichage choisie dans les Réglages : posée avant le premier dessin.
+try { var t = parseInt(localStorage.getItem("origami_taille"), 10); if (t >= 70 && t <= 160) document.documentElement.style.setProperty("--taille", String(t / 100)); } catch (e) {}
 </script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -161,6 +165,78 @@ a.lien { color: var(--accent); }
 #avis div.souci { background: #b42318; color: #ffffff; }
 #nouvelle { position: fixed; right: 18px; bottom: 18px; z-index: 13; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; max-width: calc(100% - 28px); padding: 7px 8px 7px 14px; border: 1px solid var(--ligne); border-radius: 12px; background: var(--carte); box-shadow: 0 6px 24px rgba(21, 19, 26, 0.16); font-size: 13px; }
 
+/* Taille de l'affichage (Réglages) : les écrans d'Origami seulement, pas les applis ouvertes dans un cadre. */
+#menu, #barre, #scene > section, #voile, #avis, #nouvelle { zoom: var(--taille, 1); }
+
+/* Tableau de bord */
+.bord { display: flex; flex-direction: column; gap: 12px; max-width: 1080px; margin: 0 auto; }
+.bord > .entete, .bord > .choix { max-width: none; width: 100%; margin: 0; }
+.bord .entete { align-items: center; }
+.jour { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 16px; background: var(--carte); box-shadow: 0 1px 2px rgba(17, 16, 20, 0.06); }
+.jour .phrase { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
+.jour .phrase strong { font-weight: 650; }
+.humeur { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; min-height: 22px; padding: 0 10px; border-radius: 999px; background: var(--fond); color: var(--doux); font-size: 12px; font-weight: 600; }
+.humeur::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #15803d; }
+.humeur.moyen::before { background: #e0a800; }
+.humeur.fort::before { background: #b42318; }
+.tuiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 8px; }
+@media (max-width: 420px) { .tuiles { grid-template-columns: repeat(auto-fit, minmax(104px, 1fr)); } .tuile { padding: 8px 10px; } .tuile strong { font-size: 18px; } }
+@media (max-width: 350px) { .tuile strong { font-size: 16px; } }
+.tuile { display: flex; flex-direction: column; gap: 1px; min-width: 0; padding: 9px 12px; border: 1px solid transparent; border-radius: 12px; background: var(--carte2); text-align: left; }
+button.tuile:hover { border-color: var(--ligne); }
+.tuile strong { font-size: 21px; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tuile span { color: var(--doux); font-size: 12px; }
+.tuile.alerte strong { color: #b42318; }
+.tuile.bien strong { color: #166534; }
+.blocs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 12px; align-items: start; }
+.bloc { display: flex; flex-direction: column; min-width: 0; padding: 14px 16px 12px; border-radius: 14px; background: var(--carte); box-shadow: 0 1px 2px rgba(17, 16, 20, 0.06); }
+.bloc .tete { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.bloc .tete svg { flex: none; width: 17px; height: 17px; fill: none; stroke: var(--doux); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.bloc h2 { flex: 1; min-width: 0; font-size: 15px; }
+.bloc .tete .lien { text-decoration: none; }
+.bloc .tete .lien:hover { text-decoration: underline; }
+.bloc > p { color: var(--doux); font-size: 13px; }
+.bloc .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fil { display: flex; align-items: baseline; gap: 10px; width: 100%; padding: 7px 0; border: 0; border-top: 1px solid var(--ligne); background: none; text-align: left; font-size: 13px; }
+.fil .quoi { flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.fil .quoi small { display: block; color: var(--doux); font-size: 12.5px; font-weight: 400; }
+.fil em { flex: none; color: var(--doux); font-size: 12px; font-style: normal; white-space: nowrap; }
+.fil em.retard { color: #b42318; font-weight: 600; }
+.fil em.bientot { color: #9a6700; font-weight: 600; }
+.reste { padding-top: 6px; border-top: 1px solid var(--ligne); color: var(--doux); font-size: 12.5px; }
+.jauges { display: flex; flex-direction: column; gap: 6px; }
+.jauges > div { display: grid; grid-template-columns: minmax(0, 38%) 1fr 26px; align-items: center; gap: 8px; font-size: 12.5px; }
+.jauges span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jauges em { font-style: normal; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.jauge { height: 8px; border-radius: 999px; background: var(--fond); overflow: hidden; }
+.jauge i { display: block; height: 100%; min-width: 3px; border-radius: 999px; background: var(--accent); }
+.sommes { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-bottom: 4px; }
+.sommes strong { display: block; font-size: 17px; line-height: 1.2; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sommes span { color: var(--doux); font-size: 12px; }
+.fraicheur { color: var(--doux); font-size: 12.5px; }
+
+/* Réglages */
+.reglages { display: flex; flex-direction: column; gap: 10px; max-width: 1080px; margin: 0 auto; }
+.reglages > * { max-width: none; width: 100%; margin-left: 0; margin-right: 0; }
+.reglages > .entete { margin-bottom: 4px; }
+.reglages > .sous-titre { margin: 12px 0 0; }
+.reglages > .du-compte { margin: 6px 0 0; }
+.reglages > .releve, .reglages > .choix { margin-top: 0; margin-bottom: 0; }
+.reglage { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--carte); box-shadow: 0 1px 2px rgba(17, 16, 20, 0.06); }
+.reglage h3 { font-size: 15px; }
+.reglage > p { color: var(--doux); font-size: 13px; }
+.reglage .rangs { display: flex; flex-direction: column; }
+.rang-r { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 0; border-top: 1px solid var(--ligne); font-size: 13px; }
+.rang-r:first-child { border-top: 0; }
+.rang-r .nom { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.rang-r .nom small { display: block; color: var(--doux); font-size: 12.5px; }
+.petit { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); font-size: 13px; }
+.petit[disabled] { opacity: 0.35; cursor: default; }
+.tailles { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tailles output { min-width: 48px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+#scene iframe.fond { display: block !important; visibility: hidden; pointer-events: none; }
+#menu .pied { margin-top: auto; }
+
 /* Téléphone : le menu devient une barre en bas */
 #barre, .choix.tel { display: none; }
 @media (max-width: 760px) {
@@ -187,6 +263,7 @@ a.lien { color: var(--accent); }
   <main id="scene">
     <div id="attente" role="status" hidden>Ouverture…</div>
     <section id="accueil"></section>
+    <section id="reglages" hidden></section>
     <section id="page" hidden></section>
     <section id="agenda" hidden></section>
   </main>
@@ -194,7 +271,7 @@ a.lien { color: var(--accent); }
 </div>
 <div id="voile" hidden></div>
 <div id="avis" role="status"></div>
-<script src="agenda.js?v=2026-11-18.12"></script>
+<script src="agenda.js?v=2026-11-18.14"></script>
 <script>
 (function () {
   "use strict";
@@ -213,7 +290,8 @@ a.lien { color: var(--accent); }
     compta: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
     frais: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6"/>',
     tickets: '<path d="M3 9V6.5A1.5 1.5 0 014.5 5h15A1.5 1.5 0 0121 6.5V9a3 3 0 000 6v2.5a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5V15a3 3 0 000-6z"/><path d="M14 8v8" stroke-dasharray="1.5 3"/>',
-    plus: '<path d="M12 5v14M5 12h14"/>'
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    reglages: '<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/>'
   };
   ICONES.tickets0 = ICONES.tickets; ICONES.diffusion0 = ICONES.diffusion;
   ICONES.spectacle = '<path d="M12 3l2.6 5.6 6 .7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9.3l6-.7z"/>';
@@ -240,7 +318,7 @@ a.lien { color: var(--accent); }
   };
   // Fichiers d'installation pour Mac, une appli par fichier (fabriqués par GitHub ; la Boîte mail a les siens).
   var VERSIONS_MAC = "https://github.com/sevanegu-pixel/origami/releases/download/";
-  var DMG = { boite: VERSIONS_MAC + "appli-boite-18/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
+  var DMG = { boite: VERSIONS_MAC + "appli-boite-20/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
   // Toutes les applis dans un seul fichier : on l'ouvre et on glisse tout dans Applications en un geste.
   var DMG_TOUT = VERSIONS_MAC + "applis-mac/Tout-Origami-Mac.dmg";
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -272,7 +350,7 @@ a.lien { color: var(--accent); }
   function retenir() { if (FENETRE) return; garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques })); }
 
   var menu = document.getElementById("menu"), barre = document.getElementById("barre"), scene = document.getElementById("scene");
-  var accueil = document.getElementById("accueil"), page = document.getElementById("page"), attente = document.getElementById("attente");
+  var accueil = document.getElementById("accueil"), page = document.getElementById("page"), attente = document.getElementById("attente"), zoneReglages = document.getElementById("reglages");
   var cadres = {};   // applis déjà ouvertes : elles restent en mémoire, on y revient sans recharger
 
   // ---- Applis ouvertes dans la fenêtre ----
@@ -292,14 +370,14 @@ a.lien { color: var(--accent); }
     }
     return ADRESSES[id];
   }
-  function ouvrirCadre(id) {
+  function ouvrirCadre(id, discret) {
     if (cadres[id]) return cadres[id];
     var a = APPLIS[id], f = document.createElement("iframe");
     f.title = a.titre; f.setAttribute("allow", a.droits);
     if (a.sansCompte) f.setAttribute("credentialless", "");
     if (a.fond) f.style.background = a.fond;
     f.hidden = true;
-    attente.hidden = false;
+    if (!discret) attente.hidden = false;
     f.addEventListener("load", function () { setTimeout(function () { attente.hidden = true; }, 1200); });
     f.src = adresse(id);
     scene.appendChild(f);
@@ -368,8 +446,15 @@ a.lien { color: var(--accent); }
   var BOITE_LIEN = true;               // écrire, relancer, ouvrir une conversation (appli Boîte mail v18, en ligne le 18.11)
   var BOITE_BROUILLON = true;          // ouvrir un brouillon préparé par une autre appli, pièce jointe comprise (moteur Boîte mail @28, en ligne le 18.11)
   // Compta : la fenêtre d'écriture s'ouvre tout de suite (destinataire, objet, texte), le PDF la rejoint ensuite par « joindre ».
-  // Fermé tant que le moteur Boîte mail @29 et l'appli Mac v20 ne sont pas en ligne : la Compta garde alors son chemin par brouillon.
-  var BOITE_DIRECT = false;
+  // Ouvert le 18.11 (moteur Boîte mail @29, appli Mac v20). L'appli Boîte mail d'avant la version 20 ne sait pas attendre le PDF :
+  // le chemin direct ne sert donc que sur un appareil où la personne a dit, dans les Réglages, que la version 20 y est installée.
+  // Sinon la Compta garde son chemin par brouillon.
+  var BOITE_DIRECT = true;
+  var fenCompta = null;
+  function boiteDirecte() { return BOITE_BROUILLON && BOITE_DIRECT && lire("origami_boite20") === "1" && boitePossible(); }
+  function direBoiteCompta() { if (!fenCompta) return; try { fenCompta.w.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible(), directe: boiteDirecte() }, fenCompta.o); } catch (e) {} }
+  // Sur le Mac la Compta vit dans sa propre fenêtre : elle apprend le réglage changé dans la fenêtre d'Origami.
+  window.addEventListener("storage", function (ev) { if (ev.key === "origami_boite20") direBoiteCompta(); });
   var ID_GMAIL = /^[A-Za-z0-9_-]{6,40}$/;   // ce que la Boîte mail accepte comme identifiant
   var ID_DRIVE = /^[A-Za-z0-9_-]{10,100}$/; // un fichier du Drive du compte
   function boitePossible() { return !!(MAC && MAC.opener && typeof MAC.opener.openUrl === "function"); }
@@ -401,7 +486,7 @@ a.lien { color: var(--accent); }
     if (ID_GMAIL.test(d.conversation || "")) champ("conversation", d.conversation, 40);
     champ("spectacle", d.spectacle, 80); champ("lieu", d.lieu, 120);
     if (/^\d{1,6}$/.test(String(d.appel == null ? "" : d.appel))) champ("appel", d.appel, 6);
-    champ("objet", d.objet, 200); champ("modele", d.modele, 80); champ("cc", d.cc, 300);
+    champ("objet", d.objet, 200); champ("modele", d.modele, 80); champ("cc", d.cc, 300); champ("cci", d.cci, 300);
     if (Array.isArray(d.pieces)) {   // noms entiers seulement, 600 caractères en tout (limite d'un champ dans la Boîte mail)
       var noms = "";
       d.pieces.slice(0, 20).forEach(function (x) {
@@ -474,22 +559,31 @@ a.lien { color: var(--accent); }
         return;
       }
       if (d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
-      if (d.diffusion === "cache-ecrire") { ecrireCache(typeof d.texte === "string" ? d.texte : ""); return; }
+      if (d.diffusion === "cache-ecrire") {
+        ecrireCache(typeof d.texte === "string" ? d.texte : "");
+        diffBord = lireTexteDiff(typeof d.texte === "string" ? d.texte : ""); diffLu = true; redessinerBord();   // le tableau de bord suit
+        return;
+      }
       if (d.diffusion === "apparence" && d.apparence) { garder("diffusion_apparence", JSON.stringify({ apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} })); attente.hidden = true; return; }
       if (d.origami === "jeton" || d.diffusion === "jeton") garder("diffusion_jeton", FORME_DIFFUSION.test(d.jeton || "") ? d.jeton : "");
       return;
     }
     if (id === "compta") {
-      if (d.origami === "jeton") { garder("origami_jeton", FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); if (!lire("origami_jeton")) ecrireCopieCompta(""); return; }
+      if (d.origami === "jeton") { garder("origami_jeton", FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); if (!lire("origami_jeton")) { ecrireCopieCompta(""); garderResume(null); } redessinerBord(); return; }
+      // Tableau de bord : quelques totaux dits par la Compta (rien si elle redemande son code).
+      if (d.origami === "resume") { garderResume(d.resume); redessinerBord(); return; }
+      // Comptes : la Compta affiche le nom du compte et propose d'en changer. Une seule Compta existe pour l'instant (celle de la compagnie).
+      if (d.origami === "comptes-demande") { try { ev.source.postMessage({ origami: "comptes", actuel: "compagnie", liste: comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), compta: c.id === "compagnie" }; }) }, ev.origin); } catch (e) {} return; }
+      if (d.origami === "compte-choisir") { var cc = compte(String(d.id || "")); if (cc && cc.id !== "compagnie") avis("La Compta n'est pas encore installée dans le compte « " + cc.nom + " »."); return; }
       if (d.origami === "cache-lire") { lireCopieCompta(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
       if (d.origami === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCopieCompta(d.texte); return; }
       // La Compta demande si un brouillon (PDF joint) peut s'ouvrir dans l'appli Boîte mail, puis le demande.
-      if (d.origami === "boite-demande") { try { ev.source.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible(), directe: BOITE_BROUILLON && BOITE_DIRECT && boitePossible() }, ev.origin); } catch (e) {} return; }
+      if (d.origami === "boite-demande") { fenCompta = { w: ev.source, o: ev.origin }; direBoiteCompta(); return; }
       if (d.origami === "boite-ouvrir") {
         if (BOITE_BROUILLON && d.geste === "brouillon") ouvrirBoite({ n: d.n, geste: "brouillon", boite: d.boite, id: d.id, conversation: d.conversation }, ev.source, ev.origin);
         // Chemin direct : la fenêtre d'écriture seule, dans la boîte de la compagnie, puis les fichiers qui la rejoignent.
-        else if (BOITE_BROUILLON && BOITE_DIRECT && d.geste === "ecrire") ouvrirBoite({ n: d.n, geste: "ecrire", boite: "diffusion", mode: "nouveau", a: d.a, cc: d.cc, objet: d.objet, texte: d.texte, attente: String(d.attente || ""), fenetre: "seule" }, ev.source, ev.origin);
-        else if (BOITE_BROUILLON && BOITE_DIRECT && d.geste === "joindre") ouvrirBoite({ n: d.n, geste: "joindre", attente: String(d.attente || ""), fichier: d.fichier, nom: d.nom, encore: d.encore === true, echec: d.echec === true, raison: d.raison }, ev.source, ev.origin);
+        else if (boiteDirecte() && d.geste === "ecrire") ouvrirBoite({ n: d.n, geste: "ecrire", boite: "diffusion", mode: "nouveau", a: d.a, cc: d.cc, cci: d.cci, objet: d.objet, texte: d.texte, attente: String(d.attente || ""), fenetre: "seule" }, ev.source, ev.origin);
+        else if (boiteDirecte() && d.geste === "joindre") ouvrirBoite({ n: d.n, geste: "joindre", attente: String(d.attente || ""), fichier: d.fichier, nom: d.nom, encore: d.encore === true, echec: d.echec === true, raison: d.raison }, ev.source, ev.origin);
         else { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} }
         return;
       }
@@ -597,7 +691,7 @@ a.lien { color: var(--accent); }
       }, function (e) { m.panne = String((e && e.message) || e); });
     }).then(function () {
       delete releves[id]; dessinerMenu(); rafraichir(id);
-      if (etat.vue === "accueil" && grosse(id, "diffusion")) releverDiffusionSiVieux(id, 600000);   // Diffusion vient d'apparaître : ses chiffres
+      if ((etat.vue === "accueil" || etat.vue === "reglages") && grosse(id, "diffusion")) releverDiffusionSiVieux(id, 600000);   // Diffusion vient d'apparaître : ses chiffres
     });
     return releves[id];
   }
@@ -608,6 +702,7 @@ a.lien { color: var(--accent); }
   // Redessine l'écran affiché quand la mémoire d'un compte a changé.
   function rafraichir(id) {
     if (etat.vue === "accueil") dessinerAccueil();
+    else if (etat.vue === "reglages") dessinerReglages();
     else if (etat.vue === "tickets0" && etat.compte === id) dessinerTickets();
     else if (etat.vue === "diffusion0" && etat.compte === id) dessinerDiffusion();
     else if (etat.vue === "agenda" && window.OrigamiAgenda) window.OrigamiAgenda.rafraichir();
@@ -1247,10 +1342,12 @@ a.lien { color: var(--accent); }
     volet.modules.forEach(function (id) { h += ligne(id); });
     h += "</div>";
     if (volet.applis.length) { h += '<div class="groupe"><h2>Applis</h2>'; volet.applis.forEach(function (id) { h += ligne(id); }); h += "</div>"; }
+    h += '<div class="groupe pied"><button class="ligne" data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + '<span class="nom">Réglages</span></button></div>';
     menu.innerHTML = h;
     var b = '<button data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + "Accueil</button>";
     var cb = c0 || COMPTE_COMPAGNIE;
     var vb = voletDe(cb); vb.modules.concat(vb.applis).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + nomAppli(cb, id) + "</button>"; });
+    b += '<button data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + "Réglages</button>";
     barre.innerHTML = b;
     var ouverte = barre.querySelector('[aria-current="true"]');
     if (ouverte) barre.scrollLeft = ouverte.offsetLeft - (barre.clientWidth - ouverte.offsetWidth) / 2;
@@ -1268,9 +1365,264 @@ a.lien { color: var(--accent); }
     if (SUR_MAC && !FENETRE && DMG[id] && c.id === "compagnie") action += '<a class="bouton" href="' + DMG[id] + '" target="_blank" rel="noopener" title="Installer cette appli seule sur ce Mac">Télécharger pour Mac</a>';
     return '<article class="carte"><div class="titre">' + icone(id) + "<h2>" + a.nom + "</h2></div><p>" + a.texte + '</p><div class="actions">' + action + "</div></article>";
   }
+  // ---- Taille de l'affichage (Réglages) : les écrans d'Origami seulement ; chaque appli ouverte garde son propre réglage ----
+  var TAILLES = [[85, "Petit"], [100, "Normal"], [115, "Grand"], [130, "Très grand"]];
+  function tailleGardee() { var n = parseInt(lire("origami_taille"), 10); return n >= 70 && n <= 160 ? n : 100; }
+  function reglerTaille(n) {
+    n = Math.max(70, Math.min(160, Math.round(n / 5) * 5));
+    garder("origami_taille", n === 100 ? "" : String(n));
+    document.documentElement.style.setProperty("--taille", String(n / 100));
+  }
+
+  // ---- Tableau de bord : ce que les applis ont laissé sur cet appareil, rassemblé ----
+  // Diffusion confie déjà sa copie de données à cette page (message « cache-ecrire ») ; la Compta dit quelques totaux (« resume »).
+  // Aucun serveur n'est interrogé pour dessiner cet écran. Les chiffres d'une appli ne s'affichent que si l'appareil a encore sa clé.
+  var BLOCS = [["jour", "Le point du jour"], ["relances", "Relances"], ["mails", "Mails"], ["dates", "Prochaines dates"], ["appels", "Appels à projets"], ["compta", "Compta"], ["suivi", "Suivi des spectacles"], ["campagnes", "Campagnes"], ["tickets", "Tickets"], ["moteur", "Autres chiffres du compte"]];
+  var bord = { caches: {}, ordre: [] };
+  try { var gb = JSON.parse(lire("origami_bord") || "null"); if (gb && typeof gb === "object") { if (gb.caches && typeof gb.caches === "object") bord.caches = gb.caches; if (Array.isArray(gb.ordre)) bord.ordre = gb.ordre; } } catch (e) {}
+  function ordreBlocs() {
+    var connus = BLOCS.map(function (b) { return b[0]; }), l = bord.ordre.filter(function (id, i, t) { return connus.indexOf(id) >= 0 && t.indexOf(id) === i; });
+    connus.forEach(function (id) { if (l.indexOf(id) < 0) l.push(id); });
+    return l;
+  }
+  function nomBloc(id) { return (BLOCS.filter(function (b) { return b[0] === id; })[0] || [])[1] || ""; }
+  function retenirBord() { var c = {}; for (var k in bord.caches) if (bord.caches[k] && nomBloc(k)) c[k] = 1; bord.caches = c; garder("origami_bord", JSON.stringify({ caches: c, ordre: ordreBlocs() })); }
+  var diffBord = null, diffLu = false, diffDemandee = 0;
+  function lireTexteDiff(t) { var o = null; try { o = JSON.parse(t || "null"); } catch (e) {} return o && typeof o === "object" && !o.test && o.donnees && typeof o.donnees === "object" ? { le: Number(o.le) || 0, d: o.donnees } : null; }
+  function donneesDiff() { return diffBord && FORME_DIFFUSION.test(lire("diffusion_jeton")) ? diffBord : null; }
+  // Les totaux de la Compta : gardés tels que la Compta les a dits, sur cet appareil, et oubliés dès qu'elle redemande son code.
+  function garderResume(r) {
+    function n(v) { v = Number(v); return isFinite(v) ? Math.round(v * 100) / 100 : 0; }
+    if (!r || typeof r !== "object") { garder("origami_resume_compta", ""); return; }
+    garder("origami_resume_compta", JSON.stringify({ le: Date.now(), r: { solde: n(r.solde), aPayer: n(r.aPayer), aRecevoir: n(r.aRecevoir), controle: String(r.controle || "").slice(0, 60), etat: /^(ok|ko|neutre)$/.test(r.etat) ? r.etat : "",
+      enRetard: Math.max(0, Math.round(n(r.enRetard))), comptes: (Array.isArray(r.comptes) ? r.comptes : []).slice(0, 8).map(function (x) { return { nom: String((x && x.nom) || "").slice(0, 40), solde: n(x && x.solde) }; }) } }));
+  }
+  function resumeCompta() { var o = null; try { o = JSON.parse(lire("origami_resume_compta") || "null"); } catch (e) {} return o && o.r && typeof o.r === "object" && FORME_COMPTA.test(lire("origami_jeton")) ? o : null; }
+  function redessinerBord() { if (etat.vue === "accueil" && !FENETRE) dessinerAccueil(); }
+  window.addEventListener("storage", function (ev) { if (ev.key === "origami_resume_compta" || ev.key === "origami_jeton" || ev.key === "diffusion_jeton") redessinerBord(); });
+  // Diffusion s'ouvre une fois en arrière-plan si sa copie a plus d'un quart d'heure : elle la renouvelle toute seule, et les modules s'ouvriront plus vite.
+  function rafraichirDiffusion(force) {
+    if (FENETRE || cadres.diffusion || !FORME_DIFFUSION.test(lire("diffusion_jeton"))) return false;
+    if (!force && (diffDemandee || (diffBord && Date.now() - diffBord.le < 900000))) return false;
+    diffDemandee = Date.now();
+    var f = ouvrirCadre("diffusion", true);
+    f.classList.add("fond");   // invisible mais à sa vraie taille (Diffusion choisit sa mise en page à l'ouverture)
+    setTimeout(function () { f.classList.remove("fond"); }, 60000);
+    return true;
+  }
+  function montant(v) { v = Number(v) || 0; var s = Math.abs(v).toFixed(2).split("."); return (v < 0 ? "−" : "") + s[0].replace(/\B(?=(\d{3})+$)/g, " ") + "." + s[1]; }
+  function ecartJours(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); if (!m) return null; var a = new Date(), j = new Date(+m[1], +m[2] - 1, +m[3]); return Math.round((j - new Date(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000); }
+  function dansTexte(n) { return n === 0 ? "aujourd'hui" : n === 1 ? "demain" : n > 1 ? "dans " + n + " j" : n === -1 ? "hier" : "il y a " + (-n) + " j"; }
+  function quand(t) { if (!t) return ""; var d = new Date(t), a = new Date(); return (d.toDateString() === a.toDateString() ? "" : "le " + ("0" + d.getDate()).slice(-2) + "." + ("0" + (d.getMonth() + 1)).slice(-2) + " ") + "à " + heure(t); }
+  var JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"], MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+  function liste(v) { return Array.isArray(v) ? v.filter(function (x) { return x && typeof x === "object"; }) : []; }
+  function nomLieu(c) { c = c || {}; return court(c.structure || ((c.prenom || "") + " " + (c.nom || "")).trim() || c.email || "Sans nom", 70); }
+  // Ce que le tableau de bord tire de la copie de Diffusion (les mêmes règles que son écran « Aujourd'hui »).
+  function lectureDiff(d) {
+    var r = { retard: [], bientot: [], reponses: liste(d.reponsesATraiter), dates: [], appels: [], trier: 0, etapes: [], campagnes: [], programmes: [], rates: 0, envois30: 0 };
+    liste(d.relances).forEach(function (x) { var j = Number(x.jours); if (!isFinite(j)) return; if (j < 0) r.retard.push(x); else if (j <= 7) r.bientot.push(x); });
+    r.retard.sort(function (a, b) { return a.jours - b.jours; }); r.bientot.sort(function (a, b) { return a.jours - b.jours; });
+    liste(d.dates).forEach(function (x) { var j = ecartJours(x.au || x.du); if (j !== null && j >= 0) r.dates.push({ j: Math.max(0, ecartJours(x.du || x.au)), x: x }); });
+    r.dates.sort(function (a, b) { return a.j - b.j; });
+    liste(d.appelsTous).forEach(function (a) {
+      var s = String(a.statut || "");
+      if (/^[àa] [ée]tudier$/i.test(s)) { r.trier++; return; }
+      if (STATUT_CLOS.test(s) || typeof a._jours !== "number" || a._jours < 0 || a._jours > 60) return;
+      r.appels.push(a);
+    });
+    r.appels.sort(function (a, b) { return a._jours - b._jours; });
+    var pe = d.parEtape && typeof d.parEtape === "object" ? d.parEtape : {}, noms = Array.isArray(d.etapesProjet) ? d.etapesProjet : Array.isArray(d.etapes) ? d.etapes : Object.keys(pe);
+    noms.forEach(function (n) { var v = Number(pe[n]) || 0; if (typeof n === "string" && v > 0) r.etapes.push({ nom: n, n: v }); });
+    liste(d.campagnes).forEach(function (c) { if (/^(en cours|programm)/i.test(String(c.statut || ""))) r.campagnes.push(c); });
+    liste(d.envoisProgrammes).forEach(function (x) { if (/chec/i.test(String(x.statut || ""))) r.rates++; else if (!x.envoyeLe && Number(x.prevu) > Date.now()) r.programmes.push(x); });
+    r.programmes.sort(function (a, b) { return a.prevu - b.prevu; });
+    r.envois30 = Number(d.indicateurs && d.indicateurs.envois30) || 0;
+    return r;
+  }
+  function fil(vue, quoi, detail, droite, genre) {
+    return "<" + (vue ? 'button data-vue="' + vue + '" data-de="compagnie"' : "div") + ' class="fil"><span class="quoi">' + texte(quoi) + (detail ? "<small>" + texte(detail) + "</small>" : "") + "</span>" + (droite ? "<em" + (genre ? ' class="' + genre + '"' : "") + ">" + texte(droite) + "</em>" : "") + "</" + (vue ? "button" : "div") + ">";
+  }
+  function tuile(vue, valeur, libelle, genre) {
+    return "<" + (vue ? 'button data-vue="' + vue + '" data-de="compagnie"' : "div") + ' class="tuile' + (genre ? " " + genre : "") + '"><strong>' + texte(valeur) + "</strong><span>" + texte(libelle) + "</span></" + (vue ? "button" : "div") + ">";
+  }
+  function bloc(id, icn, corps, vue, ouvrir) {
+    return '<article class="bloc" data-bloc="' + id + '"><div class="tete">' + icone(icn) + "<h2>" + nomBloc(id) + "</h2>" + (vue ? '<button class="lien" data-vue="' + vue + '" data-de="compagnie">' + (ouvrir || "Ouvrir") + "</button>" : "") + "</div>" + corps + "</article>";
+  }
+  function reste(n, mot) { return n > 0 ? '<p class="reste">Et ' + nombre(n, mot) + " de plus.</p>" : ""; }
+  function phraseDuJour(L, R, tk) {
+    var urgent = [], calme = [], poids = 0;
+    function dire(n, un, plusieurs, lourd) { if (n > 0) { urgent.push("<strong>" + n + "</strong> " + (n > 1 ? plusieurs : un)); poids += lourd * n; } }
+    if (L) {
+      dire(L.retard.length, "relance en retard", "relances en retard", 2);
+      dire(L.reponses.length, "réponse à lire", "réponses à lire", 2);
+      dire(L.appels.filter(function (a) { return a._jours <= 7; }).length, "appel à projets qui ferme cette semaine", "appels à projets qui ferment cette semaine", 3);
+      dire(L.rates, "mail programmé qui n'est pas parti", "mails programmés qui ne sont pas partis", 3);
+    }
+    if (R) dire(R.r.enRetard, "facture en retard de paiement", "factures en retard de paiement", 2);
+    if (tk && tk.attente) dire(tk.attente, "ticket à envoyer", "tickets à envoyer", 1);
+    if (L && L.dates.length) { var p = L.dates[0]; calme.push("Prochaine date : <strong>" + texte(court(p.x.structure || p.x.lieu || p.x.libelle || "à préciser", 50)) + "</strong>, " + (p.j === 0 ? "aujourd'hui" : p.j === 1 ? "demain" : "le " + jour(p.x.du || p.x.au)) + "."); }
+    if (L && L.bientot.length) calme.push(nombre(L.bientot.length, "relance") + " à prévoir dans les sept jours.");
+    if (L && L.trier) calme.push(nombre(L.trier, "opportunité") + " à trier.");
+    var t = urgent.length ? "Aujourd'hui : " + (urgent.length > 1 ? urgent.slice(0, -1).join(", ") + " et " + urgent[urgent.length - 1] : urgent[0]) + "." : (L || R || tk) ? "Rien d'urgent aujourd'hui." : "";
+    return { texte: (t + " " + calme.join(" ")).trim(), humeur: poids === 0 ? ["", "Journée calme"] : poids <= 6 ? ["moyen", "Quelques points à voir"] : ["fort", "Journée chargée"] };
+  }
+  function bordCompagnie(c) {
+    var D = donneesDiff(), L = D ? lectureDiff(D.d) : null, R = resumeCompta(), tk = null, h = {}, vueMails = !FENETRE && boitePossible() ? "boite" : "diffusion";
+    if (installee(c.id, "tickets")) {
+      var tous = ticketsDe(c.id), conf = {};
+      envoisDe(c.id).forEach(function (e) { if (e.confirmation) conf[e.id] = 1; });
+      tk = { attente: tous.filter(function (t) { return t.statut !== "envoye"; }).length + fileDe(c.id).length, total: somme(tous.filter(function (t) { return t.statut !== "envoye"; }).concat(fileDe(c.id).map(function (x) { return x.t; }))), impayes: tous.filter(function (t) { return t.statut === "envoye" && !t.datePaiement && conf[t.envoi]; }).length };
+    }
+    // Le point du jour : une phrase, une pastille, et les chiffres qui comptent.
+    var ph = phraseDuJour(L, R, tk), tuiles = "";
+    if (L) {
+      tuiles += tuile("spectacle", L.retard.length, L.retard.length > 1 ? "relances en retard" : "relance en retard", L.retard.length ? "alerte" : "bien");
+      tuiles += tuile(vueMails, L.reponses.length, L.reponses.length > 1 ? "réponses à lire" : "réponse à lire", L.reponses.length ? "alerte" : "");
+      tuiles += tuile("agenda", L.appels.length, L.appels.length > 1 ? "appels à projets ouverts" : "appel à projets ouvert");
+      tuiles += tuile("", L.envois30, "mails envoyés en 30 jours");
+    }
+    if (R) {
+      tuiles += tuile("compta", montant(R.r.solde), "sur le compte (CHF)", R.r.solde < 0 ? "alerte" : "");
+      tuiles += tuile("compta", montant(R.r.aRecevoir), "à recevoir");
+      tuiles += tuile("compta", montant(R.r.aPayer), "à payer");
+    }
+    if (tk) tuiles += tuile("tickets0", tk.attente, tk.attente > 1 ? "tickets à envoyer" : "ticket à envoyer");
+    h.jour = '<article class="jour" data-bloc="jour">' + (ph.texte ? '<span class="humeur ' + ph.humeur[0] + '">' + ph.humeur[1] + '</span><p class="phrase">' + ph.texte + "</p>" : '<p class="phrase">Ton tableau de bord se remplit tout seul : ouvre une fois <strong>Spectacle</strong> et la <strong>Compta</strong> sur cet appareil, leurs chiffres arriveront ici.</p>') + (tuiles ? '<div class="tuiles">' + tuiles + "</div>" : "") + "</article>";
+    var sans = '<p>Ouvre une fois Spectacle, Prospection ou l\'Agenda sur cet appareil : ces informations arriveront ici.</p><div class="actions"><button class="bouton" data-vue="spectacle" data-de="compagnie">Ouvrir Spectacle</button></div>';
+    // Relances
+    if (L) {
+      var rl = L.retard.concat(L.bientot), x = "";
+      rl.slice(0, 6).forEach(function (r) { x += fil("spectacle", nomLieu(r.contact), [r.projet, r.etape].filter(Boolean).join(" · "), r.jours < 0 ? (-r.jours) + " j de retard" : dansTexte(r.jours), r.jours < 0 ? "retard" : ""); });
+      h.relances = bloc("relances", "spectacle", rl.length ? x + reste(rl.length - 6, "relance") : "<p>Aucune relance à faire dans les sept jours.</p>", "spectacle");
+    } else h.relances = bloc("relances", "spectacle", sans);
+    // Mails : réponses reçues, envois programmés
+    if (L) {
+      var m = "";
+      L.reponses.slice(0, 4).forEach(function (r) { m += fil(vueMails, court(r.structure || r.contact || "Réponse", 70), r.structure ? r.contact : "", r.reponse ? "reçue le " + jour(r.reponse).slice(0, 5) : "", "bientot"); });
+      L.programmes.slice(0, 3).forEach(function (p) { m += fil("", court(p.objet || "Sans objet", 70), "programmé" + (p.a ? " pour " + court(p.a, 50) : ""), quand(Number(p.prevu))); });
+      if (L.rates) m += '<p class="reste souci">' + (L.rates > 1 ? L.rates + " mails programmés ne sont pas partis" : "1 mail programmé n'est pas parti") + ".</p>";
+      h.mails = bloc("mails", "boite", (m || "<p>Aucune réponse à lire, aucun envoi programmé.</p>") + reste(L.reponses.length - 4, "réponse"), vueMails, vueMails === "boite" ? "Ouvrir la Boîte mail" : "Ouvrir");
+    } else h.mails = bloc("mails", "boite", sans);
+    // Prochaines dates
+    if (L) {
+      var dt = "";
+      L.dates.slice(0, 5).forEach(function (o) { var v = o.x; dt += fil("agenda", court(v.structure || v.lieu || v.libelle || "Date", 70), [v.type, v.projet, v.lieu && v.lieu !== v.structure ? v.lieu : "", v.statut].filter(Boolean).join(" · "), o.j <= 1 ? dansTexte(o.j) : jour(v.du || v.au), o.j <= 7 ? "bientot" : ""); });
+      h.dates = bloc("dates", "agenda", L.dates.length ? dt + reste(L.dates.length - 5, "date") : "<p>Aucune date à venir pour l'instant.</p>", "agenda");
+    } else h.dates = bloc("dates", "agenda", sans);
+    // Appels à projets
+    if (L) {
+      var ap = "";
+      L.appels.slice(0, 5).forEach(function (a) { ap += fil("agenda", court(a.titre || a.structure || "Appel", 70), [a.titre ? a.structure : "", a.statut, a.projet].filter(Boolean).join(" · "), a._jours === 0 ? "aujourd'hui" : "J-" + a._jours, a._jours <= 7 ? "retard" : a._jours <= 21 ? "bientot" : ""); });
+      if (L.trier) ap += '<p class="reste">' + nombre(L.trier, "opportunité") + " à trier dans Prospection.</p>";
+      h.appels = bloc("appels", "prospection", ap ? ap + reste(L.appels.length - 5, "appel") : "<p>Aucun appel à projets ouvert dans les deux mois.</p>", "prospection");
+    } else h.appels = bloc("appels", "prospection", sans);
+    // Compta
+    if (R) {
+      var cp = '<div class="sommes"><div><strong>' + montant(R.r.solde) + "</strong><span>sur le compte (CHF)</span></div><div><strong>" + montant(R.r.aRecevoir) + "</strong><span>à recevoir</span></div><div><strong>" + montant(R.r.aPayer) + "</strong><span>à payer</span></div></div>";
+      if (R.r.comptes.length > 1) R.r.comptes.forEach(function (k) { cp += '<p class="rang"><span>' + texte(k.nom || "Compte") + "</span><em>" + montant(k.solde) + "</em></p>"; });
+      if (R.r.enRetard) cp += '<p class="reste souci">' + nombre(R.r.enRetard, "facture") + " en retard de paiement.</p>";
+      cp += '<p class="fraicheur">' + (R.r.controle ? "Contrôle du compte : " + texte(R.r.controle) + ". " : "") + "Chiffres relevés " + quand(R.le) + ".</p>";
+      h.compta = bloc("compta", "compta", cp, "compta");
+    } else h.compta = bloc("compta", "compta", '<p>Ouvre la Compta une fois sur cet appareil : le solde, ce qui est à recevoir et à payer s\'afficheront ici. Ils s\'effacent d\'ici dès que la Compta redemande son code.</p><div class="actions"><button class="bouton" data-vue="compta" data-de="compagnie">Ouvrir la Compta</button></div>');
+    // Suivi des spectacles : où en sont les lieux, étape par étape
+    if (L) {
+      var max = 1, sv = "";
+      L.etapes.forEach(function (e) { if (e.n > max) max = e.n; });
+      L.etapes.forEach(function (e) { sv += "<div><span>" + texte(e.nom) + '</span><div class="jauge"><i style="width:' + Math.round(e.n / max * 100) + '%"></i></div><em>' + e.n + "</em></div>"; });
+      h.suivi = bloc("suivi", "spectacle", sv ? '<div class="jauges">' + sv + "</div>" : "<p>Aucun lieu dans le suivi pour l'instant.</p>", "spectacle");
+    } else h.suivi = bloc("suivi", "spectacle", sans);
+    // Campagnes en cours ou programmées
+    if (L) {
+      var ca = "";
+      L.campagnes.slice(0, 4).forEach(function (k) {
+        var n = Number(k.nb) || 0, cpt = k.compteurs || {}, env = Number(cpt.envoyes) || 0;
+        ca += '<div class="fil"><span class="quoi">' + texte(court(k.nom || "Campagne", 70)) + "<small>" + texte([k.statut, env + " sur " + n + " envoyés", (Number(cpt.ouverts) || 0) + " ouverts", nombre(Number(cpt.reponses) || 0, "réponse")].filter(Boolean).join(" · ")) + '</small><div class="jauge" style="margin-top:5px"><i style="width:' + (n ? Math.round(env / n * 100) : 0) + '%"></i></div></span></div>';
+      });
+      h.campagnes = bloc("campagnes", "diffusion", ca ? ca + reste(L.campagnes.length - 4, "campagne") : "<p>Aucune campagne en cours.</p>", vueMails, vueMails === "boite" ? "Ouvrir la Boîte mail" : "Ouvrir");
+    } else h.campagnes = bloc("campagnes", "diffusion", sans);
+    // Tickets du compte (moteur)
+    if (tk) h.tickets = bloc("tickets", "tickets", '<div class="sommes"><div><strong>' + tk.attente + "</strong><span>en attente d'envoi</span></div><div><strong>" + texte(tk.total) + "</strong><span>à envoyer</span></div>" + (tk.impayes ? "<div><strong>" + tk.impayes + "</strong><span>pas encore payé" + (tk.impayes > 1 ? "s" : "") + "</span></div>" : "") + "</div>", "tickets0");
+    var bm = blocsMoteur(c);
+    if (bm) h.moteur = bm;
+    return { h: h, le: D ? D.le : 0, diff: !!D };
+  }
+  function bordAutre(c) {
+    var h = {}, tk = installee(c.id, "tickets");
+    if (tk) {
+      var tous = ticketsDe(c.id), att = tous.filter(function (t) { return t.statut !== "envoye"; }).concat(fileDe(c.id).map(function (x) { return x.t; }));
+      h.tickets = '<article class="bloc" data-bloc="tickets"><div class="tete">' + icone("tickets") + "<h2>Tickets</h2>" + '<button class="lien" data-vue="tickets0" data-de="' + c.id + '">Ouvrir</button></div><div class="sommes"><div><strong>' + att.length + "</strong><span>en attente d'envoi</span></div><div><strong>" + texte(somme(att)) + "</strong><span>à envoyer</span></div></div></article>";
+    }
+    var bm = blocsMoteur(c);
+    if (bm) h.moteur = bm;
+    return { h: h, le: 0, diff: false };
+  }
   function dessinerAccueil() {
-    var tous = etat.compte === "tous", c0 = compte(etat.compte), liste = tous ? affiches() : [c0];
-    var h = '<div class="entete"><div><h1>Tableau de bord</h1><p>' + (tous ? "Tous les comptes" : texte(c0.nom)) + "</p></div>";
+    var tous = etat.compte === "tous", c0 = compte(etat.compte), comptesVus = tous ? affiches() : [c0], a = new Date(), hr = a.getHours();
+    if (!diffLu) { diffLu = true; lireCache(function (t) { diffBord = lireTexteDiff(t); redessinerBord(); rafraichirDiffusion(false); }); }
+    var salut = hr < 5 ? "Encore debout ?" : hr < 12 ? "Bonjour" : hr < 18 ? "Bon après-midi" : "Bonsoir";
+    var h = '<div class="bord"><div class="entete"><div><h1>' + salut + "</h1><p>" + JOURS[a.getDay()] + " " + a.getDate() + (a.getDate() === 1 ? "er" : "") + " " + MOIS[a.getMonth()] + " · " + (tous ? "Tous les comptes" : texte(c0.nom)) + '</p></div><div class="actions"><button class="bouton" data-bord="actualiser">Actualiser</button><button class="bouton" data-bord="choisir">Choisir ce qui est affiché</button></div></div>';
+    h += '<div class="choix tel" role="group" aria-label="Comptes"><button class="puce" data-compte="tous" aria-pressed="' + (tous ? "true" : "false") + '"><span class="point tous"></span>Tous</button>';
+    comptes().forEach(function (c) { h += '<button class="puce" data-compte="' + c.id + '" aria-pressed="' + (etat.compte === c.id ? "true" : "false") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
+    h += '<button class="puce" data-vue="ajouter">+ Compte</button></div>';
+    if (tous) {
+      h += '<div class="choix" role="group" aria-label="Comptes affichés"><span>Comptes affichés</span>';
+      comptes().forEach(function (c) { h += '<button class="puce" data-cocher="' + c.id + '" aria-pressed="' + (etat.masques[c.id] ? "false" : "true") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
+      h += "</div>";
+    }
+    var ordre = ordreBlocs().filter(function (id) { return !bord.caches[id]; }), rien = true, fraicheur = "";
+    comptesVus.forEach(function (c) {
+      var b = c.id === "compagnie" ? bordCompagnie(c) : bordAutre(c), corps = "";
+      if (tous) h += '<h3 class="du-compte"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</h3>";
+      if (b.h.jour && ordre.indexOf("jour") >= 0) { h += b.h.jour; rien = false; }
+      ordre.forEach(function (id) { if (id !== "jour" && b.h[id]) corps += b.h[id]; });
+      if (corps) { h += '<div class="blocs">' + corps + "</div>"; rien = false; }
+      else if (c.id !== "compagnie") h += '<p class="note">' + (moteurs[c.id] ? "Rien à montrer pour ce compte pour l'instant." : "Ce compte n'est pas encore relié : va dans Réglages pour le relier et lui installer des applis.") + "</p>";
+      if (b.diff) fraicheur = "Spectacle, prospection et mails : chiffres relevés " + quand(b.le) + (cadres.diffusion && diffDemandee && Date.now() - diffDemandee < 60000 ? ", mise à jour en cours…" : "") + ". ";
+    });
+    if (!comptesVus.length) h += '<p class="note">Aucun compte coché.</p>';
+    else if (rien && comptesVus.some(function (c) { return c.id === "compagnie"; })) h += '<p class="note">Tout est masqué. « Choisir ce qui est affiché » pour remettre des blocs.</p>';
+    h += '<p class="note fraicheur">' + fraicheur + "Ces chiffres viennent de ce que tes applis gardent sur cet appareil. L'installation des applis et les comptes sont dans Réglages.</p></div>";
+    accueil.innerHTML = h;
+  }
+  // « Choisir ce qui est affiché » : chaque bloc se montre, se masque et se déplace. Gardé sur cet appareil.
+  function rangsBlocs() {
+    var l = ordreBlocs(), h = "";
+    l.forEach(function (id, i) {
+      h += '<div class="rang-r"><span class="nom">' + nomBloc(id) + '</span><button class="petit" data-bord-monter="' + id + '" aria-label="Monter ' + nomBloc(id) + '"' + (i ? "" : " disabled") + '>↑</button><button class="petit" data-bord-descendre="' + id + '" aria-label="Descendre ' + nomBloc(id) + '"' + (i < l.length - 1 ? "" : " disabled") + '>↓</button>' +
+        '<button class="inter" role="switch" aria-checked="' + (bord.caches[id] ? "false" : "true") + '" aria-label="Afficher ' + nomBloc(id) + '" data-bord-bloc="' + id + '"></button></div>';
+    });
+    return h;
+  }
+  function ouvrirChoixBord() { ouvrirVoile('<h2>Ce qui est affiché</h2><p>Coche les blocs à voir sur le tableau de bord, et range-les dans l\'ordre que tu veux.</p><div class="rangs" id="bordRangs">' + rangsBlocs() + '</div><div class="actions"><button class="bouton" data-bord="tout">Tout afficher</button><button class="bouton fort" data-bord="fermer">Terminé</button></div>'); }
+  function clicBord(b, d) {
+    if (d.bord === "choisir") { ouvrirChoixBord(); return true; }
+    if (d.bord === "fermer") { fermerVoile(); return true; }
+    if (d.bord === "actualiser") {
+      (etat.compte === "tous" ? affiches() : [compte(etat.compte)]).forEach(function (c) { if (c && moteurs[c.id]) relever(c.id); });
+      var lance = rafraichirDiffusion(true);
+      avis(lance ? "Mise à jour en cours…" : cadres.diffusion ? "Les chiffres suivent déjà tes applis ouvertes." : "Ouvre Spectacle ou la Compta pour mettre leurs chiffres à jour.");
+      dessinerAccueil(); return true;
+    }
+    var id = d.bordBloc || d.bordMonter || d.bordDescendre;
+    if (d.bord === "tout") bord.caches = {};
+    else if (!id) return false;
+    else if (d.bordBloc) { if (bord.caches[id]) delete bord.caches[id]; else bord.caches[id] = 1; }
+    else { var l = ordreBlocs(), i = l.indexOf(id), j = i + (d.bordMonter ? -1 : 1); if (i >= 0 && j >= 0 && j < l.length) { l[i] = l[j]; l[j] = id; bord.ordre = l; } }
+    retenirBord();
+    [].forEach.call(document.querySelectorAll("#bordRangs"), function (z) { z.innerHTML = rangsBlocs(); });
+    if (etat.vue === "accueil") dessinerAccueil();
+    return true;
+  }
+
+  // ---- Réglages : l'affichage, le tableau de bord, les applis de chaque compte (installer, relier, télécharger), les comptes ----
+  function blocTaille() {
+    var n = tailleGardee(), h = '<div class="reglage"><h3>Taille de l\'affichage</h3><p>Agrandit ou réduit les écrans d\'Origami : le volet, le tableau de bord, les Réglages, l\'Agenda. Chaque appli ouverte garde son propre réglage.</p><div class="tailles" role="group" aria-label="Taille de l\'affichage">';
+    TAILLES.forEach(function (t) { h += '<button class="puce" data-taille="' + t[0] + '" aria-pressed="' + (n === t[0] ? "true" : "false") + '">' + t[1] + "</button>"; });
+    return h + '<button class="petit" data-taille="moins" aria-label="Plus petit"' + (n <= 70 ? " disabled" : "") + '>−</button><output id="tailleDite">' + n + ' %</output><button class="petit" data-taille="plus" aria-label="Plus grand"' + (n >= 160 ? " disabled" : "") + ">+</button></div></div>";
+  }
+  function dessinerReglages() {
+    var tous = etat.compte === "tous", c0 = compte(etat.compte), l = tous ? affiches() : [c0];
+    var h = '<div class="reglages"><div class="entete"><div><h1>Réglages</h1><p>' + (tous ? "Tous les comptes" : texte(c0.nom)) + "</p></div>";
     if (!tous) {
       h += '<div class="actions">';
       if (!moteurs[c0.id]) h += '<button class="bouton" data-vue="relier">Relier au moteur du compte</button>';
@@ -1282,21 +1634,45 @@ a.lien { color: var(--accent); }
     h += '<div class="choix tel" role="group" aria-label="Comptes"><button class="puce" data-compte="tous" aria-pressed="' + (tous ? "true" : "false") + '"><span class="point tous"></span>Tous</button>';
     comptes().forEach(function (c) { h += '<button class="puce" data-compte="' + c.id + '" aria-pressed="' + (etat.compte === c.id ? "true" : "false") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
     h += '<button class="puce" data-vue="ajouter">+ Compte</button></div>';
+    h += '<h2 class="sous-titre">Affichage</h2>' + blocTaille();
+    h += '<div class="reglage"><h3>Tableau de bord</h3><p>Les blocs affichés et leur ordre. Le même choix s\'ouvre depuis le tableau de bord.</p><div class="rangs" id="bordRangs">' + rangsBlocs() + "</div></div>";
+    h += '<h2 class="sous-titre">Applis</h2>';
     if (tous) {
       h += '<div class="choix" role="group" aria-label="Comptes affichés"><span>Comptes affichés</span>';
       comptes().forEach(function (c) { h += '<button class="puce" data-cocher="' + c.id + '" aria-pressed="' + (etat.masques[c.id] ? "false" : "true") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
       h += "</div>";
     }
-    liste.forEach(function (c) {
+    l.forEach(function (c) {
       if (tous) h += '<h3 class="du-compte"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</h3>";
       h += ligneMoteur(c);
-      h += '<div class="cartes">' + blocsMoteur(c);
+      h += '<div class="cartes">';
       applisDe(c).forEach(function (id) { h += carte(c, id); });
       h += "</div>";
     });
-    if (!liste.length) h += '<p class="note">Aucun compte coché.</p>';
-    h += '<p class="note">' + (liste.some(function (c) { return moteurs[c.id]; }) ? "Les chiffres du jour arrivent ici pour les applis installées « à zéro » dans le compte. Les autres (mails à répondre, relances, agenda) suivront." : "Les chiffres du jour (mails à répondre, relances, agenda, tickets) arriveront ici quand le moteur Origami du compte sera installé.") + "</p>";
-    accueil.innerHTML = h;
+    if (!l.length) h += '<p class="note">Aucun compte coché.</p>';
+    h += '<h2 class="sous-titre">Comptes</h2><div class="reglage"><div class="rangs">';
+    comptes().forEach(function (c) {
+      h += '<div class="rang-r"><span class="point" style="background:' + c.couleur + '"></span><span class="nom">' + texte(c.nom) + "<small>" + (moteurs[c.id] ? "Relié à son moteur" : "Pas encore relié") + '</small></span><button class="bouton" data-compte="' + c.id + '">Voir</button>' + (c.id !== "compagnie" ? '<button class="bouton" data-retirer="' + c.id + '">Retirer</button>' : "") + "</div>";
+    });
+    h += '</div><div><button class="bouton" data-vue="ajouter">Ajouter un compte</button></div></div>';
+    h += '<h2 class="sous-titre">Cet appareil</h2><div class="reglage"><div class="rangs">';
+    h += '<div class="rang-r"><span class="nom">Version d\'Origami<small>' + texte((document.querySelector('meta[name="origami-version"]') || {}).content || "inconnue") + '</small></span><button class="bouton" data-recharger="1">Recharger</button></div>';
+    h += '<div class="rang-r"><span class="nom">Chiffres de la Compta gardés ici<small>' + (lire("origami_resume_compta") ? "Le tableau de bord garde quelques totaux de la Compta sur cet appareil." : "Aucun pour l'instant.") + '</small></span><button class="bouton" data-oublier-resume="1"' + (lire("origami_resume_compta") ? "" : " disabled") + ">Oublier</button></div>";
+    // Seulement dans l'appli Origami du Mac : la fenêtre d'écriture directe demande l'appli Boîte mail version 20 ou plus.
+    if (BOITE_BROUILLON && BOITE_DIRECT && boitePossible()) h += '<div class="rang-r"><span class="nom">Boîte mail version 20 installée sur ce Mac<small>Allumé : depuis la Compta, le mail s\'ouvre tout de suite dans sa petite fenêtre et le PDF le rejoint. Éteint : la Compta passe par un brouillon, comme avant.</small></span><button class="inter" role="switch" aria-checked="' + (lire("origami_boite20") === "1" ? "true" : "false") + '" aria-label="Boîte mail version 20 installée sur ce Mac" data-boite20="1"></button></div>';
+    h += "</div></div></div>";
+    zoneReglages.innerHTML = h;
+  }
+  function clicReglages(b, d) {
+    if (d.taille) {
+      var n = tailleGardee();
+      reglerTaille(d.taille === "moins" ? n - 5 : d.taille === "plus" ? n + 5 : parseInt(d.taille, 10) || 100);
+      if (etat.vue === "reglages") dessinerReglages();
+      return true;
+    }
+    if (d.boite20) { garder("origami_boite20", lire("origami_boite20") === "1" ? "" : "1"); direBoiteCompta(); if (etat.vue === "reglages") dessinerReglages(); return true; }
+    if (d.oublierResume) { garderResume(null); avis("Chiffres de la Compta oubliés sur cet appareil."); if (etat.vue === "reglages") dessinerReglages(); return true; }
+    return false;
   }
   function dessinerPage(vue) {
     var h = '<div class="info">';
@@ -1355,21 +1731,24 @@ a.lien { color: var(--accent); }
   function montrer() {
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : "";
-    if (vue !== "accueil" && vue !== "ajouter" && !(vue === "relier" && c0) && !(vue === "agenda" && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
+    if (vue !== "accueil" && vue !== "reglages" && vue !== "ajouter" && !(vue === "relier" && c0) && !(vue === "agenda" && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
     if (cadre) ouvrirCadre(cadre);
     if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
     for (var id in cadres) cadres[id].hidden = id !== cadre;
+    if (cadre) cadres[cadre].classList.remove("fond");
     accueil.hidden = vue !== "accueil";
+    zoneReglages.hidden = vue !== "reglages";
     agendaZone.hidden = vue !== "agenda";
-    page.hidden = !!cadre || vue === "accueil" || vue === "agenda";
+    page.hidden = !!cadre || vue === "accueil" || vue === "reglages" || vue === "agenda";
     if (!cadre) attente.hidden = true;
     if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
+    else if (vue === "reglages") { dessinerReglages(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "tickets0") { dessinerTickets(); releverSiVieux(c0.id); }
     else if (vue === "diffusion0") { dessinerDiffusion(); releverSiVieux(c0.id); releverDiffusionSiVieux(c0.id); }
     else if (vue === "agenda") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiAgenda) window.OrigamiAgenda.montrer(agendaZone, pontAgenda); else page.hidden = false, page.innerHTML = '<div class="info"><h1>Agenda</h1><p>L\'agenda n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (!cadre) dessinerPage(vue);
     dessinerMenu();
-    document.title = APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : "Origami";
+    document.title = APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : vue === "reglages" ? "Réglages · Origami" : "Origami";
     retenir();
   }
   document.addEventListener("click", function (ev) {
@@ -1378,7 +1757,8 @@ a.lien { color: var(--accent); }
     var d = b.dataset;
     if (clicTickets(b, d)) return;
     if (clicDiffusion(b, d)) return;
-    if (d.compte) { etat.compte = d.compte; if (etat.vue === "agenda" && (d.compte === "tous" || compte(d.compte))) { montrer(); return; } if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
+    if (clicBord(b, d) || clicReglages(b, d)) return;
+    if (d.compte) { etat.compte = d.compte; if ((etat.vue === "agenda" || etat.vue === "reglages") && (d.compte === "tous" || compte(d.compte))) { montrer(); return; } if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
     if (d.vue) {
       if (d.vue === "boite" && !d.infos && (d.de || etat.compte) === "compagnie" && !FENETRE && boitePossible()) { lancerBoite(); return; }
       if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
@@ -1402,26 +1782,27 @@ a.lien { color: var(--accent); }
       if (!nom) { document.getElementById("nomCompte").focus(); return; }
       var nouveau = { id: "c" + Date.now().toString(36), nom: nom, couleur: choisie ? choisie.dataset.couleur : COULEURS[1], applis: ["boite"] };
       if (code) { moteurs[nouveau.id] = { u: code.u, c: code.c }; memoires[nouveau.id] = { version: 0, listes: {} }; retenirMoteurs(); }
-      etat.ajoutes.push(nouveau); etat.compte = nouveau.id; etat.vue = "accueil"; montrer(); return;
+      etat.ajoutes.push(nouveau); etat.compte = nouveau.id; etat.vue = "reglages"; montrer(); return;
     }
     if (d.relier && compte(d.relier)) {
       var recu = lireCode(document.getElementById("codeCompte").value);
       if (!recu) { document.getElementById("messageCode").textContent = "Ce code n'est pas reconnu. Copie-le en entier depuis le classeur du compte."; return; }
       moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; retenirMoteurs(); garderMemoire(d.relier);
-      etat.vue = "accueil"; montrer(); return;
+      etat.vue = "reglages"; montrer(); return;
     }
-    if (d.delier) { delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "accueil"; montrer(); return; }
+    if (d.delier) { delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
     if (d.recharger) { b.disabled = true; fetch(location.href.split("#")[0], { cache: "reload" }).catch(function () {}).then(function () { location.reload(); }); return; }
     if (d.plusTard) { bandeauVersion.hidden = true; return; }
     if (d.retirer) {
       etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
       delete moteurs[d.retirer]; delete memoires[d.retirer]; oublierDiff(d.retirer); file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
-      etat.compte = "compagnie"; etat.vue = "accueil"; montrer();
+      etat.compte = "compagnie"; etat.vue = "reglages"; montrer();
     }
   });
   // Adresse avec une ancre (…/accueil/#tickets) : ouvre directement cette appli du compte de la compagnie.
   var ancre = (location.hash || "").slice(1);
+  if (ancre === "reglages") etat.vue = "reglages";
   if (APPLIS[ancre] && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
   if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE; }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
