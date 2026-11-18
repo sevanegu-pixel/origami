@@ -78,7 +78,7 @@ jobs:
     needs: mac
     runs-on: macos-latest
     env:
-      BOITE_DMG: https://github.com/sevanegu-pixel/origami/releases/download/appli-boite-20/Boite-mail-Mac.dmg
+      BOITE_DMG: https://github.com/sevanegu-pixel/origami/releases/download/appli-boite-21/Boite-mail-Mac.dmg
     steps:
       - uses: actions/download-artifact@v4
         with:
