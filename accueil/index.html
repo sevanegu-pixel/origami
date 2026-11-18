@@ -188,11 +188,13 @@ a.lien { color: var(--accent); }
     <div id="attente" role="status" hidden>Ouverture…</div>
     <section id="accueil"></section>
     <section id="page" hidden></section>
+    <section id="agenda" hidden></section>
   </main>
   <nav id="barre" aria-label="Applis"></nav>
 </div>
 <div id="voile" hidden></div>
 <div id="avis" role="status"></div>
+<script src="agenda.js?v=2026-11-18.12"></script>
 <script>
 (function () {
   "use strict";
@@ -227,7 +229,10 @@ a.lien { color: var(--accent); }
     // Modules de l'appli mère : les écrans d'origine de Diffusion, ouverts par le volet d'Origami (sans la barre de Diffusion).
     spectacle: { nom: "Spectacle", genre: "module", cadre: "diffusion", rubrique: "pipeline" },
     prospection: { nom: "Prospection", genre: "module", cadre: "diffusion", rubrique: "contacts" },
-    agenda: { nom: "Agenda", genre: "module", cadre: "diffusion", rubrique: "agenda" },
+    // Agenda d'Origami (18.11) : vrais agendas Google de chaque compte + dates de la prospection (agenda.js, moteur v4).
+    agenda: { nom: "Agenda", genre: "agenda" },
+    // L'agenda d'origine de Diffusion reste ouvrable depuis l'Agenda (ajouter une date de spectacle, export).
+    agendaDiff: { nom: "Agenda de Diffusion", genre: "module", cadre: "diffusion", rubrique: "agenda" },
     // Tickets « à zéro » : installé dans le compte par son moteur, affiché par cette page (pas de cadre).
     tickets0: { nom: "Tickets", texte: "Justificatifs envoyés par mail, rangés dans le Drive de ce compte.", genre: "moteur" },
     // Diffusion « à zéro » : son propre moteur dans le compte, affichée par cette page (lecture seule pour commencer).
@@ -605,6 +610,7 @@ a.lien { color: var(--accent); }
     if (etat.vue === "accueil") dessinerAccueil();
     else if (etat.vue === "tickets0" && etat.compte === id) dessinerTickets();
     else if (etat.vue === "diffusion0" && etat.compte === id) dessinerDiffusion();
+    else if (etat.vue === "agenda" && window.OrigamiAgenda) window.OrigamiAgenda.rafraichir();
   }
   function heure(t) { var d = new Date(t); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
   function ligneMoteur(c) {
@@ -647,8 +653,8 @@ a.lien { color: var(--accent); }
   function applisDe(c) { var l = c.applis.slice(); if (offre(c.id, "tickets")) l.push("tickets0"); if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
   // Les modules d'un compte : pour l'instant ceux de la Diffusion du compte compagnie (son appli s'ouvre dans un cadre).
   var MODULES = ["spectacle", "prospection", "agenda"];
-  function modulesDe(c) { return c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; }
-  function vuesDe(c) { return modulesDe(c).concat(applisDe(c)); }
+  function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) m.push("agenda"); return m; }   // l'Agenda vient du moteur du compte
+  function vuesDe(c) { var l = modulesDe(c).concat(applisDe(c)); if (c && c.id === "compagnie" && l.indexOf("diffusion") >= 0) l.push("agendaDiff"); return l; }
   // Dans le volet : les modules d'abord ; Diffusion elle-même n'y est plus (elle reste sur le tableau de bord).
   function voletDe(c) { var m = modulesDe(c); return { modules: m, applis: applisDe(c).filter(function (id) { return !(m.length && id === "diffusion"); }) }; }
   function cadreDe(vue) { var a = APPLIS[vue]; return !a ? "" : a.genre === "cadre" ? vue : a.genre === "module" ? a.cadre : ""; }
@@ -1234,7 +1240,7 @@ a.lien { color: var(--accent); }
     var c0 = compte(etat.compte);
     // « Tous les comptes » : le volet garde les modules et les applis de la compagnie, pour ne pas avoir à choisir le compte d'abord.
     var cv = c0 || COMPTE_COMPAGNIE, volet = voletDe(cv);
-    function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
+    function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
     h += '<div class="groupe"><h2>' + (c0 ? "Origami" : "Dans tous les comptes") + "</h2>";
     h += '<button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>';
     if (!c0 && volet.modules.length) h += '</div><div class="groupe"><h2>' + texte(cv.nom) + "</h2>";
@@ -1244,7 +1250,7 @@ a.lien { color: var(--accent); }
     menu.innerHTML = h;
     var b = '<button data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + "Accueil</button>";
     var cb = c0 || COMPTE_COMPAGNIE;
-    var vb = voletDe(cb); vb.modules.concat(vb.applis).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + nomAppli(cb, id) + "</button>"; });
+    var vb = voletDe(cb); vb.modules.concat(vb.applis).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + nomAppli(cb, id) + "</button>"; });
     barre.innerHTML = b;
     var ouverte = barre.querySelector('[aria-current="true"]');
     if (ouverte) barre.scrollLeft = ouverte.offsetLeft - (barre.clientWidth - ouverte.offsetWidth) / 2;
@@ -1332,19 +1338,35 @@ a.lien { color: var(--accent); }
     }
     page.innerHTML = h + "</div>";
   }
+  // Pont vers l'Agenda (agenda.js) : les comptes affichés, l'appel au moteur d'un compte, les avis, et l'ouverture d'une autre vue.
+  var agendaZone = document.getElementById("agenda");
+  var pontAgenda = {
+    comptesVus: function () {
+      var l = etat.compte === "tous" ? affiches() : [compte(etat.compte)].filter(Boolean);
+      return l.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur, relie: !!moteurs[c.id] }; });
+    },
+    appel: function (id, fn, args, options) { return moteurAppel(id, fn, args, options); },
+    avis: function (t, souci) { avis(t, souci); },
+    ouvrir: function (vue) {
+      if (vue === "boite" && !FENETRE && boitePossible()) { lancerBoite(); return; }
+      etat.compte = "compagnie"; etat.vue = vue; montrer();
+    }
+  };
   function montrer() {
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : "";
-    if (vue !== "accueil" && vue !== "ajouter" && !(vue === "relier" && c0) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
+    if (vue !== "accueil" && vue !== "ajouter" && !(vue === "relier" && c0) && !(vue === "agenda" && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
     if (cadre) ouvrirCadre(cadre);
     if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
     for (var id in cadres) cadres[id].hidden = id !== cadre;
     accueil.hidden = vue !== "accueil";
-    page.hidden = !!cadre || vue === "accueil";
+    agendaZone.hidden = vue !== "agenda";
+    page.hidden = !!cadre || vue === "accueil" || vue === "agenda";
     if (!cadre) attente.hidden = true;
     if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "tickets0") { dessinerTickets(); releverSiVieux(c0.id); }
     else if (vue === "diffusion0") { dessinerDiffusion(); releverSiVieux(c0.id); releverDiffusionSiVieux(c0.id); }
+    else if (vue === "agenda") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiAgenda) window.OrigamiAgenda.montrer(agendaZone, pontAgenda); else page.hidden = false, page.innerHTML = '<div class="info"><h1>Agenda</h1><p>L\'agenda n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (!cadre) dessinerPage(vue);
     dessinerMenu();
     document.title = APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : "Origami";
@@ -1356,7 +1378,7 @@ a.lien { color: var(--accent); }
     var d = b.dataset;
     if (clicTickets(b, d)) return;
     if (clicDiffusion(b, d)) return;
-    if (d.compte) { etat.compte = d.compte; if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
+    if (d.compte) { etat.compte = d.compte; if (etat.vue === "agenda" && (d.compte === "tous" || compte(d.compte))) { montrer(); return; } if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
     if (d.vue) {
       if (d.vue === "boite" && !d.infos && (d.de || etat.compte) === "compagnie" && !FENETRE && boitePossible()) { lancerBoite(); return; }
       if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
