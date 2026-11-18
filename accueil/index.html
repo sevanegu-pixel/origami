@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.17">
+<meta name="origami-version" content="2026-11-18.18">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -300,6 +300,7 @@ button.tuile:hover { border-color: var(--ligne); }
     <section id="reglages" hidden></section>
     <section id="page" hidden></section>
     <section id="agenda" hidden></section>
+    <section id="repertoire" hidden></section>
   </main>
   <nav id="barre" aria-label="Applis"></nav>
 </div>
@@ -344,7 +345,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.17"></script>
+<script src="agenda.js?v=2026-11-18.18"></script>
+<script src="repertoire.js?v=2026-11-18.18"></script>
 <script>
 (function () {
   "use strict";
@@ -371,6 +373,7 @@ button.tuile:hover { border-color: var(--ligne); }
   ICONES.spectacle = '<path d="M12 3l2.6 5.6 6 .7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9.3l6-.7z"/>';
   ICONES.prospection = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.5-3.6 2.8-5.5 6-5.5s5.5 1.9 6 5.5"/><circle cx="17.5" cy="9.5" r="2.3"/><path d="M17 14.6c2.3.2 3.7 1.7 4 4.4"/>';
   ICONES.agenda = '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>';
+  ICONES.repertoire = '<path d="M6 3.5h11.5A1.5 1.5 0 0119 5v14a1.5 1.5 0 01-1.5 1.5H6z"/><path d="M4 7.5h3M4 12h3M4 16.5h3"/><circle cx="12.5" cy="10" r="2.2"/><path d="M8.9 16.2c.5-2 1.8-3 3.6-3s3.1 1 3.6 3"/>';
   function icone(n) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONES[n] + "</svg>"; }
   var APPLIS = {
     boite: { nom: "Boîte mail", texte: "Tes mails, dans l'appli Boîte mail du Mac.", genre: "info" },
@@ -383,6 +386,8 @@ button.tuile:hover { border-color: var(--ligne); }
     prospection: { nom: "Prospection", genre: "module", cadre: "diffusion", rubrique: "contacts" },
     // Agenda d'Origami (18.11) : vrais agendas Google de chaque compte + dates de la prospection (agenda.js, moteur v4).
     agenda: { nom: "Agenda", genre: "agenda" },
+    // Répertoire commun (repertoire.js) : les contacts envoyés exprès aux applis d'un même compte ; chaque appli garde son carnet.
+    repertoire: { nom: "Répertoire", genre: "repertoire" },
     // L'agenda d'origine de Diffusion reste ouvrable depuis l'Agenda (ajouter une date de spectacle, export).
     agendaDiff: { nom: "Agenda de Diffusion", genre: "module", cadre: "diffusion", rubrique: "agenda" },
     // Tickets « à zéro » : installé dans le compte par son moteur, affiché par cette page (pas de cadre).
@@ -519,7 +524,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // Modules : Origami dit à Diffusion quelle rubrique montrer sans sa barre ('' : Diffusion entière, avec sa barre).
   // Une Diffusion qui ne connaît pas encore ce message l'ignore et s'affiche entière.
   var fenDiffusion = null, moduleVoulu = "";
-  function direModule() { if (!fenDiffusion) return; try { fenDiffusion.w.postMessage({ origami: "module", vue: moduleVoulu, boite: BOITE_LIEN && boitePossible() }, fenDiffusion.o); } catch (e) {} }
+  function direModule() { if (!fenDiffusion) return; try { fenDiffusion.w.postMessage({ origami: "module", vue: moduleVoulu, boite: BOITE_LIEN && boitePossible(), repertoire: !!window.OrigamiRepertoire }, fenDiffusion.o); } catch (e) {} }
   // Appli Mac (coquille Tauri) : les liens s'ouvrent dans le navigateur du Mac, « Détacher » ouvre une vraie fenêtre.
   var MAC = window.__TAURI__ || null;
   // Adresse …/accueil/?fenetre=compta : cette fenêtre ne montre que cette appli (une fenêtre de l'appli Mac, ou l'appli installée seule).
@@ -656,6 +661,14 @@ button.tuile:hover { border-color: var(--ligne); }
     ev.preventDefault();
     try { MAC.opener.openUrl(a.href); } catch (e) {}
   });
+  // Une appli ouverte dans Origami envoie des contacts au répertoire commun de son compte (un geste de la personne dans l'appli).
+  // Demande : { fiches: [{ nom, mail, tel, structure, note }], n }. Réponse : { origami: "repertoire-recu", n, ajoutees, completees, dejaLa }.
+  function recevoirRepertoire(d, source, w, origine) {
+    var n = typeof d.n === "number" ? d.n : 0;
+    function dire(r) { try { w.postMessage(Object.assign({ origami: "repertoire-recu", n: n }, r), origine); } catch (e) {} }
+    if (!window.OrigamiRepertoire || !Array.isArray(d.fiches) || !d.fiches.length || d.fiches.length > 500) { dire({ refus: true }); return; }
+    window.OrigamiRepertoire.recevoir(pontRepertoire, "compagnie", d.fiches, source).then(function (r) { dire(r); avis("Répertoire commun : " + window.OrigamiRepertoire.bilan(r)); }, function () { dire({ refus: true }); });
+  }
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
     var d = ev.data, id = d ? appliDe(ev.source) : "";
@@ -670,6 +683,7 @@ button.tuile:hover { border-color: var(--ligne); }
         else { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} }
         return;
       }
+      if (d.diffusion === "repertoire") { recevoirRepertoire(d, "Diffusion", ev.source, ev.origin); return; }
       if (d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
       if (d.diffusion === "cache-ecrire") {
         ecrireCache(typeof d.texte === "string" ? d.texte : "");
@@ -685,8 +699,9 @@ button.tuile:hover { border-color: var(--ligne); }
       // Tableau de bord : quelques totaux dits par la Compta (rien si elle redemande son code).
       if (d.origami === "resume") { garderResume(d.resume); redessinerBord(); return; }
       // Comptes : la Compta affiche le nom du compte et propose d'en changer. Une seule Compta existe pour l'instant (celle de la compagnie).
-      if (d.origami === "comptes-demande") { try { ev.source.postMessage({ origami: "comptes", actuel: "compagnie", liste: comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), compta: c.id === "compagnie" }; }) }, ev.origin); } catch (e) {} return; }
+      if (d.origami === "comptes-demande") { try { ev.source.postMessage({ origami: "comptes", actuel: "compagnie", repertoire: !!window.OrigamiRepertoire, liste: comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), compta: c.id === "compagnie" }; }) }, ev.origin); } catch (e) {} return; }
       if (d.origami === "compte-choisir") { var cc = compte(String(d.id || "")); if (cc && cc.id !== "compagnie") avis("La Compta n'est pas encore installée dans le compte « " + cc.nom + " »."); return; }
+      if (d.origami === "repertoire") { recevoirRepertoire(d, "Compta", ev.source, ev.origin); return; }
       if (d.origami === "cache-lire") { lireCopieCompta(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
       if (d.origami === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCopieCompta(d.texte); return; }
       // La Compta demande si un brouillon (PDF joint) peut s'ouvrir dans l'appli Boîte mail, puis le demande.
@@ -818,6 +833,7 @@ button.tuile:hover { border-color: var(--ligne); }
     else if (etat.vue === "tickets0" && etat.compte === id) dessinerTickets();
     else if (etat.vue === "diffusion0" && etat.compte === id) dessinerDiffusion();
     else if (etat.vue === "agenda" && window.OrigamiAgenda) window.OrigamiAgenda.rafraichir();
+    else if (etat.vue === "repertoire" && window.OrigamiRepertoire) window.OrigamiRepertoire.rafraichir();
   }
   function heure(t) { var d = new Date(t); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
   function ligneMoteur(c) {
@@ -1630,8 +1646,11 @@ button.tuile:hover { border-color: var(--ligne); }
     function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
     h += '<div class="groupe"><h2>' + (c0 ? "Origami" : "Dans tous les comptes") + "</h2>";
     h += '<button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>';
+    var ligneRep = '<button class="ligne" data-vue="repertoire"' + (etat.vue === "repertoire" ? ' aria-current="true"' : "") + ">" + icone("repertoire") + '<span class="nom">Répertoire</span></button>';
+    if (!c0) h += ligneRep;   // « Tous les comptes » : le répertoire de chaque compte affiché
     if (!c0 && volet.modules.length) h += '</div><div class="groupe"><h2>' + texte(cv.nom) + "</h2>";
     volet.modules.forEach(function (id) { h += ligne(id); });
+    if (c0) h += ligneRep;
     h += "</div>";
     if (volet.applis.length) { h += '<div class="groupe"><h2>Applis</h2>'; volet.applis.forEach(function (id) { h += ligne(id); }); h += "</div>"; }
     h += '<div class="groupe pied"><button class="ligne" data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + '<span class="nom">Réglages</span></button></div>';
@@ -1639,6 +1658,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var b = '<button data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + "Accueil</button>";
     var cb = c0 || COMPTE_COMPAGNIE;
     var vb = voletDe(cb); vb.modules.concat(vb.applis).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + nomAppli(cb, id) + "</button>"; });
+    b += '<button data-vue="repertoire"' + (etat.vue === "repertoire" ? ' aria-current="true"' : "") + ">" + icone("repertoire") + "Répertoire</button>";
     b += '<button data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + "Réglages</button>";
     barre.innerHTML = b;
     var ouverte = barre.querySelector('[aria-current="true"]');
@@ -2035,10 +2055,30 @@ button.tuile:hover { border-color: var(--ligne); }
       etat.compte = "compagnie"; etat.vue = vue; montrer();
     }
   };
+  // Pont vers le Répertoire commun (repertoire.js) : mêmes comptes que l'Agenda, les lignes déjà rangées dans le compte, la Boîte mail.
+  var repertoireZone = document.getElementById("repertoire");
+  var pontRepertoire = {
+    comptesVus: pontAgenda.comptesVus,
+    relie: function (id) { return !!moteurs[id]; },
+    charge: function (id) { return !!memoires[id]; },
+    appel: function (id, fn, args) { return moteurAppel(id, fn, args); },
+    lignes: function (id) { return lignes(id, "repertoire"); },
+    avis: function (t, souci) { avis(t, souci); },
+    demander: function (titre, message, boutons) { demander(titre, message, boutons); },
+    ouvrirVoile: function (h) { ouvrirVoile(h); },
+    fermerVoile: function () { fermerVoile(); },
+    boite: function () { return !FENETRE && boitePossible(); },
+    ecrire: function (id, adresse) {
+      var u = boitePossible() ? adresseBoite({ geste: "ecrire", mode: "nouveau", a: adresse, boite: id === "compagnie" ? "diffusion" : "" }) : "";
+      if (!u) return false;
+      try { Promise.resolve(MAC.opener.openUrl(u)).then(function () {}, function () { avis("La Boîte mail ne s'est pas ouverte.", true); }); } catch (e) { return false; }
+      return true;
+    }
+  };
   function montrer() {
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : "";
-    if (vue !== "accueil" && vue !== "reglages" && vue !== "ajouter" && !(vue === "relier" && c0) && !(vue === "agenda" && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
+    if (vue !== "accueil" && vue !== "reglages" && vue !== "ajouter" && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
     if (cadre) ouvrirCadre(cadre);
     if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
     for (var id in cadres) cadres[id].hidden = id !== cadre;
@@ -2046,13 +2086,15 @@ button.tuile:hover { border-color: var(--ligne); }
     accueil.hidden = vue !== "accueil";
     zoneReglages.hidden = vue !== "reglages";
     agendaZone.hidden = vue !== "agenda";
-    page.hidden = !!cadre || vue === "accueil" || vue === "reglages" || vue === "agenda";
+    repertoireZone.hidden = vue !== "repertoire" || !window.OrigamiRepertoire;
+    page.hidden = !!cadre || vue === "accueil" || vue === "reglages" || vue === "agenda" || !repertoireZone.hidden;
     if (!cadre) attente.hidden = true;
     if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "reglages") { dessinerReglages(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "tickets0") { dessinerTickets(); releverSiVieux(c0.id); }
     else if (vue === "diffusion0") { dessinerDiffusion(); releverSiVieux(c0.id); releverDiffusionSiVieux(c0.id); }
     else if (vue === "agenda") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiAgenda) window.OrigamiAgenda.montrer(agendaZone, pontAgenda); else page.hidden = false, page.innerHTML = '<div class="info"><h1>Agenda</h1><p>L\'agenda n\'a pas pu se charger. Recharge la page.</p></div>'; }
+    else if (vue === "repertoire") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiRepertoire) window.OrigamiRepertoire.montrer(repertoireZone, pontRepertoire); else page.innerHTML = '<div class="info"><h1>Répertoire</h1><p>Le répertoire n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (!cadre) dessinerPage(vue);
     dessinerMenu();
     document.title = APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : vue === "reglages" ? "Réglages · Origami" : "Origami";
@@ -2065,7 +2107,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (clicTickets(b, d)) return;
     if (clicDiffusion(b, d)) return;
     if (clicBord(b, d) || clicReglages(b, d)) return;
-    if (d.compte) { etat.compte = d.compte; if ((etat.vue === "agenda" || etat.vue === "reglages") && (d.compte === "tous" || compte(d.compte))) { montrer(); return; } if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
+    if (d.compte) { etat.compte = d.compte; if ((etat.vue === "agenda" || etat.vue === "repertoire" || etat.vue === "reglages") && (d.compte === "tous" || compte(d.compte))) { montrer(); return; } if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
     if (d.vue) {
       if (d.vue === "boite" && !d.infos && (d.de || etat.compte) === "compagnie" && !FENETRE && boitePossible()) { lancerBoite(); return; }
       if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
@@ -2103,7 +2145,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.plusTard) { bandeauVersion.hidden = true; return; }
     if (d.retirer) {
       etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
-      delete moteurs[d.retirer]; delete memoires[d.retirer]; oublierDiff(d.retirer); file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
+      delete moteurs[d.retirer]; delete memoires[d.retirer]; oublierDiff(d.retirer); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(d.retirer); file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
       etat.compte = "compagnie"; etat.vue = "reglages"; montrer();
     }
   });
