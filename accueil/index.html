@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.34">
+<meta name="origami-version" content="2026-11-18.35">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -416,8 +416,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.34"></script>
-<script src="repertoire.js?v=2026-11-18.34"></script>
+<script src="agenda.js?v=2026-11-18.35"></script>
+<script src="repertoire.js?v=2026-11-18.35"></script>
 <script>
 (function () {
   "use strict";
@@ -1496,7 +1496,7 @@ button.tuile:hover { border-color: var(--ligne); }
     b.disabled = true;
     moteurAppel(id, "tickets.envoi.lien", { id: idE }).then(function (r) {
       var u = String((r && r.url) || "");
-      if (!/^https:\/\/script\.google\.com\//.test(u)) throw new Error("Le lien n'a pas pu être préparé.");
+      if (!/^https:\/\/(script\.google\.com\/|sevanegu-pixel\.github\.io\/origami\/accueil\/paiement\.html#)/.test(u)) throw new Error("Le lien n'a pas pu être préparé.");
       ouvrirVoile("<h2>Lien de paiement</h2><p>Ce lien ouvre la page où l'on coche les tickets payés de cet envoi. Le lien du mail reste valable. Ne le donne qu'à qui doit payer.</p>" +
         '<div class="copie"><input id="tkLienPaie" readonly value="' + texte(u) + '" aria-label="Lien de paiement"><button class="bouton" data-tk="copier-lien">Copier</button></div>' +
         '<div class="actions"><a class="bouton" href="' + texte(u) + '" target="_blank" rel="noopener">Ouvrir la page</a><button class="bouton fort" data-tk="fermer">Fermer</button></div>');

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Tickets payés</title>
+<!--
+  Page « Tickets payés » (18.11.2026) : ouverte par le bouton « Indiquer les tickets payés » d'un mail de Tickets.
+  L'adresse porte, après le #, l'adresse du moteur du compte (m), l'envoi (e) et son jeton (j). Le # ne part jamais au
+  serveur de GitHub. La page parle au moteur comme l'appli Origami (même chemin, sans compte Google) : elle marche aussi sur
+  un téléphone connecté à plusieurs comptes Google, où la page du moteur affichait « Impossible d'ouvrir le fichier ».
+-->
+<style>
+:root { --bleu:#1f6fd1; --texte:#1f2937; --doux:#6b7280; --ligne:#e5e7eb; --fond:#f6f7f9; --carte:#ffffff; color-scheme: light dark; }
+@media (prefers-color-scheme: dark) { :root { --texte:#e8e8e8; --doux:#a3a3a3; --ligne:#353535; --fond:#161616; --carte:#232323; --bleu:#4ab0ff; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--fond); color: var(--texte); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 560px; margin: 0 auto; padding: calc(22px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom)); }
+h1 { font-size: 21px; margin: 0 0 4px; }
+.doux { color: var(--doux); font-size: 14px; }
+.ticket { display: flex; gap: 12px; align-items: flex-start; background: var(--carte); border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; margin-top: 10px; cursor: pointer; }
+.ticket input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; accent-color: var(--bleu); }
+.ticket .corps { flex: 1; min-width: 0; }
+.ticket .haut { display: flex; justify-content: space-between; gap: 10px; font-weight: 600; }
+.ticket .haut span:first-child { overflow-wrap: anywhere; }
+.ticket .montant { white-space: nowrap; }
+.ticket .note { color: var(--doux); font-size: 14px; white-space: pre-line; overflow-wrap: anywhere; margin-top: 2px; }
+.tout { margin: 16px 0 0; display: flex; justify-content: flex-end; }
+.tout button { background: none; border: 0; color: var(--bleu); font: inherit; font-weight: 600; cursor: pointer; padding: 4px; }
+.valider { width: 100%; margin-top: 18px; background: var(--bleu); color: #fff; border: 0; border-radius: 12px; padding: 14px; font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; }
+.valider:disabled { opacity: .6; }
+#message { margin-top: 14px; min-height: 22px; font-weight: 600; }
+#message.erreur { color: #e5484d; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Tickets payés</h1>
+  <div class="doux" id="intro">Chargement…</div>
+  <div id="liste"></div>
+  <div class="tout" id="zoneTout" hidden><button type="button" id="btnTout">Tout cocher</button></div>
+  <button type="button" class="valider" id="btnValider" hidden>Valider</button>
+  <div id="message" role="status"></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var p = {};
+  String(location.hash || "").replace(/^#/, "").split("&").forEach(function (x) { var i = x.indexOf("="); if (i > 0) p[x.slice(0, i)] = x.slice(i + 1); });
+  var MOTEUR = "";
+  try { MOTEUR = atob(String(p.m || "").replace(/-/g, "+").replace(/_/g, "/")); } catch (e) { MOTEUR = ""; }
+  var LOT = decodeURIComponent(p.e || ""), JETON = String(p.j || "");
+  var bon = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/.test(MOTEUR) && /^[A-Za-z0-9-]{4,40}$/.test(LOT) && /^[a-f0-9]{64}$/.test(JETON);
+  function $(i) { return document.getElementById(i); }
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function appel(fn, args) {
+    return fetch(MOTEUR, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ prise: 1, fn: fn, args: args }) })
+      .then(function (r) { return r.json(); }, function () { throw new Error("Pas de connexion pour l'instant. Réessaie dans un moment."); })
+      .then(function (o) { if (o && o.ok === true) return o.r; throw new Error(o && o.erreur ? String(o.erreur) : "Le compte ne répond pas pour l'instant. Réessaie dans un moment."); });
+  }
+  function msg(t, err) { var m = $("message"); m.textContent = t; m.className = err ? "erreur" : ""; }
+  function cases() { return Array.prototype.slice.call(document.querySelectorAll("#liste input")); }
+  function rendre(d) {
+    $("intro").textContent = "Envoi du " + d.dateEnvoi + (d.total ? " · " + d.total : "") + ". Coche les tickets qui ont été payés, puis Valider.";
+    $("liste").innerHTML = d.tickets.length ? d.tickets.map(function (t) {
+      return "<label class='ticket'><input type='checkbox' value='" + esc(t.cle) + "'" + (t.paye ? " checked" : "") + ">" +
+        "<div class='corps'><div class='haut'><span>" + esc(t.nom) + (t.motif ? " · " + esc(t.motif) : "") + "</span><span class='montant'>" + esc(t.montant) + "</span></div>" +
+        (t.commentaire ? "<div class='note'>" + esc(t.commentaire) + "</div>" : "") +
+        "<div class='doux'>" + esc(t.date) + (t.paye ? " · payé le " + esc(t.datePaiement) : "") + "</div></div></label>";
+    }).join("") : "<p class='doux'>Aucun ticket dans cet envoi.</p>";
+    $("btnValider").hidden = !d.tickets.length;
+    $("zoneTout").hidden = d.tickets.length < 2;
+  }
+  if (!bon) { $("intro").textContent = "Ce lien est incomplet. Ouvre-le depuis le bouton « Indiquer les tickets payés » du mail."; return; }
+  $("btnTout").onclick = function () { var c = cases(), tous = c.every(function (x) { return x.checked; }); c.forEach(function (x) { x.checked = !tous; }); };
+  $("btnValider").onclick = function () {
+    var b = this; b.disabled = true; msg("Enregistrement…");
+    var payes = cases().filter(function (x) { return x.checked; }).map(function (x) { return x.value; });
+    appel("paiement.enregistrer", { lot: LOT, jeton: JETON, payes: payes }).then(function (r) {
+      msg("Merci, c'est enregistré : " + r.payes + " ticket(s) payé(s) sur " + cases().length + ".");
+      return appel("paiement.lire", { lot: LOT, jeton: JETON }).then(rendre);
+    }).catch(function (e) { msg(e.message, true); }).then(function () { b.disabled = false; });
+  };
+  appel("paiement.lire", { lot: LOT, jeton: JETON }).then(rendre).catch(function (e) { $("intro").textContent = e.message; });
+})();
+</script>
+</body>
+</html>
