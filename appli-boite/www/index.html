@@ -1127,6 +1127,8 @@
     return c || comptes.filter(function (x) { return x.id === vue; })[0] || comptes[0] || null;
   }
   function demandeDehors(u) {
+    // boitemail://ouvrir : seulement mettre l'appli devant (bouton « Ouvrir » d'une autre appli), sans rien changer ni rien dire
+    if (/^boitemail:\/\/ouvrir\b/i.test(String(u))) { try { if (T && T.window && T.window.getCurrentWindow) { var w0 = T.window.getCurrentWindow(); w0.show(); if (w0.unminimize) w0.unminimize(); w0.setFocus(); } } catch (e) { /* déjà visible */ } return true; }
     var m = /^boitemail:\/\/(ecrire|conversation|brouillon)\b/i.exec(String(u)); if (!m) return false;
     var p = champsLien(u), c = compteDuLien(p.boite);
     try { if (T && T.window && T.window.getCurrentWindow) { var w = T.window.getCurrentWindow(); w.show(); if (w.unminimize) w.unminimize(); w.setFocus(); } } catch (e) { /* déjà visible */ }
