@@ -27,6 +27,18 @@ try { var t = parseInt(localStorage.getItem("origami_taille"), 10); if (t >= 70 
 <meta name="apple-mobile-web-app-title" content="Origami">
 <link rel="apple-touch-icon" href="icone-180.png">
 <link rel="icon" href="icone-192.png">
+<script>
+// Tickets seul (?fenetre=tickets0) : appli à part sur le téléphone, avec son nom, son icône et sa propre fiche d'installation.
+(function () {
+  if (!/[?&]fenetre=tickets0(&|$)/.test(location.search)) return;
+  var q = function (s) { return document.querySelector(s); };
+  q('link[rel="manifest"]').href = "tickets0.webmanifest";
+  q('meta[name="apple-mobile-web-app-title"]').content = "Tickets";
+  q('link[rel="apple-touch-icon"]').href = "../tickets/icone-180.png";
+  q('link[rel="icon"]').href = "../tickets/icone-192.png";
+  document.title = "Tickets";
+})();
+</script>
 <style>
 :root { --fond: #f3f1ed; --carte: #ffffff; --carte2: #f8f7f4; --texte: #15131a; --doux: #67626e; --ligne: #e4e0e6; --accent: #1f5cff; --accent-clair: #dde7ff; }
 * { box-sizing: border-box; }
@@ -408,6 +420,18 @@ button.tuile:hover { border-color: var(--ligne); }
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
   // Classeur modèle du moteur Origami, à copier dans un compte Google où il n'est pas encore installé (vide : pas de guide).
   var MODELE_MOTEUR = "";
+  // Guide « Origami n'est pas encore installé dans ce compte » : le même pour « Ajouter un compte » et pour Tickets seul.
+  // Un seul moteur par compte Google : ne jamais refaire la copie si Origami ou Tickets est déjà relié quelque part.
+  function guideInstallation(bouton) {
+    var h = "<details><summary>Origami n'est pas encore installé dans ce compte Google ?</summary>";
+    if (!/^[\w-]{20,80}$/.test(MODELE_MOTEUR)) return h + "<p>Le guide d'installation arrive très bientôt. En attendant, demande le classeur à la compagnie.</p></details>";
+    h += "<p><strong>Une seule fois par compte Google.</strong> Si Origami ou Tickets est déjà relié sur un autre de tes appareils, ne refais pas la copie : sur cet appareil-là, utilise « Relier un autre appareil ».</p><ol>";
+    h += '<li><a href="https://docs.google.com/spreadsheets/d/' + MODELE_MOTEUR + '/copy" target="_blank" rel="noopener">Copier le classeur Origami</a> dans le Drive de ce compte (connecte-toi d\'abord à ce compte, sur un ordinateur : le menu du classeur n\'existe pas dans Sheets sur téléphone).</li>';
+    h += "<li>Dans la copie, menu Origami, puis « Relier un appareil ». La première fois, Google demande une autorisation : accepte, puis clique de nouveau sur « Relier un appareil ».</li>";
+    h += "<li>La fenêtre te guide pour publier le moteur, une seule fois, puis te donne un code.</li>";
+    h += "<li>Colle ce code ci-dessus, puis « " + bouton + " ». Tout s'installe dans le dossier « Origami » de ton Drive.</li></ol>";
+    return h + "<p>Si Google affiche une erreur, c'est souvent que plusieurs comptes sont ouverts dans le navigateur : refais ces étapes dans une fenêtre de navigation privée, connectée à ce seul compte.</p></details>";
+  }
   var COULEURS = ["#1f5cff", "#e0a800", "#15803d", "#b42318", "#7d3c5e", "#0e7490"];
   // Le compte de la compagnie est là d'office, avec les applis qui existent. Les autres comptes sont ajoutés
   // sur l'appareil et restent dans sa mémoire (rien n'est envoyé).
@@ -557,7 +581,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // Appli Mac (coquille Tauri) : les liens s'ouvrent dans le navigateur du Mac, « Détacher » ouvre une vraie fenêtre.
   var MAC = window.__TAURI__ || null;
   // Adresse …/accueil/?fenetre=compta : cette fenêtre ne montre que cette appli (une fenêtre de l'appli Mac, ou l'appli installée seule).
-  var FENETRE = (/[?&]fenetre=(compta|tickets|frais)(&|$)/.exec(location.search) || [])[1] || "";
+  var FENETRE = (/[?&]fenetre=(compta|tickets0|tickets|frais)(&|$)/.exec(location.search) || [])[1] || "";
   if (FENETRE) document.documentElement.classList.add("fenetre");
   // Fenêtre détachée de la Compta (son bouton « nouvelle fenêtre ») : …/accueil/?fenetre=compta&ouvrir=… dit quel écran ouvrir.
   var OUVRIR = (/[?&]ouvrir=([A-Za-z0-9_-]{1,6000})(&|$)/.exec(location.search) || [])[1] || "";
@@ -1020,27 +1044,36 @@ button.tuile:hover { border-color: var(--ligne); }
   // Le cadre de l'écran n'est refait que si le compte, l'installation ou l'onglet changent : une saisie en cours reste en place.
   function dessinerTickets() {
     var c = compte(etat.compte), inst = installee(c.id, "tickets"), cadre = c.id + "|" + (inst ? tk.onglet : "installer"), racine = page.firstElementChild;
-    if (!etatMoteur(c.id)) {   // appareil pas encore relié au moteur du compte (souvent le téléphone), ou moteur pas encore lu
-      var hr = '<div class="appli" data-cadre="' + c.id + '|relier' + (moteurs[c.id] ? "1" : "0") + '"><div class="entete"><div><h1>' + nomAppli(c, "tickets0") + "</h1><p>" + texte(c.nom) + '</p></div></div><div class="carte">';
+    var seul = FENETRE === "tickets0", em = etatMoteur(c.id), titreTk = seul ? "Tickets" : nomAppli(c, "tickets0");
+    var nomCompteTk = texte(seul ? ((em && em.compte && em.compte.nom) || (moteurs[c.id] ? "" : "Pas encore relié à un compte")) : c.nom);
+    if (seul && !moteurs[c.id]) {   // Tickets seul, premier lancement : relier à un compte (lien ou code), ou guide d'installation
+      if (!racine || racine.getAttribute("data-cadre") !== "seul|relier") page.innerHTML = '<div class="appli" data-cadre="seul|relier"><div class="entete"><div><h1>Tickets</h1><p>Bienvenue</p></div></div><div class="carte">' +
+        "<p>Tickets garde tes justificatifs (photos de reçus, factures), les scanne, et les envoie groupés par mail, avec le suivi des paiements. Tout est rangé dans le dossier « Origami » de ton Drive Google.</p>" +
+        "<p>Si Origami ou Tickets est déjà relié à ton compte sur un autre appareil : là-bas, « Relier un autre appareil », puis ouvre ici le lien obtenu (ou colle-le).</p>" +
+        '<div class="actions"><button class="bouton fort" data-vue="relier" data-de="' + c.id + '">Relier à mon compte</button></div>' + guideInstallation("Relier") + "</div></div>";
+      return;
+    }
+    if (!em) {   // appareil pas encore relié au moteur du compte (souvent le téléphone), ou moteur pas encore lu
+      var hr = '<div class="appli" data-cadre="' + c.id + '|relier' + (moteurs[c.id] ? "1" : "0") + '"><div class="entete"><div><h1>' + titreTk + "</h1><p>" + nomCompteTk + '</p></div></div><div class="carte">';
       if (moteurs[c.id]) hr += '<p>Lecture du compte en cours…</p><div class="actions"><button class="bouton" data-relever="' + c.id + '">Actualiser</button></div>';
       else {
         hr += "<p>Sur cet appareil, Origami n'est pas encore relié à ton compte Google. C'est la liaison d'Origami lui-même : elle se fait une seule fois par appareil et sert ensuite à tout Origami (Tickets, Agenda, Répertoire…).</p>";
         hr += "<p>Le plus simple : sur un appareil où Origami est déjà relié, va dans Réglages, « Relier un autre appareil », et ouvre ici le lien obtenu. Sinon : classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil », et colle le code ici.</p>";
         hr += '<div class="actions"><button class="bouton fort" data-vue="relier" data-de="' + c.id + '">Relier Origami</button></div>';
       }
-      if (c.applis.indexOf("tickets") >= 0) hr += "<p>Ton appli Tickets habituelle reste dans « Tickets ».</p>";
+      if (c.applis.indexOf("tickets") >= 0 && !seul) hr += "<p>Ton appli Tickets habituelle reste dans « Tickets ».</p>";
       if (!racine || racine.getAttribute("data-cadre") !== c.id + "|relier" + (moteurs[c.id] ? "1" : "0")) page.innerHTML = hr + "</div></div>";
       return;
     }
     if (!racine || racine.getAttribute("data-cadre") !== cadre) {
-      var h = '<div class="appli" data-cadre="' + cadre + '"><div class="entete"><div><h1>' + nomAppli(c, "tickets0") + "</h1><p>" + texte(c.nom) + "</p></div>";
+      var h = '<div class="appli" data-cadre="' + cadre + '"><div class="entete"><div><h1>' + titreTk + "</h1><p>" + nomCompteTk + "</p></div>";
       if (!inst) {
         h += '</div><div class="carte"><p>Tickets garde tes justificatifs (photos de reçus, factures) et les envoie groupés par mail aux adresses que tu choisis, avec une confirmation de paiement si tu veux.</p>';
         h += "<p>L'installation crée, dans le dossier « Origami » du Drive de ce compte, un classeur « Tickets » et un dossier « Tickets - justificatifs ».</p>";
-        if (c.applis.indexOf("tickets") >= 0) h += "<p>Ton appli Tickets actuelle n'est pas touchée : ses tickets restent où ils sont.</p>";
+        if (c.applis.indexOf("tickets") >= 0 && !seul) h += "<p>Ton appli Tickets actuelle n'est pas touchée : ses tickets restent où ils sont.</p>";
         h += '<p id="tkSouci" class="souci" role="status"></p><div class="actions"><button class="bouton fort" data-tk="installer">Installer Tickets dans ce compte</button></div></div>';
       } else {
-        h += '<div class="actions"><button class="bouton fort" data-tk="nouveau">Nouveau ticket</button><button class="bouton" data-relever="' + c.id + '">Actualiser</button></div></div><div class="onglets" role="tablist">';
+        h += '<div class="actions"><button class="bouton fort" data-tk="nouveau">Nouveau ticket</button><button class="bouton" data-relever="' + c.id + '">Actualiser</button>' + (seul ? '<button class="bouton" data-autre="' + c.id + '">Relier un autre appareil</button>' : "") + '</div></div><div class="onglets" role="tablist">';
         [["tickets", "Tickets"], ["paiements", "Paiements"], ["destinataires", "Destinataires"], ["historique", "Historique"]].forEach(function (o) { h += '<button role="tab" data-onglet="' + o[0] + '" aria-selected="' + (tk.onglet === o[0] ? "true" : "false") + '">' + o[1] + "</button>"; });
         h += "</div>";
         if (tk.onglet === "destinataires") {
@@ -2178,7 +2211,7 @@ button.tuile:hover { border-color: var(--ligne); }
       b.disabled = true; document.getElementById("messageAutre").textContent = "Un instant…";
       moteurAppel(idA, "appareils.ajouter", { nom: nomA }).then(function (r) {
         if (!r || !r.code || !lireCode(r.code)) throw new Error("Le moteur n'a pas rendu de code. Réessaie.");
-        var lien = (!MAC && /^https?:$/.test(location.protocol) ? location.href.split("#")[0].split("?")[0] : "https://sevanegu-pixel.github.io/origami/accueil/") + "#relier=" + idA + "." + r.code;
+        var lien = (!MAC && /^https?:$/.test(location.protocol) ? location.href.split("#")[0].split("?")[0] : "https://sevanegu-pixel.github.io/origami/accueil/") + (FENETRE === "tickets0" ? "?fenetre=tickets0" : "") + "#relier=" + idA + "." + r.code;
         ouvrirVoile('<h2>Lien pour « ' + texte(nomA) + ' »</h2><p>Envoie-toi ce lien (par message ou par mail), ouvre-le sur « ' + texte(nomA) + ' », puis touche « Relier ».</p><div class="copie"><input id="lienAutre" readonly value="' + texte(lien) + '" aria-label="Lien pour relier l\'appareil"><button class="bouton" data-autre-copier="1">Copier</button></div>' +
           '<p class="note">Ce lien donne accès à ton compte : ne le donne à personne. Si tu l\'as envoyé par erreur, retire l\'appareil « ' + texte(nomA) + ' » dans le classeur (menu Origami, Appareils reliés).</p><div class="actions">' + (navigator.share ? '<button class="bouton" data-autre-partager="1">Envoyer…</button>' : "") + '<button class="bouton fort" data-autre-fin="1">Terminé</button></div>');
       }).catch(function (e) { var m = document.getElementById("messageAutre"); if (m) m.textContent = e.message; b.disabled = false; });
@@ -2209,14 +2242,7 @@ button.tuile:hover { border-color: var(--ligne); }
       h += '<label class="champ">Nom du compte<input id="nomCompte" maxlength="40" autocomplete="off"></label><div class="couleurs" role="group" aria-label="Couleur">';
       COULEURS.forEach(function (c, i) { h += '<button data-couleur="' + c + '" aria-pressed="' + (i === 1 ? "true" : "false") + '" aria-label="Couleur ' + (i + 1) + '" style="background:' + c + '"></button>'; });
       h += '</div><label class="champ">Code de liaison (facultatif)<textarea id="codeCompte" autocomplete="off" spellcheck="false">' + (LIEN_RELIER && !compte(LIEN_RELIER.id) ? texte(LIEN_RELIER.code) : "") + '</textarea></label>';
-      if (/^[\w-]{20,80}$/.test(MODELE_MOTEUR)) {
-        h += "<details><summary>Origami n'est pas encore installé dans ce compte Google ?</summary><ol>";
-        h += '<li><a href="https://docs.google.com/spreadsheets/d/' + MODELE_MOTEUR + '/copy" target="_blank" rel="noopener">Copier le classeur Origami</a> dans le Drive de ce compte (connecte-toi d\'abord à ce compte).</li>';
-        h += "<li>Dans la copie, menu Origami, puis « Relier un appareil ». La première fois, Google demande une autorisation : accepte, puis clique de nouveau sur « Relier un appareil ».</li>";
-        h += "<li>La fenêtre te guide pour publier le moteur, une seule fois, puis te donne un code.</li>";
-        h += "<li>Colle ce code ci-dessus, puis « Ajouter ».</li></ol>";
-        h += "<p>Si Google affiche une erreur, c'est souvent que plusieurs comptes sont ouverts dans le navigateur : refais ces étapes dans une fenêtre de navigation privée, connectée à ce seul compte.</p></details>";
-      }
+      h += guideInstallation("Ajouter");
       h += '<p id="messageCode" class="souci" role="status"></p><div><button class="bouton fort" data-ajouter="1">Ajouter</button></div>';
     } else if (vue === "relier") {
       var cr = compte(etat.compte);
@@ -2225,10 +2251,12 @@ button.tuile:hover { border-color: var(--ligne); }
         h += "<p>Si tu oublies la liaison ici, l'appareil reste dans la liste « Appareils reliés » du classeur du compte : retire-le là aussi.</p>";
         h += '<div><button class="bouton" data-delier="' + cr.id + '">Oublier la liaison sur cet appareil</button></div>';
       } else {
-        h += "<h1>Relier " + texte(cr.nom) + " à son moteur</h1><p>Dans ce compte Google, ouvre le classeur « Origami - Réglages du compte », menu Origami, puis « Relier un appareil ». Colle ici le code obtenu. Tu peux aussi coller le lien « Relier un autre appareil » créé dans les Réglages d'un Origami déjà relié (dans ton navigateur, par exemple).</p>";
+        if (FENETRE === "tickets0") h += "<h1>Relier Tickets à ton compte Google</h1><p>Colle ici le lien « Relier un autre appareil » (créé sur un appareil déjà relié), ou le code donné par le classeur « Origami - Réglages du compte » (menu Origami, « Relier un appareil »).</p>";
+        else h += "<h1>Relier " + texte(cr.nom) + " à son moteur</h1><p>Dans ce compte Google, ouvre le classeur « Origami - Réglages du compte », menu Origami, puis « Relier un appareil ». Colle ici le code obtenu. Tu peux aussi coller le lien « Relier un autre appareil » créé dans les Réglages d'un Origami déjà relié (dans ton navigateur, par exemple).</p>";
         if (LIEN_RELIER && LIEN_RELIER.id === cr.id) h += "<p><strong>Le code est déjà rempli par le lien : touche « Relier ».</strong></p>";
         h += '<label class="champ">Code de liaison<textarea id="codeCompte" autocomplete="off" spellcheck="false">' + (LIEN_RELIER && LIEN_RELIER.id === cr.id ? texte(LIEN_RELIER.code) : "") + '</textarea></label>';
-        h += '<p id="messageCode" class="souci" role="status"></p><div><button class="bouton fort" data-relier="' + cr.id + '">Relier</button></div>';
+        h += '<p id="messageCode" class="souci" role="status"></p><div class="actions"><button class="bouton fort" data-relier="' + cr.id + '">Relier</button>' + (FENETRE === "tickets0" ? '<button class="bouton" data-vue="tickets0">Retour</button>' : "") + "</div>";
+        if (FENETRE === "tickets0") h += guideInstallation("Relier");
       }
     } else if (vue === "boite") {
       h += "<h1>Boîte mail</h1><p>Pour l'instant, la Boîte mail s'ouvre dans son appli sur le Mac. Elle rejoindra cette fenêtre avec le moteur Origami, sans rien changer à l'appli actuelle.</p>";
@@ -2300,7 +2328,7 @@ button.tuile:hover { border-color: var(--ligne); }
     else if (vue === "repertoire") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiRepertoire) window.OrigamiRepertoire.montrer(repertoireZone, pontRepertoire); else page.innerHTML = '<div class="info"><h1>Répertoire</h1><p>Le répertoire n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (!cadre) dessinerPage(vue);
     dessinerMenu();
-    document.title = APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : vue === "reglages" ? "Réglages · Origami" : "Origami";
+    document.title = FENETRE === "tickets0" ? "Tickets" : APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : vue === "reglages" ? "Réglages · Origami" : "Origami";
     retenir();
   }
   document.addEventListener("click", function (ev) {
@@ -2340,7 +2368,7 @@ button.tuile:hover { border-color: var(--ligne); }
       var recu = lireCode(document.getElementById("codeCompte").value);
       if (!recu) { document.getElementById("messageCode").textContent = "Ce code n'est pas reconnu. Copie-le en entier depuis le classeur du compte."; return; }
       moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; delete etat.noms[d.relier]; retenirMoteurs(); garderMemoire(d.relier); LIEN_RELIER = null;
-      etat.vue = "reglages"; montrer(); return;
+      etat.vue = FENETRE === "tickets0" ? "tickets0" : "reglages"; montrer(); if (FENETRE === "tickets0") relever(d.relier); return;
     }
     if (d.delier) { delete etat.noms[d.delier]; oublierCompta(d.delier); delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
@@ -2357,12 +2385,12 @@ button.tuile:hover { border-color: var(--ligne); }
   // Lien « Relier un autre appareil » (#relier=compte.code) : le code ne quitte pas l'appareil, l'ancre est effacée tout de suite.
   var mLien = /^relier=([\w-]{1,40})\.([\w-]{20,2000})$/.exec(ancre);
   if (mLien && lireCode(mLien[2])) {
-    LIEN_RELIER = { id: mLien[1], code: mLien[2] };
+    LIEN_RELIER = { id: FENETRE === "tickets0" ? "compagnie" : mLien[1], code: mLien[2] };   // Tickets seul : un seul compte, celui de l'appli
     try { history.replaceState(null, "", location.href.split("#")[0]); } catch (e) {}
     ancre = "";
-    var dejaL = moteurs[mLien[1]] && moteurs[mLien[1]].u === lireCode(mLien[2]).u;
-    if (dejaL) { LIEN_RELIER = null; etat.compte = mLien[1]; etat.vue = "reglages"; }
-    else if (compte(mLien[1])) { etat.compte = mLien[1]; etat.vue = "relier"; }
+    var dejaL = moteurs[LIEN_RELIER.id] && moteurs[LIEN_RELIER.id].u === lireCode(mLien[2]).u;
+    if (dejaL) { etat.compte = LIEN_RELIER.id; LIEN_RELIER = null; etat.vue = "reglages"; }
+    else if (compte(LIEN_RELIER.id)) { etat.compte = LIEN_RELIER.id; etat.vue = "relier"; }
     else { etat.vue = "ajouter"; }
   }
   // Au démarrage et au rechargement, on revient à un écran du volet. Diffusion entière (ouverte depuis les Réglages) et son
@@ -2371,7 +2399,7 @@ button.tuile:hover { border-color: var(--ligne); }
   if (!FENETRE && etat.ouverture === "bord") etat.vue = "accueil";   // réglage « Toujours ouvrir le tableau de bord »
   if (ancre === "reglages") etat.vue = "reglages";
   if (APPLIS[ancre] && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
-  if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE; }
+  if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE; }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (versFrais) location.replace(APPLIS.frais.lien);   // fenêtre Frais avec un lien déjà connu : la page Frais prend la place
