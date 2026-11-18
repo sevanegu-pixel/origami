@@ -1,12 +1,14 @@
-// Prépare la coquille pour une appli donnée avant la fabrication : node preparer.js origami | compta | tickets
+// Prépare la coquille pour une appli donnée avant la fabrication : node preparer.js origami | compta | tickets | frais
 // La même coquille sert à toutes : seuls changent le nom, l'identité, l'icône et l'adresse ouverte.
-// Compta et Tickets ouvrent la page Origami en « fenêtre d'une seule appli » : mêmes échanges que dans Origami, sans le volet.
+// Compta, Tickets et Frais ouvrent la page Origami en « fenêtre d'une seule appli » : mêmes échanges que dans Origami, sans le volet.
+// Frais : la fenêtre demande une fois le lien personnel, puis laisse la place à la page Frais.
 const fs = require('fs'), path = require('path');
 const PAGE = 'https://sevanegu-pixel.github.io/origami/accueil/';
 const APPLIS = {
   origami: { nom: 'Origami', identite: 'ch.origami.origami', adresse: PAGE, icone: 'icone-1024.png', texte: 'Origami · toutes les applis', fichier: 'Origami-Mac.dmg' },
   compta: { nom: 'Compta', identite: 'ch.origami.compta', adresse: PAGE + '?fenetre=compta', icone: 'icones/compta.png', texte: 'Compta Origami', fichier: 'Compta-Mac.dmg' },
-  tickets: { nom: 'Tickets', identite: 'ch.origami.tickets', adresse: PAGE + '?fenetre=tickets', icone: 'icones/tickets.png', texte: 'Tickets Origami', fichier: 'Tickets-Mac.dmg' }
+  tickets: { nom: 'Tickets', identite: 'ch.origami.tickets', adresse: PAGE + '?fenetre=tickets', icone: 'icones/tickets.png', texte: 'Tickets Origami', fichier: 'Tickets-Mac.dmg' },
+  frais: { nom: 'Frais', identite: 'ch.origami.frais', adresse: PAGE + '?fenetre=frais', icone: 'icones/frais.png', texte: 'Frais Origami', fichier: 'Frais-Mac.dmg' }
 };
 const a = APPLIS[process.argv[2]];
 if (!a) { console.error('appli ? (' + Object.keys(APPLIS).join(', ') + ')'); process.exit(1); }

@@ -1,5 +1,5 @@
 # Fabrique les applis Origami pour Mac (coquille Tauri du dossier appli-origami/) et les publie comme « version » GitHub à télécharger.
-# Une seule coquille pour trois applis : Origami (l'appli mère), Compta et Tickets (chacune seule dans sa fenêtre).
+# Une seule coquille pour quatre applis : Origami (l'appli mère), Compta, Tickets et Frais (chacune seule dans sa fenêtre).
 # La coquille ne contient aucune appli : elle affiche la page Origami en ligne (dossier accueil/).
 name: Applis Origami Mac
 
@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        appli: [origami, compta, tickets]
+        appli: [origami, compta, tickets, frais]
     steps:
       - uses: actions/checkout@v4
 
@@ -80,7 +80,7 @@ jobs:
           prerelease: true
           files: "*-Mac.dmg"
           body: |
-            Applis Origami pour Mac (essai) : Origami (l'appli mère), Compta et Tickets, chacune dans son fichier. Ouvrir le fichier .dmg, glisser l'appli dans Applications.
+            Applis Origami pour Mac (essai) : Origami (l'appli mère), Compta, Tickets et Frais, chacune dans son fichier. Ouvrir le fichier .dmg, glisser l'appli dans Applications.
             Première ouverture : l'appli n'est pas signée par Apple ; Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
 
       # Adresse fixe pour les boutons « Télécharger pour Mac » de la page Origami : toujours les derniers fichiers.
@@ -92,5 +92,5 @@ jobs:
           prerelease: true
           files: "*-Mac.dmg"
           body: |
-            Les derniers fichiers d'installation des applis Origami pour Mac : Origami-Mac.dmg, Compta-Mac.dmg, Tickets-Mac.dmg.
+            Les derniers fichiers d'installation des applis Origami pour Mac : Origami-Mac.dmg, Compta-Mac.dmg, Tickets-Mac.dmg, Frais-Mac.dmg.
             Première ouverture : l'appli n'est pas signée par Apple ; Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
