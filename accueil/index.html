@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.1">
+<meta name="origami-version" content="2026-11-18.2">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -200,6 +200,9 @@ a.lien { color: var(--accent); }
     plus: '<path d="M12 5v14M5 12h14"/>'
   };
   ICONES.tickets0 = ICONES.tickets; ICONES.diffusion0 = ICONES.diffusion;
+  ICONES.spectacle = '<path d="M12 3l2.6 5.6 6 .7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9.3l6-.7z"/>';
+  ICONES.prospection = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.5-3.6 2.8-5.5 6-5.5s5.5 1.9 6 5.5"/><circle cx="17.5" cy="9.5" r="2.3"/><path d="M17 14.6c2.3.2 3.7 1.7 4 4.4"/>';
+  ICONES.agenda = '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>';
   function icone(n) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONES[n] + "</svg>"; }
   var APPLIS = {
     boite: { nom: "Boîte mail", texte: "Tes mails, dans l'appli Boîte mail du Mac.", genre: "info" },
@@ -207,6 +210,10 @@ a.lien { color: var(--accent); }
     compta: { nom: "Compta", texte: "Devis, factures, salaires, journal.", genre: "cadre", titre: "Compta", droits: "clipboard-read; clipboard-write; camera", sansCompte: true },
     frais: { nom: "Frais", texte: "Notes de frais et défraiements.", genre: "lien", lien: "https://sevanegu-pixel.github.io/frais/" },
     tickets: { nom: "Tickets", texte: "Justificatifs envoyés par mail, suivi des paiements.", genre: "cadre", titre: "Tickets", droits: "camera; clipboard-write" },
+    // Modules de l'appli mère : les écrans d'origine de Diffusion, ouverts par le volet d'Origami (sans la barre de Diffusion).
+    spectacle: { nom: "Spectacle", genre: "module", cadre: "diffusion", rubrique: "pipeline" },
+    prospection: { nom: "Prospection", genre: "module", cadre: "diffusion", rubrique: "contacts" },
+    agenda: { nom: "Agenda", genre: "module", cadre: "diffusion", rubrique: "agenda" },
     // Tickets « à zéro » : installé dans le compte par son moteur, affiché par cette page (pas de cadre).
     tickets0: { nom: "Tickets", texte: "Justificatifs envoyés par mail, rangés dans le Drive de ce compte.", genre: "moteur" },
     // Diffusion « à zéro » : son propre moteur dans le compte, affichée par cette page (lecture seule pour commencer).
@@ -283,6 +290,10 @@ a.lien { color: var(--accent); }
   function lireCache(ok) { base(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get("diffusion_jeton_donnees"); q.onsuccess = function () { ok(q.result || ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
   function ecrireCache(t) { base(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, "diffusion_jeton_donnees"); else s.delete("diffusion_jeton_donnees"); } catch (e) {} }); }
   var apercu = null;
+  // Modules : Origami dit à Diffusion quelle rubrique montrer sans sa barre ('' : Diffusion entière, avec sa barre).
+  // Une Diffusion qui ne connaît pas encore ce message l'ignore et s'affiche entière.
+  var fenDiffusion = null, moduleVoulu = "";
+  function direModule() { if (!fenDiffusion) return; try { fenDiffusion.w.postMessage({ origami: "module", vue: moduleVoulu }, fenDiffusion.o); } catch (e) {} }
   // Appli Mac (coquille Tauri) : les liens s'ouvrent dans le navigateur du Mac, « Détacher » ouvre une vraie fenêtre.
   var MAC = window.__TAURI__ || null;
   function fenetreCompta(url) {
@@ -304,6 +315,8 @@ a.lien { color: var(--accent); }
     if (!id) return;
     // Chaque appli garde ici ce que sa propre page installable garde : mêmes noms, donc la même mémoire.
     if (id === "diffusion") {
+      fenDiffusion = { w: ev.source, o: ev.origin };
+      if (d.diffusion === "pret") { direModule(); return; }
       if (d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
       if (d.diffusion === "cache-ecrire") { ecrireCache(typeof d.texte === "string" ? d.texte : ""); return; }
       if (d.diffusion === "apparence" && d.apparence) { garder("diffusion_apparence", JSON.stringify({ apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} })); attente.hidden = true; return; }
@@ -469,6 +482,13 @@ a.lien { color: var(--accent); }
   function offre(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.installables) && e.installables.some(function (a) { return a && a.id === appli; })); }
   function installee(id, appli) { var e = etatMoteur(id); return (e && Array.isArray(e.applis) ? e.applis : []).filter(function (a) { return a && a.id === appli; })[0] || null; }
   function applisDe(c) { var l = c.applis.slice(); if (offre(c.id, "tickets")) l.push("tickets0"); if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
+  // Les modules d'un compte : pour l'instant ceux de la Diffusion du compte compagnie (son appli s'ouvre dans un cadre).
+  var MODULES = ["spectacle", "prospection", "agenda"];
+  function modulesDe(c) { return c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; }
+  function vuesDe(c) { return modulesDe(c).concat(applisDe(c)); }
+  // Dans le volet : les modules d'abord ; Diffusion elle-même n'y est plus (elle reste sur le tableau de bord).
+  function voletDe(c) { var m = modulesDe(c); return { modules: m, applis: applisDe(c).filter(function (id) { return !(m.length && id === "diffusion"); }) }; }
+  function cadreDe(vue) { var a = APPLIS[vue]; return !a ? "" : a.genre === "cadre" ? vue : a.genre === "module" ? a.cadre : ""; }
   function nomAppli(c, id) {
     if (id === "tickets0" && c.applis.indexOf("tickets") >= 0) return "Tickets (nouveau)";
     if (id === "diffusion0" && c.applis.indexOf("diffusion") >= 0) return "Diffusion (nouveau)";
@@ -1049,17 +1069,17 @@ a.lien { color: var(--accent); }
     });
     h += '<button class="ligne plus" data-vue="ajouter">' + icone("plus") + "<span>Ajouter un compte</span></button></div>";
     var c0 = compte(etat.compte);
-    h += '<div class="groupe"><h2>' + (c0 ? "Applis de ce compte" : "Dans tous les comptes") + "</h2>";
+    var volet = c0 ? voletDe(c0) : { modules: [], applis: [] };
+    function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(c0, id) + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
+    h += '<div class="groupe"><h2>' + (c0 ? "Origami" : "Dans tous les comptes") + "</h2>";
     h += '<button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>';
-    var liste = c0 ? applisDe(c0) : [];
-    liste.forEach(function (id) {
-      h += '<button class="ligne" data-vue="' + id + '"' + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(c0, id) + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>";
-    });
-    h += '</div><div class="bas">Première version : tes applis actuelles, dans une seule fenêtre.</div>';
+    volet.modules.forEach(function (id) { h += ligne(id); });
+    h += "</div>";
+    if (volet.applis.length) { h += '<div class="groupe"><h2>Applis</h2>'; volet.applis.forEach(function (id) { h += ligne(id); }); h += "</div>"; }
     menu.innerHTML = h;
     var b = '<button data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + "Accueil</button>";
     var cb = c0 || COMPTE_COMPAGNIE;
-    applisDe(cb).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + nomAppli(cb, id) + "</button>"; });
+    var vb = voletDe(cb); vb.modules.concat(vb.applis).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + nomAppli(cb, id) + "</button>"; });
     barre.innerHTML = b;
     var ouverte = barre.querySelector('[aria-current="true"]');
     if (ouverte) barre.scrollLeft = ouverte.offsetLeft - (barre.clientWidth - ouverte.offsetWidth) / 2;
@@ -1140,12 +1160,13 @@ a.lien { color: var(--accent); }
   }
   function montrer() {
     var vue = etat.vue, c0 = compte(etat.compte);
-    var cadre = APPLIS[vue] && APPLIS[vue].genre === "cadre" && c0 && c0.id === "compagnie";
-    if (vue !== "accueil" && vue !== "ajouter" && !(vue === "relier" && c0) && !(APPLIS[vue] && c0 && applisDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = false; }
-    if (cadre) ouvrirCadre(vue);
-    for (var id in cadres) cadres[id].hidden = !(cadre && id === vue);
+    var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : "";
+    if (vue !== "accueil" && vue !== "ajouter" && !(vue === "relier" && c0) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
+    if (cadre) ouvrirCadre(cadre);
+    if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
+    for (var id in cadres) cadres[id].hidden = id !== cadre;
     accueil.hidden = vue !== "accueil";
-    page.hidden = cadre || vue === "accueil";
+    page.hidden = !!cadre || vue === "accueil";
     if (!cadre) attente.hidden = true;
     if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "tickets0") { dessinerTickets(); releverSiVieux(c0.id); }
@@ -1161,7 +1182,7 @@ a.lien { color: var(--accent); }
     var d = b.dataset;
     if (clicTickets(b, d)) return;
     if (clicDiffusion(b, d)) return;
-    if (d.compte) { etat.compte = d.compte; if (d.compte === "tous" || !compte(d.compte) || applisDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
+    if (d.compte) { etat.compte = d.compte; if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
     if (d.vue) { if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return; }
     if (d.cocher) { if (etat.masques[d.cocher]) delete etat.masques[d.cocher]; else etat.masques[d.cocher] = 1; montrer(); return; }
     if (d.couleur) { [].forEach.call(b.parentNode.children, function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); }); return; }
