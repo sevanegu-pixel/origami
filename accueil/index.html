@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.29">
+<meta name="origami-version" content="2026-11-18.30">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -391,8 +391,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.29"></script>
-<script src="repertoire.js?v=2026-11-18.29"></script>
+<script src="agenda.js?v=2026-11-18.30"></script>
+<script src="repertoire.js?v=2026-11-18.30"></script>
 <script>
 (function () {
   "use strict";
@@ -467,12 +467,16 @@ button.tuile:hover { border-color: var(--ligne); }
   // ---- Mémoire de l'appareil : comptes ajoutés, compte et appli ouverts, comptes cochés ----
   // sansCompagnie (18.11, demande de Sévane) : le compte de la compagnie se retire comme les autres. Une installation neuve
   // (aucune mémoire sur l'appareil) démarre vierge, sans aucun compte ; la compagnie revient quand on l'ajoute avec son code.
+  var DEPART_VIERGE = "2026-11-18-soir";
   var etat = { compte: "", vue: "accueil", ajoutes: [], masques: {}, noms: {}, ouverture: "", sansCompagnie: true };
   try {
     var garde = JSON.parse(lire("origami_appli_etat") || "null");
     // Mémoire d'avant le 18.11 (sans « sansCompagnie ») : l'appli repart vierge. Le Mac garde la mémoire de la page même
     // quand on efface l'appli ; sans cela, une réinstallation retrouvait la compagnie et le dernier écran (Prospection).
     if (garde && typeof garde === "object" && !("sansCompagnie" in garde)) { garde = null; garder("origami_appli_etat", ""); }
+    // Départ vierge du 18.11 au soir (demande de Sévane) : une seule fois par appareil, la mémoire d'Origami est oubliée,
+    // même celle déjà réécrite par la page .28. Les fenêtres à part du Mac (Compta, Tickets, Frais) n'y touchent pas.
+    if (!/[?&]fenetre=/.test(location.search) && window.top === window && lire("origami_depart") !== DEPART_VIERGE) { garde = null; garder("origami_appli_etat", ""); garder("origami_depart", DEPART_VIERGE); }
     if (garde && typeof garde === "object") {
       etat.sansCompagnie = garde.sansCompagnie === true;
       if (Array.isArray(garde.ajoutes)) etat.ajoutes = garde.ajoutes.filter(function (c) { return c && /^c[0-9a-z]{4,12}$/.test(c.id) && typeof c.nom === "string" && COULEURS.indexOf(c.couleur) >= 0; }).slice(0, 12).map(function (c) { return { id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, applis: ["boite"] }; });
