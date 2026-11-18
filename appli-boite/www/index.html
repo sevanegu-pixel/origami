@@ -278,15 +278,15 @@
     window.addEventListener('pagehide', finReserve);
     if (T.window && T.window.getCurrentWindow) T.window.getCurrentWindow().onCloseRequested(function () { finReserve(); });
   } catch (e) { /* sans fenêtre d'avance */ }
-  function ouvrirFenetreEcrire(id, onglet) {
+  function ouvrirFenetreEcrire(id, onglet, dehors) {
     var c = comptes.filter(function (x) { return x.id === id; })[0]; if (!c) return;
     if (T && reserve && reserve.compte === id && reserve.pret) {
       var r = reserve; reserve = null;
-      try { T.event.emitTo(r.label, 'ecrire-mail', { onglet: onglet || null }); preparerReserve(id, 8000); return; } catch (e) { /* chargement ordinaire */ }
+      try { T.event.emitTo(r.label, 'ecrire-mail', { onglet: onglet || null, dehors: dehors || null }); preparerReserve(id, 8000); return; } catch (e) { /* chargement ordinaire */ }
     }
     preparerReserve(id, 15000);
     var label = 'ecrire-' + Date.now().toString(36);
-    try { localStorage.setItem('boite-mail-fenetre-' + label, JSON.stringify({ compte: id, onglet: onglet || null })); } catch (e) { return dire('Mémoire de l\'appli pleine : la fenêtre ne peut pas s\'ouvrir.'); }
+    try { localStorage.setItem('boite-mail-fenetre-' + label, JSON.stringify({ compte: id, onglet: onglet || null, dehors: dehors || null })); } catch (e) { return dire('Mémoire de l\'appli pleine : la fenêtre ne peut pas s\'ouvrir.'); }
     var titre = 'Écrire · ' + nomCourt(c);
     try {
       if (T) {
@@ -296,13 +296,30 @@
     } catch (e) { dire('La fenêtre n\'a pas pu s\'ouvrir : le mail reste dans les onglets du bas.'); }
   }
   var fenSource = null, fenAttente = null, fenServie = !!(FEN && fenDonnees && !fenDonnees.reserve);
+  /* Fenêtre ouverte par une autre appli (lien boitemail://ecrire?fenetre=seule, 18.11) : le mail prérempli est dit à l'écran juste avant
+     « ecrireOnglet » ; la fenêtre reste affichée pendant l'envoi (« Envoi en cours… ») ; si un PDF est attendu (jeton « attente »),
+     elle guette son arrivée, déposée par la fenêtre principale dans la mémoire de l'appli (lien boitemail://joindre). */
+  var fenDehors = (FEN && fenDonnees && fenDonnees.dehors) || null, CLE_JOINDRE = 'boite-mail-joindre';
+  function lireJoindre() { try { var l = JSON.parse(localStorage.getItem(CLE_JOINDRE) || '[]'); return (Array.isArray(l) ? l : []).filter(function (x) { return x && x.jeton && Date.now() - (x.t || 0) < 15 * 60000; }); } catch (e) { return []; } }
+  function guetterJoindre() {
+    if (!fenDehors || !fenDehors.attente || guetterJoindre.t) return;
+    guetterJoindre.t = setInterval(function () {
+      if (!fenSource) return;
+      var l = lireJoindre(), miens = l.filter(function (x) { return x.jeton === fenDehors.attente; }); if (!miens.length) return;
+      try { localStorage.setItem(CLE_JOINDRE, JSON.stringify(l.filter(function (x) { return x.jeton !== fenDehors.attente; }))); } catch (e) { /* plein */ }
+      miens.forEach(function (x) { try { fenSource.postMessage({ boiteMail: 'joindre', fichier: x.fichier || '', nom: x.nom || '', encore: !!x.encore, echec: !!x.echec, raison: x.raison || '' }, '*'); } catch (e) { /* fermé */ } });
+    }, 700);
+  }
   function fenEnvoyer(onglet) {
     fenServie = true;
     if (!fenSource) { fenAttente = { onglet: onglet }; return; }
+    try { if (fenDehors) fenSource.postMessage({ boiteMail: 'dehors', a: fenDehors.a || '', cc: fenDehors.cc || '', cci: fenDehors.cci || '', objet: fenDehors.objet || '', texte: fenDehors.texte || '', attente: fenDehors.attente || '' }, '*'); } catch (x) { /* fermé */ }
     try { fenSource.postMessage({ boiteMail: 'ecrireOnglet', onglet: onglet || null }, '*'); } catch (x) { /* fermé */ }
+    guetterJoindre();
   }
   if (FEN && T && fenDonnees && fenDonnees.reserve) try {
     T.event.listen('ecrire-mail', function (ev) {
+      if (ev && ev.payload && ev.payload.dehors) fenDehors = ev.payload.dehors;
       fenEnvoyer(ev && ev.payload && ev.payload.onglet);
       try { var w = T.window.getCurrentWindow(); w.show(); w.setFocus(); } catch (e) { /* déjà visible */ }
     });
@@ -794,7 +811,7 @@
     }
     if (d.boiteMail === 'fermerFenetre' && FEN) fermerCetteFenetre();
     if (d.boiteMail === 'fermerEcrireRecu' && FEN) fenAck = true;
-    if (d.boiteMail === 'cacherFenetre' && FEN && (!fenSource || ev.source === fenSource)) cacherCetteFenetre();
+    if (d.boiteMail === 'cacherFenetre' && FEN && (!fenSource || ev.source === fenSource) && !fenDehors) cacherCetteFenetre(); // ouverte par une autre appli : elle reste affichée, « Envoi en cours… »
     if (d.boiteMail === 'montrerFenetre' && FEN && (!fenSource || ev.source === fenSource)) montrerCetteFenetre();
     if (d.boiteMail === 'avisFenetre' && FEN && (!fenSource || ev.source === fenSource) && typeof d.texte === 'string') versPrincipale('avis-fenetre', { compte: fenDonnees && fenDonnees.compte, texte: d.texte.slice(0, 400) });
     if (d.boiteMail === 'titreFenetre' && FEN && T && typeof d.titre === 'string') {
@@ -1111,7 +1128,7 @@
   function champsLien(u) {
     var r = {}, q = String(u).split('#')[0].split('?')[1] || '';
     q.split('&').forEach(function (p) { if (!p) return; var i = p.indexOf('='), k = i < 0 ? p : p.slice(0, i), v = i < 0 ? '' : p.slice(i + 1);
-      try { r[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' ')).slice(0, 600); } catch (e) { /* champ illisible : ignoré */ } });
+      try { r[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' ')).slice(0, 1200); } catch (e) { /* champ illisible : ignoré */ } });
     return r;
   }
   // « boite=diffusion » : la boîte qui porte les spectacles (chaque écran dit combien il en a ; gardé d'une ouverture à l'autre)
@@ -1129,8 +1146,20 @@
   function demandeDehors(u) {
     // boitemail://ouvrir : seulement mettre l'appli devant (bouton « Ouvrir » d'une autre appli), sans rien changer ni rien dire
     if (/^boitemail:\/\/ouvrir\b/i.test(String(u))) { try { if (T && T.window && T.window.getCurrentWindow) { var w0 = T.window.getCurrentWindow(); w0.show(); if (w0.unminimize) w0.unminimize(); w0.setFocus(); } } catch (e) { /* déjà visible */ } return true; }
+    if (/^boitemail:\/\/joindre\b/i.test(String(u))) { // le PDF attendu par une fenêtre d'écriture (jeton « attente ») : déposé pour elle
+      var j = champsLien(u); if (!/^[0-9A-Za-z_-]{6,40}$/.test(j.attente || '')) return true;
+      var dep = { jeton: j.attente, t: Date.now(), encore: j.encore === '1', echec: j.echec === '1', raison: String(j.raison || '').slice(0, 200), fichier: /^[0-9A-Za-z_-]{10,80}$/.test(j.fichier || '') ? j.fichier : '', nom: String(j.nom || '').slice(0, 150) };
+      if (!dep.echec && !dep.fichier) { dep.echec = true; dep.raison = 'fichier illisible'; }
+      try { var lj = lireJoindre(); lj.push(dep); localStorage.setItem(CLE_JOINDRE, JSON.stringify(lj.slice(-30))); } catch (e) { dire('Mémoire de l\'appli pleine : la pièce jointe n\'a pas pu être passée.'); }
+      return true;
+    }
     var m = /^boitemail:\/\/(ecrire|conversation|brouillon)\b/i.exec(String(u)); if (!m) return false;
     var p = champsLien(u), c = compteDuLien(p.boite);
+    var texte = String(p.texte || '').slice(0, 1000), attente = /^[0-9A-Za-z_-]{6,40}$/.test(p.attente || '') ? p.attente : '';
+    if (m[1].toLowerCase() === 'ecrire' && p.fenetre === 'seule' && c && fenetresPossibles()) { // seulement la fenêtre d'écriture : la grande fenêtre ne bouge pas
+      ouvrirFenetreEcrire(c.id, null, { a: p.a || '', cc: p.cc || '', cci: p.cci || '', objet: p.objet || '', texte: texte, attente: attente });
+      return true;
+    }
     try { if (T && T.window && T.window.getCurrentWindow) { var w = T.window.getCurrentWindow(); w.show(); if (w.unminimize) w.unminimize(); w.setFocus(); } } catch (e) { /* déjà visible */ }
     if (!c) { dire('Reliez d\'abord une boîte mail à cette appli.'); return true; }
     if (vue !== c.id) montrer(c.id);
@@ -1139,7 +1168,7 @@
       if (!/^[0-9A-Za-z_-]{6,40}$/.test(p.id || '')) { dire('Conversation introuvable (identifiant illisible).'); return true; }
       direBientot(c.id, { boiteMail: m[1].toLowerCase() === 'brouillon' ? 'ouvrirBrouillon' : 'ouvrirFil', id: p.id });
     } else {
-      direBientot(c.id, { boiteMail: 'demandeEcrire', a: p.a || '', cc: p.cc || '', objet: p.objet || '', spectacle: p.spectacle || '', lieu: p.lieu || '',
+      direBientot(c.id, { boiteMail: 'demandeEcrire', texte: texte, a: p.a || '', cc: p.cc || '', objet: p.objet || '', spectacle: p.spectacle || '', lieu: p.lieu || '',
         mode: p.mode === 'relancer' ? 'relancer' : 'nouveau', conversation: /^[0-9A-Za-z_-]{6,40}$/.test(p.conversation || '') ? p.conversation : '',
         modele: p.modele || '', pieces: String(p.pieces || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 20), appel: /^\d{1,6}$/.test(p.appel || '') ? Number(p.appel) : 0 });
     }
