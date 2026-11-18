@@ -99,7 +99,7 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .info summary { cursor: pointer; font-weight: 600; }
 .info details ol { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .info details a { color: var(--accent); }
-.info .petit { font-size: 13px; }
+.aide-fine { margin: 0; color: var(--doux); font-size: 13px; }
 .info .note { padding: 8px 12px; border-radius: 10px; background: var(--accent-clair); color: var(--texte); font-size: 13px; }
 html.sombre .info .note { background: #1e2a4a; }
 .info details ul { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
@@ -441,11 +441,11 @@ button.tuile:hover { border-color: var(--ligne); }
   var DMG_TOUT = VERSIONS_MAC + "applis-mac/Tout-Origami-Mac.dmg";
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
   // Classeur modèle du moteur Origami, à copier dans un compte Google où il n'est pas encore installé (vide : pas de guide).
-  var MODELE_MOTEUR = "";
+  var MODELE_MOTEUR = "119Qct-_jUDPODy-ZUYqiVOz5aNYEOxCdKGk5P5V0z3w";
   // Guide « Origami n'est pas encore installé dans ce compte » : le même pour « Ajouter un compte » et pour Tickets seul.
   // Un seul moteur par compte Google : ne jamais refaire la copie si Origami ou Tickets est déjà relié quelque part.
   function guideInstallation(bouton, pour) {
-    return '<p class="petit">Origami n\'est pas encore installé dans ce compte Google ? <button class="lien" data-guide="1"' + (pour ? ' data-pour="' + texte(pour) + '"' : "") + '>Suis le guide pas à pas</button>. Une seule fois par compte : si Origami ou Tickets est déjà relié sur un autre appareil, utilise plutôt « Relier un autre appareil » sur celui-là.</p>';
+    return '<p class="aide-fine">Origami n\'est pas encore installé dans ce compte Google ? <button class="lien" data-guide="1"' + (pour ? ' data-pour="' + texte(pour) + '"' : "") + '>Suis le guide pas à pas</button>. Une seule fois par compte : si Origami ou Tickets est déjà relié sur un autre appareil, utilise plutôt « Relier un autre appareil » sur celui-là.</p>';
   }
   var COULEURS = ["#1f5cff", "#e0a800", "#15803d", "#b42318", "#7d3c5e", "#0e7490"];
   // Le compte de la compagnie est là d'office, avec les applis qui existent. Les autres comptes sont ajoutés
@@ -2266,7 +2266,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function arbreDrive() {
     var h = '<ul class="arbre"><li><span class="dossier" style="--d:#5f6368"></span><strong>Origami</strong><ul>';
     ARBRE_DRIVE.forEach(function (a) { h += '<li><span class="dossier" style="--d:' + a[1] + '"></span><strong>' + a[0] + "</strong> <span>" + a[2] + "</span></li>"; });
-    return h + "</ul></li></ul><p class=\"petit\">Le dossier d'une appli n'apparaît que lorsque l'appli est installée dans ce compte.</p>";
+    return h + "</ul></li></ul><p class=\"aide-fine\">Le dossier d'une appli n'apparaît que lorsque l'appli est installée dans ce compte.</p>";
   }
   function dessinerAjout() {
     var cr = guide.pour && compte(guide.pour), h = "", e = guide.etape;
@@ -2292,7 +2292,7 @@ button.tuile:hover { border-color: var(--ligne); }
       h += "<li>Fais-le sur un <strong>ordinateur</strong> : sur un téléphone, Google Sheets n'affiche pas le menu « Origami ».</li>";
       h += "<li>Ouvre une <strong>fenêtre de navigation privée</strong> : dans Chrome, touches Cmd + Maj + N sur Mac (Ctrl + Maj + N sur PC) ; dans Safari, menu Fichier, puis Nouvelle fenêtre privée.</li>";
       h += "<li>Dans cette fenêtre, va sur google.com et connecte-toi au <strong>seul compte Google</strong> où installer Origami.</li></ol>";
-      h += "<p class=\"petit\">Pourquoi : quand plusieurs comptes Google sont ouverts, Google se trompe souvent de compte et affiche une erreur.</p>";
+      h += "<p class=\"aide-fine\">Pourquoi : quand plusieurs comptes Google sont ouverts, Google se trompe souvent de compte et affiche une erreur.</p>";
       h += '<p class="note">Origami est déjà installé dans ce compte, sur un autre appareil ? Ne refais pas la copie, sinon tu aurais deux moteurs. <button class="lien" data-guide="-1">J\'ai un code de liaison</button></p>';
     } else if (e === 2) {
       var u = lienModele();
@@ -2319,7 +2319,7 @@ button.tuile:hover { border-color: var(--ligne); }
       h += "<li>À côté de « Sélectionner le type », la roue dentée, puis <strong>Application Web</strong>.</li>";
       h += "<li>« Exécuter en tant que » : <strong>Moi</strong>. « Qui a accès » : <strong>Tout le monde</strong>. Puis Déployer. Si Google redemande l'autorisation, accepte comme à l'étape 3.</li>";
       h += "<li>Copie l'<strong>URL</strong> de l'application Web (elle finit par /exec). Reviens à l'onglet du classeur, colle-la dans la fenêtre, puis Continuer.</li></ol>";
-      h += "<p class=\"petit\">« Tout le monde » veut dire que l'adresse répond, mais sans code personne ne peut rien lire ni écrire : chaque appareil a sa propre clé.</p>";
+      h += "<p class=\"aide-fine\">« Tout le monde » veut dire que l'adresse répond, mais sans code personne ne peut rien lire ni écrire : chaque appareil a sa propre clé.</p>";
     } else if (e === 5) {
       h += "<h1>Crée le code de cet appareil</h1><ol class=\"pas\">";
       h += "<li>Dans la fenêtre du classeur, donne un nom à cet appareil, par exemple « Mac du bureau ».</li>";
