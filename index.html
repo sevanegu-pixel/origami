@@ -57,6 +57,11 @@ try { if (/\/$/.test(location.pathname)) history.replaceState(null, "", location
   if (ouvrir) params.push("ouvrir=" + ouvrir);
   document.getElementById("app").src = EXEC + (params.length ? "?" + params.join("&") : "");
   var apercu = null;   // fenêtre « Aperçu du PDF » (elle suit la saisie)
+  // Copie des dernières données de la Compta (18.11) : gardée ici, car la mémoire du cadre est effacée à chaque ouverture.
+  // Rendue seulement à un appareil qui a son jeton ; effacée quand l'appli redemande le code PIN.
+  function base(ok) { try { var r = indexedDB.open("compta-coquille", 1); r.onupgradeneeded = function () { r.result.createObjectStore("c"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
+  function lireCopie(ok) { if (!/^[a-f0-9]{96}$/.test(lire(CLE))) return ok(""); base(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get("donnees"); q.onsuccess = function () { ok(typeof q.result === "string" ? q.result : ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
+  function ecrireCopie(t) { if (t && !/^[a-f0-9]{96}$/.test(lire(CLE))) return; base(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, "donnees"); else s.delete("donnees"); } catch (e) {} }); }
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
     var d = ev.data;
@@ -65,7 +70,9 @@ try { if (/\/$/.test(location.pathname)) history.replaceState(null, "", location
     var deChezNous = false, w = ev.source, cadre = document.getElementById("app").contentWindow;
     try { for (var i = 0; w && i < 6; i++) { if (w === cadre) { deChezNous = true; break; } if (w === w.parent) break; w = w.parent; } } catch (e2) {}
     if (!deChezNous) return;   // jeton compris : une autre page Google qui aurait ouvert celle-ci est ignorée
-    if (d.origami === "jeton") { garder(CLE, /^[a-f0-9]{96}$/.test(d.jeton || "") ? d.jeton : ""); return; }
+    if (d.origami === "jeton") { garder(CLE, /^[a-f0-9]{96}$/.test(d.jeton || "") ? d.jeton : ""); if (!lire(CLE)) ecrireCopie(""); return; }
+    if (d.origami === "cache-lire") { lireCopie(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
+    if (d.origami === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCopie(d.texte); return; }
     if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) {
       window.open(location.pathname + "?ouvrir=" + d.ouvrir, "_blank", "popup=yes,width=1100,height=900");
       return;
