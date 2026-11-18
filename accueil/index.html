@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.19">
+<meta name="origami-version" content="2026-11-18.20">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -154,6 +154,24 @@ a.lien { color: var(--accent); }
 .case { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
 .case input { flex: none; width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--accent); }
 .case small { display: block; color: var(--doux); font-size: 12.5px; }
+/* Tickets, 18.11 : recherche, paiements, scanner */
+.filtres { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.filtres input, .filtres select { min-height: 32px; padding: 0 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte); color: var(--texte); font: inherit; }
+.filtres input { flex: 1 1 220px; min-width: 0; }
+.filtres select { flex: 0 0 auto; padding: 0 6px; }
+.resume { margin: 0 0 8px; color: var(--doux); font-size: 13px; }
+.depots { display: flex; flex-wrap: wrap; gap: 6px; }
+.depots .depot { flex: 1 1 200px; min-width: 0; }
+.depots .depot.scan { flex: 0 0 auto; border-style: solid; border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.groupe { margin: 0 0 14px; }
+.etiquette.vu { background: var(--accent-clair); color: #173ea8; }
+.etiquette.vu.auto { background: var(--fond); color: #3b6fd9; }
+.groupe-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin: 0 0 6px; padding: 0 2px; color: var(--doux); font-size: 13px; }
+.groupe-tete strong { color: var(--texte); }
+.groupe-tete .gestes { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-left: auto; }
+.dedans { margin: 4px 0 10px 14px; }
+.copie { display: flex; gap: 6px; }
+.copie input { flex: 1; min-width: 0; min-height: 32px; padding: 0 10px; border: 1px solid var(--ligne); border-radius: 8px; background: var(--carte2); color: var(--texte); font: 12px ui-monospace, Menlo, monospace; }
 #voile { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(21, 19, 26, 0.35); }
 .feuille { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 440px; max-height: 100%; overflow-y: auto; padding: 18px; border-radius: 14px; background: var(--carte); box-shadow: 0 12px 40px rgba(17, 16, 20, 0.25); }
 .feuille h2 { font-size: 17px; }
@@ -247,7 +265,7 @@ button.tuile:hover { border-color: var(--ligne); }
   .feuille { max-width: none; padding-bottom: calc(18px + env(safe-area-inset-bottom)); border-radius: 14px 14px 0 0; }
   #avis { top: calc(10px + env(safe-area-inset-top)); bottom: auto; }
   #nouvelle { left: 14px; right: 14px; bottom: calc(66px + env(safe-area-inset-bottom)); }
-  .champ input, .champ select, .champ textarea.simple { font-size: 16px; }
+  .champ input, .champ select, .champ textarea.simple, .filtres input, .filtres select { font-size: 16px; }
   .choix.tel { display: flex; }
   #origami { flex-direction: column; }
   #menu { display: none; }
@@ -327,8 +345,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.19"></script>
-<script src="repertoire.js?v=2026-11-18.19"></script>
+<script src="agenda.js?v=2026-11-18.20"></script>
+<script src="repertoire.js?v=2026-11-18.20"></script>
 <script>
 (function () {
   "use strict";
@@ -850,7 +868,7 @@ button.tuile:hover { border-color: var(--ligne); }
 
   // ---- Tickets « à zéro » : l'appli Tickets rangée dans le compte par son moteur ----
   // L'écran travaille sur la mémoire de l'appareil ; chaque geste part au moteur, qui rend les corrections avec sa réponse.
-  var tk = { onglet: "tickets", fichier: null, fichierNom: "", boutons: null, occupe: "" };
+  var tk = { onglet: "tickets", fichier: null, fichierNom: "", boutons: null, occupe: "", cherche: "", filtre: "tous", plus: 50, ouverts: {}, modif: "", sansFichier: false };
   var file = [], enVol = 0, masquees = {}, retouches = {};   // tickets en cours d'enregistrement ; lignes cachées ou retouchées en attendant le moteur
   var voile = document.getElementById("voile"), zoneAvis = document.getElementById("avis");
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
@@ -895,7 +913,7 @@ button.tuile:hover { border-color: var(--ligne); }
 
   function avis(t, souci) { var d = document.createElement("div"); if (souci) d.className = "souci"; d.textContent = t; zoneAvis.appendChild(d); setTimeout(function () { d.remove(); }, souci ? 5000 : 2800); }
   function ouvrirVoile(h) { voile.innerHTML = '<div class="feuille" role="dialog" aria-modal="true">' + h + "</div>"; voile.hidden = false; var p = voile.querySelector("input, button"); if (p) { try { p.focus(); } catch (e) {} } }
-  function fermerVoile() { voile.hidden = true; voile.innerHTML = ""; tk.boutons = null; tk.fichier = null; tk.fichierNom = ""; }
+  function fermerVoile() { voile.hidden = true; voile.innerHTML = ""; tk.boutons = null; tk.fichier = null; tk.fichierNom = ""; tk.modif = ""; tk.sansFichier = false; }
   function demander(titre, message, boutons, plus) {
     var h = "<h2>" + texte(titre) + "</h2><p>" + texte(message) + "</p>" + (plus || "") + '<div class="actions">';
     boutons.forEach(function (b, i) { h += '<button class="bouton' + (b.fort ? " fort" : "") + '" data-reponse="' + i + '">' + texte(b.nom) + "</button>"; });
@@ -927,14 +945,19 @@ button.tuile:hover { border-color: var(--ligne); }
         h += '<p id="tkSouci" class="souci" role="status"></p><div class="actions"><button class="bouton fort" data-tk="installer">Installer Tickets dans ce compte</button></div></div>';
       } else {
         h += '<div class="actions"><button class="bouton fort" data-tk="nouveau">Nouveau ticket</button><button class="bouton" data-relever="' + c.id + '">Actualiser</button></div></div><div class="onglets" role="tablist">';
-        [["tickets", "Tickets"], ["destinataires", "Destinataires"], ["historique", "Historique"]].forEach(function (o) { h += '<button role="tab" data-onglet="' + o[0] + '" aria-selected="' + (tk.onglet === o[0] ? "true" : "false") + '">' + o[1] + "</button>"; });
+        [["tickets", "Tickets"], ["paiements", "Paiements"], ["destinataires", "Destinataires"], ["historique", "Historique"]].forEach(function (o) { h += '<button role="tab" data-onglet="' + o[0] + '" aria-selected="' + (tk.onglet === o[0] ? "true" : "false") + '">' + o[1] + "</button>"; });
         h += "</div>";
         if (tk.onglet === "destinataires") {
           h += '<p class="aide">Les adresses qui reçoivent le récapitulatif quand tu envoies tes tickets.</p><div id="tkDest"></div>';
           h += '<div class="carte"><h2>Ajouter une adresse</h2><label class="champ">E-mail<input id="tkEmail" type="email" maxlength="200" autocomplete="off" placeholder="nom@exemple.com"></label>';
           h += '<label class="champ">Libellé (facultatif)<input id="tkLibelle" maxlength="80" autocomplete="off" placeholder="Comptable, direction…"></label><div class="actions"><button class="bouton fort" data-tk="ajouter-dest">Ajouter</button></div></div>';
         } else if (tk.onglet === "historique") h += '<div id="tkHisto"></div>';
-        else h += '<div id="tkBandeau"></div><div id="tkAttente"></div><div id="tkEnvoyes"></div>';
+        else if (tk.onglet === "paiements") h += '<div id="tkPaie"></div>';
+        else {
+          h += '<div id="tkBandeau"></div><div class="filtres"><input id="tkCherche" type="search" autocomplete="off" placeholder="Chercher un nom, un motif, un montant…" aria-label="Chercher dans les tickets" value="' + texte(tk.cherche) + '">';
+          h += '<select id="tkFiltre" aria-label="Quels tickets">' + [["tous", "Tous les tickets"], ["attente", "En attente d'envoi"], ["envoye", "Envoyés"], ["impaye", "Pas encore payés"], ["paye", "Payés"]].map(function (o) { return '<option value="' + o[0] + '"' + (tk.filtre === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></div>";
+          h += '<div id="tkAttente"></div><div id="tkEnvoyes"></div>';
+        }
         h += '<p class="note" id="tkPied"></p>';
       }
       page.innerHTML = h + "</div>";
@@ -945,10 +968,44 @@ button.tuile:hover { border-color: var(--ligne); }
     return '<div><span class="quoi">' + texte(t.nom == null ? "" : t.nom) + (t.motif ? " · " + texte(t.motif) : "") + '</span><span class="combien">' + texte(Number(t.montant || 0).toFixed(2) + " " + (t.devise || "CHF")) + "</span></div>";
   }
   function rangeeTicket(t) {
-    var e = t.statut !== "envoye" ? '<span class="etiquette">En attente</span>' : t.datePaiement ? '<span class="etiquette paye">Payé le ' + jour(t.datePaiement) + "</span>" : '<span class="etiquette parti">Envoyé le ' + jour(t.dateEnvoi) + "</span>";
-    var u = lienDrive(t.fichierUrl);
+    var e = t.statut !== "envoye" ? '<span class="etiquette">En attente</span>' : t.datePaiement ? '<span class="etiquette paye" title="' + (t.payeIci === true || t.payeIci === "true" ? "Indiqué payé dans l'appli" : "Confirmé par le destinataire") + '">Payé le ' + jour(t.datePaiement) + "</span>" : '<span class="etiquette parti">Envoyé le ' + jour(t.dateEnvoi) + "</span>";
+    var u = lienDrive(t.fichierUrl), i = texte(t.id);
+    var paie = t.datePaiement ? '<button class="lien" data-tk-impaye="' + i + '">Pas payé</button>' : t.statut === "envoye" ? '<button class="lien" data-tk-payer="' + i + '">Marquer payé</button>' : "";
     return '<div class="rangee">' + teteRangee(t) + '<div><span class="detail">' + jour(t.dateTicket) + (t.commentaire ? " · " + texte(t.commentaire) : "") + '</span><span class="gestes">' + e +
-      (u ? '<a class="lien" href="' + texte(u) + '" target="_blank" rel="noopener">Justificatif</a>' : "") + '<button class="lien rouge" data-tk-suppr="' + texte(t.id) + '">Supprimer</button></span></div></div>';
+      (u ? '<a class="lien" href="' + texte(u) + '" target="_blank" rel="noopener">Justificatif</a>' : "") + paie + '<button class="lien" data-tk-modif="' + i + '">Modifier</button><button class="lien rouge" data-tk-suppr="' + i + '">Supprimer</button></span></div></div>';
+  }
+  // Recherche : chaque mot doit se trouver dans le ticket (nom, motif, commentaire, montant, date, fichier), sans tenir compte des accents.
+  function plat(v) { return String(v == null ? "" : v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+  function trouve(t, mots) {
+    var tout = plat([t.nom, t.motif, t.commentaire, Number(t.montant || 0).toFixed(2), t.devise, jour(t.dateTicket), t.fichierNom].join(" "));
+    return mots.every(function (m) { return tout.indexOf(m) >= 0 || tout.indexOf(m.replace(",", ".")) >= 0; });
+  }
+  function filtrer(l) {
+    var mots = plat(tk.cherche).split(/\s+/).filter(String), f = tk.filtre;
+    return l.filter(function (t) {
+      if (f === "attente" && t.statut === "envoye") return false;
+      if (f === "envoye" && t.statut !== "envoye") return false;
+      if (f === "paye" && !t.datePaiement) return false;
+      if (f === "impaye" && (t.statut !== "envoye" || t.datePaiement)) return false;
+      return trouve(t, mots);
+    });
+  }
+  function plusBouton(reste) { return reste > 0 ? '<div class="actions centre"><button class="bouton" data-tk="plus">Afficher ' + Math.min(reste, 50) + " de plus (" + reste + " restants)</button></div>" : ""; }
+  // Suivi d'ouverture d'un envoi (18.11) : ✓ parti, ✓✓ ouvert ; une ouverture 1 à 2 minutes après l'envoi peut être automatique.
+  function quandLisible(v) { var m = /T(\d{2}):(\d{2})/.exec(String(v || "")); return jour(v) + (m ? " à " + m[1] + ":" + m[2] : ""); }
+  function vuEnvoi(e) {
+    if (!e) return "";
+    var r = e.relanceOuverte ? " · rappel ouvert le " + quandLisible(e.relanceOuverte) : "";
+    if (e.ouvert) {
+      var auto = e.ouvertAuto === true || e.ouvertAuto === "true", n = Number(e.ouvertures) || 1;
+      return '<span class="etiquette vu' + (auto ? " auto" : "") + '" title="' + (auto ? "Ouvert une à deux minutes après l'envoi : peut-être une ouverture automatique. " : "") + nombre(n, "ouverture") + r + '">✓✓ Ouvert le ' + texte(quandLisible(e.ouvert)) + "</span>";
+    }
+    return e.vuHache ? '<span class="etiquette" title="Le mail est parti ; pas encore vu ouvert (certaines messageries ne le disent jamais).' + r + '">✓ Pas encore ouvert</span>' : "";
+  }
+  function envoiDe(id, idE) { return envoisDe(id).filter(function (e) { return e.id === idE; })[0] || null; }
+  function gestesEnvoi(e, dus) {
+    return (dus.length ? '<button class="lien" data-tk-payer-envoi="' + texte(e.id) + '">Tout marquer payé</button><button class="lien" data-tk-relancer="' + texte(e.id) + '">Relancer</button>' : "") +
+      '<button class="lien" data-tk-lien="' + texte(e.id) + '">Lien de paiement</button>';
   }
   function rangeeFile(x) {
     var rate = x.etat === "erreur";
@@ -962,8 +1019,32 @@ button.tuile:hover { border-color: var(--ligne); }
       var n = attente.length + enFile.length, envoi = tk.occupe === id;
       z.innerHTML = '<div class="bandeau"><div><strong>' + texte(somme(attente.concat(enFile.map(function (x) { return x.t; })))) + "</strong><span>" + nombre(n, "ticket") + " en attente d'envoi</span></div>" +
         '<button class="bouton fort" data-tk="envoyer"' + (n && !envoi ? "" : " disabled") + ">" + (envoi ? "Envoi du mail…" : "Envoyer par mail") + "</button></div>";
-      document.getElementById("tkAttente").innerHTML = n ? enFile.map(rangeeFile).join("") + attente.map(rangeeTicket).join("") : '<p class="vide">Aucun ticket en attente. « Nouveau ticket » pour en ajouter un.</p>';
-      document.getElementById("tkEnvoyes").innerHTML = partis.length ? '<h2 class="sous-titre">Déjà envoyés</h2>' + partis.slice(0, 30).map(rangeeTicket).join("") + (partis.length > 30 ? '<p class="vide">Et ' + (partis.length - 30) + " de plus. L'onglet Historique permet de faire le ménage.</p>" : "") : "";
+      if (tk.cherche.trim() || tk.filtre !== "tous") {
+        var choisis = filtrer(tous);
+        document.getElementById("tkAttente").innerHTML = '<p class="resume">' + (choisis.length ? nombre(choisis.length, "ticket") + " · " + texte(somme(choisis)) : "Aucun ticket ne correspond.") + "</p>" + choisis.slice(0, tk.plus).map(rangeeTicket).join("") + plusBouton(choisis.length - tk.plus);
+        document.getElementById("tkEnvoyes").innerHTML = "";
+      } else {
+        document.getElementById("tkAttente").innerHTML = n ? enFile.map(rangeeFile).join("") + attente.map(rangeeTicket).join("") : '<p class="vide">Aucun ticket en attente. « Nouveau ticket » pour en ajouter un.</p>';
+        document.getElementById("tkEnvoyes").innerHTML = partis.length ? '<h2 class="sous-titre">Déjà envoyés</h2>' + partis.slice(0, tk.plus).map(rangeeTicket).join("") + plusBouton(partis.length - tk.plus) : "";
+      }
+    }
+    if ((z = document.getElementById("tkPaie"))) {
+      var dus = partis.filter(function (t) { return !t.datePaiement; }), payes = partis.filter(function (t) { return t.datePaiement; }).sort(parDate("datePaiement"));
+      var hp = '<div class="bandeau"><div class="chiffres"><div><strong>' + texte(somme(dus)) + "</strong><span>" + nombre(dus.length, "ticket") + " pas encore payé" + (dus.length > 1 ? "s" : "") + "</span></div><div><strong>" + texte(somme(payes)) + "</strong><span>" + nombre(payes.length, "ticket") + " payé" + (payes.length > 1 ? "s" : "") + "</span></div></div></div>";
+      if (!partis.length) hp += '<p class="vide">Aucun ticket envoyé pour l\'instant. Les tickets apparaissent ici une fois envoyés par mail.</p>';
+      if (dus.length) {
+        hp += '<h2 class="sous-titre">Pas encore payés</h2>';
+        var groupes = {}, ordre = [];
+        dus.forEach(function (t) { var k = t.envoi || ""; if (!groupes[k]) { groupes[k] = []; ordre.push(k); } groupes[k].push(t); });
+        ordre.sort(function (a, b) { var ea = envoiDe(id, a), eb = envoiDe(id, b); return String((eb && eb.dateEnvoi) || "").localeCompare(String((ea && ea.dateEnvoi) || "")); });
+        ordre.forEach(function (k) {
+          var l = groupes[k], e = envoiDe(id, k);
+          hp += '<div class="groupe"><div class="groupe-tete"><strong>' + (e ? "Envoi du " + jour(e.dateEnvoi) : "Autres tickets") + "</strong><span>" + nombre(l.length, "ticket") + " · " + texte(somme(l)) + "</span>" +
+            (e && e.dateRelance ? "<span>relancé le " + jour(e.dateRelance) + "</span>" : "") + vuEnvoi(e) + (e ? '<span class="gestes">' + gestesEnvoi(e, l) + "</span>" : "") + "</div>" + l.map(rangeeTicket).join("") + "</div>";
+        });
+      }
+      if (payes.length) hp += '<h2 class="sous-titre">Payés</h2>' + payes.slice(0, tk.plus).map(rangeeTicket).join("") + plusBouton(payes.length - tk.plus);
+      z.innerHTML = hp;
     }
     if ((z = document.getElementById("tkDest"))) {
       var dest = destinatairesDe(id);
@@ -978,8 +1059,12 @@ button.tuile:hover { border-color: var(--ligne); }
         (envois.length ? envois.map(function (e) {
           var du = partis.filter(function (t) { return t.envoi === e.id; }), p = du.filter(function (t) { return t.datePaiement; }).length;
           var et = e.confirmation && du.length ? '<span class="etiquette' + (p === du.length ? " paye" : "") + '">' + (p === du.length ? "Tout payé" : p + " sur " + du.length + " payé" + (p > 1 ? "s" : "")) + "</span>" : "";
-          return '<div class="rangee"><div><span class="quoi">' + nombre(Number(e.nbTickets) || 0, "ticket") + " · " + texte(e.total || "") + '</span><span class="gestes">' + et + '<button class="lien rouge" data-tk-suppr-envoi="' + texte(e.id) + '">Supprimer</button></span></div>' +
-            '<div><span class="detail">' + jour(e.dateEnvoi) + " · envoyé à " + texte(e.destinataires || "") + "</span></div></div>";
+          var ouvert = !!tk.ouverts[e.id], dusE = du.filter(function (t) { return !t.datePaiement; });
+          return '<div class="rangee"><div><span class="quoi">' + nombre(Number(e.nbTickets) || 0, "ticket") + " · " + texte(e.total || "") + '</span><span class="gestes">' + vuEnvoi(e) + et + "</span></div>" +
+            '<div><span class="detail">' + jour(e.dateEnvoi) + " · envoyé à " + texte(e.destinataires || "") + (e.dateRelance ? " · relancé le " + jour(e.dateRelance) : "") + '</span><span class="gestes">' +
+            '<button class="lien" data-tk-ouvrir="' + texte(e.id) + '" aria-expanded="' + ouvert + '">' + (ouvert ? "Masquer les tickets" : "Voir les tickets") + "</button>" + gestesEnvoi(e, dusE) +
+            '<button class="lien rouge" data-tk-suppr-envoi="' + texte(e.id) + '">Supprimer</button></span></div></div>' +
+            (ouvert ? '<div class="dedans">' + (du.length ? du.map(rangeeTicket).join("") : '<p class="vide">Les tickets de cet envoi ont été supprimés.</p>') + "</div>" : "");
         }).join("") : '<p class="vide">Aucun envoi pour l\'instant.</p>');
     }
     if ((z = document.getElementById("tkPied"))) {
@@ -1007,8 +1092,101 @@ button.tuile:hover { border-color: var(--ligne); }
       '<label class="champ court">Devise<select id="tkDevise"><option>CHF</option><option>EUR</option></select></label></div>' +
       '<label class="champ">Motif ou commerce<input id="tkMotif" maxlength="200" autocomplete="off" placeholder="Essence, matériel, repas…"></label>' +
       '<label class="champ">Commentaire (facultatif)<textarea id="tkCommentaire" class="simple" maxlength="500"></textarea></label>' +
-      '<button class="depot" id="tkDepot" data-tk="fichier">Ajouter une photo ou un fichier du reçu</button><input type="file" id="tkFichier" accept="image/*,application/pdf" hidden>' +
+      depots("Ajouter une photo ou un fichier du reçu") +
       '<p id="tkSouci" class="souci" role="status"></p><div class="actions"><button class="bouton" data-tk="fermer">Annuler</button><button class="bouton" data-tk="suivant">Enregistrer + nouveau</button><button class="bouton fort" data-tk="enregistrer">Enregistrer</button></div>');
+  }
+  function depots(t) {
+    return '<div class="depots"><button class="depot" id="tkDepot" data-tk="fichier">' + texte(t) + '</button><button class="depot scan" data-tk="scanner" title="Photographier le reçu, le recadrer et le rendre lisible">Scanner</button></div><input type="file" id="tkFichier" accept="image/*,application/pdf" hidden>';
+  }
+  // Modifier un ticket déjà enregistré : même fenêtre, remplie. Le justificatif peut être remplacé (fichier ou scanner) ou retiré.
+  function ouvrirModification(idT) {
+    var t = ticketsDe(etat.compte).filter(function (x) { return x.id === idT; })[0];
+    if (!t) return;
+    var dev = t.devise || "CHF", devises = ["CHF", "EUR"].concat(["CHF", "EUR"].indexOf(dev) < 0 ? [dev] : []), u = lienDrive(t.fichierUrl);
+    ouvrirVoile('<h2>Modifier le ticket</h2>' + (t.statut === "envoye" ? '<p>Ce ticket a déjà été envoyé le ' + jour(t.dateEnvoi) + " : la correction se voit dans l'appli et sur la page de paiement, pas dans le mail déjà parti.</p>" : "") +
+      '<label class="champ">Nom<input id="tkNom" maxlength="120" autocomplete="off" value="' + texte(t.nom || "") + '"></label>' +
+      '<div class="deux"><label class="champ">Date<input id="tkDate" type="date" value="' + texte(String(t.dateTicket || "").slice(0, 10)) + '"></label><label class="champ">Montant<input id="tkMontant" type="number" step="0.05" min="0" inputmode="decimal" value="' + texte(Number(t.montant || 0).toFixed(2)) + '"></label>' +
+      '<label class="champ court">Devise<select id="tkDevise">' + devises.map(function (d) { return "<option" + (d === dev ? " selected" : "") + ">" + texte(d) + "</option>"; }).join("") + "</select></label></div>" +
+      '<label class="champ">Motif ou commerce<input id="tkMotif" maxlength="200" autocomplete="off" value="' + texte(t.motif || "") + '"></label>' +
+      '<label class="champ">Commentaire (facultatif)<textarea id="tkCommentaire" class="simple" maxlength="500">' + texte(t.commentaire || "") + "</textarea></label>" +
+      (u ? '<p>Justificatif : <a class="lien" href="' + texte(u) + '" target="_blank" rel="noopener">' + texte(t.fichierNom || "ouvrir") + '</a> · <button class="lien rouge" data-tk="sans-fichier">Retirer</button></p>' : "") +
+      depots(u ? "Remplacer par une photo ou un fichier" : "Ajouter une photo ou un fichier du reçu") +
+      '<p id="tkSouci" class="souci" role="status"></p><div class="actions"><button class="bouton" data-tk="fermer">Annuler</button><button class="bouton fort" data-tk="enregistrer-modif">Enregistrer</button></div>');
+    tk.modif = idT; tk.sansFichier = false;
+  }
+  function enregistrerModification() {
+    var id = etat.compte, idT = tk.modif, nom = valeur("tkNom"), montant = Number(valeur("tkMontant").replace(",", ".")), z = document.getElementById("tkSouci");
+    if (!nom) { z.textContent = "Indique un nom."; document.getElementById("tkNom").focus(); return; }
+    if (!(montant > 0)) { z.textContent = "Indique un montant."; document.getElementById("tkMontant").focus(); return; }
+    var t = { id: idT, nom: nom, dateTicket: valeur("tkDate"), montant: montant, devise: valeur("tkDevise") || "CHF", motif: valeur("tkMotif"), commentaire: valeur("tkCommentaire") };
+    var fichier = tk.fichier, nomFichier = tk.fichierNom, sans = tk.sansFichier && !fichier, cle = id + "/tickets/" + idT;
+    fermerVoile();
+    retouches[cle] = Object.assign({}, t, nomFichier ? { fichierNom: nomFichier } : {}, sans ? { fichierUrl: "", fichierNom: "" } : {});
+    rafraichir(id);
+    (fichier || Promise.resolve(null)).then(function (f) { return moteurAppel(id, "tickets.modifier", { ticket: t, fichier: f, sansFichier: sans }, { lent: true }); })
+      .then(function () { avis("Ticket modifié."); }, function (e) { avis("Le ticket n'a pas été modifié : " + e.message, true); })
+      .then(function () { delete retouches[cle]; rafraichir(id); });
+  }
+  // Le scanner (scanner.js) n'est chargé qu'au premier usage.
+  var scannerCharge = null;
+  function chargerScanner() {
+    if (window.OrigamiScanner) return Promise.resolve(window.OrigamiScanner);
+    if (!scannerCharge) scannerCharge = new Promise(function (ok, ko) {
+      var s = document.createElement("script"), v = (document.querySelector('meta[name="origami-version"]') || {}).content || "";
+      s.src = "scanner.js?v=" + encodeURIComponent(v);
+      s.onload = function () { if (window.OrigamiScanner) ok(window.OrigamiScanner); else { scannerCharge = null; ko(new Error("Le scanner n'a pas pu se charger.")); } };
+      s.onerror = function () { scannerCharge = null; ko(new Error("Le scanner n'a pas pu se charger : vérifie la connexion.")); };
+      document.head.appendChild(s);
+    });
+    return scannerCharge;
+  }
+  function scanner() {
+    var nom = (valeur("tkMotif") || valeur("tkNom") || "ticket").replace(/[^\w\u00C0-\u017F -]+/g, " ").trim().slice(0, 40) || "ticket";
+    chargerScanner().then(function (S) { return S.ouvrir({ nom: nom, titre: "Scanner le reçu", couleur: "#1f5cff" }); }).then(function (r) {
+      var z = document.getElementById("tkDepot");
+      if (!r || !z) return;
+      if (r.pdf.size > 15 * 1024 * 1024) { avis("Ce scan est trop lourd (15 Mo au plus) : retire une page.", true); return; }
+      tk.fichierNom = r.nom; tk.sansFichier = false;
+      tk.fichier = r.base64().then(function (b) { return { base64: b, nom: r.nom, type: "application/pdf" }; }); tk.fichier.catch(function () {});
+      z.textContent = r.nom + (r.pages > 1 ? " (" + r.pages + " pages)" : ""); z.classList.add("ok");
+    }, function (e) { avis(e.message, true); });
+  }
+  function marquerPaye(ids, paye) {
+    var id = etat.compte, quand = paye ? new Date().toISOString().slice(0, 10) + "T12:00:00" : "";
+    if (!ids.length) return;
+    ids.forEach(function (i) { retouches[id + "/tickets/" + i] = { datePaiement: quand, payeIci: !!paye }; });
+    rafraichir(id);
+    moteurAppel(id, "tickets.payer", { ids: ids, paye: paye }).then(function () { avis(paye ? (ids.length > 1 ? nombre(ids.length, "ticket") + " marqués payés." : "Marqué payé.") : "Remis en « pas encore payé »."); }, function (e) { avis(e.message, true); })
+      .then(function () { ids.forEach(function (i) { delete retouches[id + "/tickets/" + i]; }); rafraichir(id); });
+  }
+  function impayesDe(idE) { return ticketsDe(etat.compte).filter(function (t) { return t.statut === "envoye" && t.envoi === idE && !t.datePaiement; }); }
+  function lienPaiement(idE, b) {
+    var id = etat.compte;
+    b.disabled = true;
+    moteurAppel(id, "tickets.envoi.lien", { id: idE }).then(function (r) {
+      var u = String((r && r.url) || "");
+      if (!/^https:\/\/script\.google\.com\//.test(u)) throw new Error("Le lien n'a pas pu être préparé.");
+      ouvrirVoile("<h2>Lien de paiement</h2><p>Ce lien ouvre la page où l'on coche les tickets payés de cet envoi. Le lien du mail reste valable. Ne le donne qu'à qui doit payer.</p>" +
+        '<div class="copie"><input id="tkLienPaie" readonly value="' + texte(u) + '" aria-label="Lien de paiement"><button class="bouton" data-tk="copier-lien">Copier</button></div>' +
+        '<div class="actions"><a class="bouton" href="' + texte(u) + '" target="_blank" rel="noopener">Ouvrir la page</a><button class="bouton fort" data-tk="fermer">Fermer</button></div>');
+    }).catch(function (e) { avis(e.message, true); }).then(function () { b.disabled = false; });
+  }
+  function copierLien() {
+    var c = document.getElementById("tkLienPaie");
+    if (!c) return;
+    function repli() { c.focus(); c.select(); try { document.execCommand("copy"); avis("Lien copié."); } catch (e) { avis("Sélectionne le lien pour le copier.", true); } }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(c.value).then(function () { avis("Lien copié."); }, repli); else repli();
+  }
+  function relancer(idE) {
+    var id = etat.compte, e = envoiDe(id, idE), dus = impayesDe(idE);
+    if (!e || !dus.length) return;
+    demander("Relancer pour " + nombre(dus.length, "ticket") + " ?", "Un mail de rappel partira de ce compte Google à : " + (e.destinataires || "") + ". Il liste les tickets pas encore payés (" + somme(dus) + ") avec un lien pour les cocher.",
+      [{ nom: "Annuler" }, { nom: "Envoyer le rappel", fort: true, action: function (x, message) {
+        tk.occupe = id; rafraichir(id);
+        moteurAppel(id, "tickets.relancer", { id: idE, message: message }, { lent: true }).then(function (r) { avis("Rappel envoyé à " + ((r && r.destinataires) || []).join(", ") + "."); }, function (er) { avis(er.message, true); })
+          .then(function () { tk.occupe = ""; rafraichir(id); });
+      } }],
+      '<label class="champ">Message (facultatif)<textarea id="tkMessage" class="simple" maxlength="1000" placeholder="Bonjour, petit rappel pour ces tickets…"></textarea></label>');
   }
   function lireFichier(f) {
     return new Promise(function (ok, ko) {
@@ -1037,8 +1215,16 @@ button.tuile:hover { border-color: var(--ligne); }
   document.addEventListener("change", function (ev) {
     var f = ev.target && ev.target.id === "tkFichier" ? ev.target.files[0] : null, z = document.getElementById("tkDepot");
     if (!f || !z) return;
-    tk.fichierNom = f.name; tk.fichier = lireFichier(f); tk.fichier.catch(function () {});   // une erreur de lecture est dite au moment de l'enregistrement
+    tk.fichierNom = f.name; tk.sansFichier = false; tk.fichier = lireFichier(f); tk.fichier.catch(function () {});   // une erreur de lecture est dite au moment de l'enregistrement
     z.textContent = f.name; z.classList.add("ok");
+  });
+  document.addEventListener("input", function (ev) {
+    if (!ev.target || ev.target.id !== "tkCherche") return;
+    tk.cherche = ev.target.value; tk.plus = 50; majTickets();
+  });
+  document.addEventListener("change", function (ev) {
+    if (!ev.target || ev.target.id !== "tkFiltre") return;
+    tk.filtre = ev.target.value; tk.plus = 50; majTickets();
   });
   function nouvelId() {
     var o = new Uint8Array(6), t = "";
@@ -1159,12 +1345,24 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   // Les boutons de l'écran Tickets et de ses fenêtres. Rend vrai si le clic était pour lui.
   function clicTickets(b, d) {
-    if (d.reponse && tk.boutons) { var rep = tk.boutons[Number(d.reponse)], coche = document.getElementById("tkConfirmation"), oui = !!(coche && coche.checked); fermerVoile(); if (rep && rep.action) rep.action(oui); return true; }
+    if (d.reponse && tk.boutons) { var rep = tk.boutons[Number(d.reponse)], coche = document.getElementById("tkConfirmation"), oui = !!(coche && coche.checked), mot = valeur("tkMessage"); fermerVoile(); if (rep && rep.action) rep.action(oui, mot); return true; }
     if (d.tk === "fermer") { fermerVoile(); return true; }
     if (d.tk === "fichier") { document.getElementById("tkFichier").click(); return true; }
+    if (d.tk === "scanner") { scanner(); return true; }
+    if (d.tk === "enregistrer-modif") { enregistrerModification(); return true; }
+    if (d.tk === "sans-fichier") { tk.sansFichier = true; tk.fichier = null; tk.fichierNom = ""; var p0 = b.closest("p"); if (p0) p0.textContent = "Justificatif retiré (à l'enregistrement)."; var z0 = document.getElementById("tkDepot"); if (z0) { z0.textContent = "Ajouter une photo ou un fichier du reçu"; z0.classList.remove("ok"); } return true; }
+    if (d.tk === "copier-lien") { copierLien(); return true; }
     if (d.tk === "enregistrer" || d.tk === "suivant") { enregistrerTicket(d.tk === "suivant"); return true; }
     if (etat.vue !== "tickets0" || !compte(etat.compte)) return false;
-    if (d.onglet) { tk.onglet = d.onglet; dessinerTickets(); return true; }
+    if (d.onglet) { tk.onglet = d.onglet; tk.plus = 50; dessinerTickets(); return true; }
+    if (d.tk === "plus") { tk.plus += 50; majTickets(); return true; }
+    if (d.tkModif) { ouvrirModification(d.tkModif); return true; }
+    if (d.tkPayer) { marquerPaye([d.tkPayer], true); return true; }
+    if (d.tkImpaye) { marquerPaye([d.tkImpaye], false); return true; }
+    if (d.tkPayerEnvoi) { var l0 = impayesDe(d.tkPayerEnvoi); demander("Marquer " + nombre(l0.length, "ticket") + " payé" + (l0.length > 1 ? "s" : "") + " ?", "Tous les tickets pas encore payés de cet envoi (" + somme(l0) + ") seront indiqués payés aujourd'hui.", [{ nom: "Annuler" }, { nom: "Marquer payé", fort: true, action: function () { marquerPaye(l0.map(function (t) { return t.id; }), true); } }]); return true; }
+    if (d.tkLien) { lienPaiement(d.tkLien, b); return true; }
+    if (d.tkRelancer) { relancer(d.tkRelancer); return true; }
+    if (d.tkOuvrir) { tk.ouverts[d.tkOuvrir] = !tk.ouverts[d.tkOuvrir]; majTickets(); return true; }
     if (d.tk === "installer") { installerTickets(b); return true; }
     if (d.tk === "nouveau") { ouvrirFormulaire(); return true; }
     if (d.tk === "envoyer") { envoyerTickets(); return true; }
