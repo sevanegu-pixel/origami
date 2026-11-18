@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.8">
+<meta name="origami-version" content="2026-11-18.9">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -375,6 +375,11 @@ a.lien { color: var(--accent); }
     function dire(quoi) { try { source.postMessage({ origami: quoi, n: num }, origine); } catch (e) {} }
     if (!u) { dire("boite-refus"); return; }
     try { Promise.resolve(MAC.opener.openUrl(u)).then(function () { dire("boite-ouverte"); }, function () { dire("boite-refus"); }); } catch (e) { dire("boite-refus"); }
+  }
+  // Appli Mac : « Ouvrir » la Boîte mail = demander au Mac de lancer l'appli ou de la mettre devant (adresse muette pour elle).
+  function lancerBoite() {
+    function rate() { etat.compte = "compagnie"; etat.vue = "boite"; montrer(); avis("La Boîte mail ne s'est pas ouverte. Installe-la sur ce Mac avec le bouton ci-dessous.", true); }
+    try { Promise.resolve(MAC.opener.openUrl("boitemail://ouvrir")).then(function () {}, rate); } catch (e) { rate(); }
   }
   function fenetreCompta(url) {
     try {
@@ -1183,7 +1188,8 @@ a.lien { color: var(--accent); }
     var a = APPLIS[id], action;
     if (id === "tickets0") return carteTickets(c);
     if (id === "diffusion0") return carteDiffusion(c);
-    if (a.genre === "cadre" && c.id === "compagnie") action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[id] ? "Revenir" : "Ouvrir") + "</button>";
+    if (id === "boite" && c.id === "compagnie" && !FENETRE && boitePossible()) action = '<button class="bouton fort" data-vue="boite" data-de="compagnie">Ouvrir</button><button class="bouton" data-vue="boite" data-de="compagnie" data-infos="1">En savoir plus</button>';
+    else if (a.genre === "cadre" && c.id === "compagnie") action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[id] ? "Revenir" : "Ouvrir") + "</button>";
     else if (a.genre === "lien" && c.id === "compagnie" && MAC && FENETRES_MAC[id] && !FENETRE) action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">Ouvrir</button>';
     else if (a.genre === "lien" && c.id === "compagnie") action = '<a class="bouton" href="' + a.lien + '" target="_blank" rel="noopener">Ouvrir à part</a>';
     else action = '<button class="bouton" data-vue="' + id + '" data-de="' + c.id + '">En savoir plus</button>';
@@ -1287,6 +1293,7 @@ a.lien { color: var(--accent); }
     if (clicDiffusion(b, d)) return;
     if (d.compte) { etat.compte = d.compte; if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
     if (d.vue) {
+      if (d.vue === "boite" && !d.infos && (d.de || etat.compte) === "compagnie" && !FENETRE && boitePossible()) { lancerBoite(); return; }
       if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
       if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return;
     }
