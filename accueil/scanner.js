@@ -420,7 +420,8 @@
       // ---- écran de départ : prendre une photo ou choisir une image
       function ecranDepart() {
         etape = "depart"; arreterCamera();
-        var h = '<div class="osc-haut">' + bouton("annuler", "Annuler", "", "t") + '<div class="osc-titre">' + (pages.length ? "Page " + (pages.length + 1) : (options.titre || "Scanner un ticket")) + "</div>" +
+        // Une page de plus (pages déjà faites) : « Retour » ramène aux pages, sans rien perdre ; « Annuler » ne sert qu'au tout début.
+        var h = '<div class="osc-haut">' + (pages.length ? bouton("retour-pages", "Retour", "", "t", "Revenir aux pages déjà faites") : bouton("annuler", "Annuler", "", "t")) + '<div class="osc-titre">' + (pages.length ? "Page " + (pages.length + 1) : (options.titre || "Scanner un ticket")) + "</div>" +
           (pages.length ? bouton("terminer", "Terminer", "", "p") : '<span style="width:72px"></span>') + "</div>";
         h += '<div class="osc-depart">' + bouton("photo", "Prendre une photo", "photo", "p t") + bouton("image", "Choisir une image", "image", "t") +
           '<div class="osc-depose" data-depose>…ou dépose une image ici</div><p>Pose le ticket à plat sur un fond plus foncé que lui, avec une bonne lumière : les coins seront trouvés tout seuls.</p></div>';
@@ -708,6 +709,7 @@
         else if (a === "declencher") declencher();
         else if (a === "autre-camera") { if (cameras.length > 1) { cameraNo = (cameraNo + 1) % cameras.length; demarrerCamera(); } }
         else if (a === "retour-camera") ecranDepart();
+        else if (a === "retour-pages") { remplacer = null; if (pages.length) ecranEffets(Math.max(0, Math.min(courante, pages.length - 1))); else ecranDepart(); }
         else if (a === "image") entreeImage.click();
         else if (a === "retour-depart") {
           question("Reprendre une autre photo pour cette page ? Celle-ci sera abandonnée.", function () { pages.splice(courante, 1); remplacer = courante; ecranDepart(); }, "Garder", "Reprendre");
@@ -731,7 +733,7 @@
       });
       function surTaille() { if (etape === "recadrer") dessinerScene(); else if (etape === "effets") rendreApercu(); }
       function surTouche(ev) {
-        if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); var q = racine.querySelector(".osc-question"); if (q) { q.previousElementSibling.remove(); q.remove(); } else annuler(); }
+        if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); var q = racine.querySelector(".osc-question"); if (q) { q.previousElementSibling.remove(); q.remove(); } else if (etape === "camera") ecranDepart(); else if (etape === "depart" && pages.length) { remplacer = null; ecranEffets(Math.max(0, Math.min(courante, pages.length - 1))); } else annuler(); }
       }
       window.addEventListener("resize", surTaille);
       document.addEventListener("keydown", surTouche, true);
