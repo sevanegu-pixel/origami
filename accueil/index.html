@@ -781,7 +781,8 @@ button.tuile:hover { border-color: var(--ligne); }
   function retenirMoteurs() { garder("origami_appli_moteurs", Object.keys(moteurs).length ? JSON.stringify(moteurs) : ""); }
   function lireCode(t) {
     try {
-      var b = String(t || "").replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+      var lienR = /#relier=[\w-]{1,40}\.([\w-]{20,2000})/.exec(String(t || ""));   // le lien « Relier un autre appareil » collé tel quel
+      var b = String(lienR ? lienR[1] : t || "").replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
       if (!b || b.length > 2000) return null;
       var o = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b), function (c) { return c.charCodeAt(0); })));
       if (!o || o.v !== 1 || !ADRESSE_MOTEUR.test(o.u) || !FORME_CLE.test(o.c)) return null;
@@ -2092,7 +2093,7 @@ button.tuile:hover { border-color: var(--ligne); }
         h += "<p>Si tu oublies la liaison ici, l'appareil reste dans la liste « Appareils reliés » du classeur du compte : retire-le là aussi.</p>";
         h += '<div><button class="bouton" data-delier="' + cr.id + '">Oublier la liaison sur cet appareil</button></div>';
       } else {
-        h += "<h1>Relier " + texte(cr.nom) + " à son moteur</h1><p>Dans ce compte Google, ouvre le classeur « Origami - Réglages du compte », menu Origami, puis « Relier un appareil ». Colle ici le code obtenu.</p>";
+        h += "<h1>Relier " + texte(cr.nom) + " à son moteur</h1><p>Dans ce compte Google, ouvre le classeur « Origami - Réglages du compte », menu Origami, puis « Relier un appareil ». Colle ici le code obtenu. Tu peux aussi coller le lien « Relier un autre appareil » créé dans les Réglages d'un Origami déjà relié (dans ton navigateur, par exemple).</p>";
         if (LIEN_RELIER && LIEN_RELIER.id === cr.id) h += "<p><strong>Le code est déjà rempli par le lien : touche « Relier ».</strong></p>";
         h += '<label class="champ">Code de liaison<textarea id="codeCompte" autocomplete="off" spellcheck="false">' + (LIEN_RELIER && LIEN_RELIER.id === cr.id ? texte(LIEN_RELIER.code) : "") + '</textarea></label>';
         h += '<p id="messageCode" class="souci" role="status"></p><div><button class="bouton fort" data-relier="' + cr.id + '">Relier</button></div>';
