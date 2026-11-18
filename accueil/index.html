@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.28">
+<meta name="origami-version" content="2026-11-18.29">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -63,6 +63,14 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .ligne .nom { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ligne svg { flex: none; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ligne.plus { color: var(--accent); font-weight: 600; font-size: 13px; }
+.ligne.grise, #barre button.grise { opacity: 0.42; cursor: default; }
+.ligne.grise:hover { background: none; }
+.titre-apercu { margin: 26px 0 2px; font-size: 14px; text-align: left; }
+.apercu { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 10px; }
+.apercu .tuile { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border: 1px dashed var(--ligne); border-radius: 12px; color: var(--doux); opacity: 0.6; }
+.apercu .tuile svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.apercu .tuile strong { color: var(--texte); font-size: 13px; }
+.apercu .tuile span { font-size: 12px; }
 .ligne .ouverte { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .point { flex: none; width: 10px; height: 10px; border-radius: 50%; }
 .point.tous { background: conic-gradient(#1f5cff 0 33.4%, #e0a800 0 66.7%, #15803d 0); }
@@ -383,8 +391,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.28"></script>
-<script src="repertoire.js?v=2026-11-18.28"></script>
+<script src="agenda.js?v=2026-11-18.29"></script>
+<script src="repertoire.js?v=2026-11-18.29"></script>
 <script>
 (function () {
   "use strict";
@@ -462,6 +470,9 @@ button.tuile:hover { border-color: var(--ligne); }
   var etat = { compte: "", vue: "accueil", ajoutes: [], masques: {}, noms: {}, ouverture: "", sansCompagnie: true };
   try {
     var garde = JSON.parse(lire("origami_appli_etat") || "null");
+    // Mémoire d'avant le 18.11 (sans « sansCompagnie ») : l'appli repart vierge. Le Mac garde la mémoire de la page même
+    // quand on efface l'appli ; sans cela, une réinstallation retrouvait la compagnie et le dernier écran (Prospection).
+    if (garde && typeof garde === "object" && !("sansCompagnie" in garde)) { garde = null; garder("origami_appli_etat", ""); }
     if (garde && typeof garde === "object") {
       etat.sansCompagnie = garde.sansCompagnie === true;
       if (Array.isArray(garde.ajoutes)) etat.ajoutes = garde.ajoutes.filter(function (c) { return c && /^c[0-9a-z]{4,12}$/.test(c.id) && typeof c.nom === "string" && COULEURS.indexOf(c.couleur) >= 0; }).slice(0, 12).map(function (c) { return { id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, applis: ["boite"] }; });
@@ -1788,7 +1799,13 @@ button.tuile:hover { border-color: var(--ligne); }
 
   // ---- Écrans ----
   function affiches() { return comptes().filter(function (c) { return !etat.masques[c.id]; }); }
-  var COMPTE_VIDE = { id: "", nom: "", couleur: "", applis: [] };   // « Tous les comptes » sans la compagnie : rien d'office dans le volet
+  var COMPTE_VIDE = { id: "", nom: "", couleur: "", applis: [] };
+  // Appli vierge (18.11, demande de Sévane) : tout est déjà visible, mais grisé tant qu'aucun compte n'est ajouté.
+  // Seuls le tableau de bord, « Ajouter un compte » et les Réglages marchent sans compte.
+  var APERCU_MODULES = ["spectacle", "prospection", "agenda", "repertoire"], APERCU_APPLIS = ["compta", "tickets", "frais", "boite"];
+  var TEXTES_APERCU = { spectacle: "Tes spectacles et leurs étapes.", prospection: "Lieux, contacts et relances.", agenda: "Tes agendas Google et tes dates.", repertoire: "Les contacts partagés entre tes applis." };
+  var TITRE_GRISE = "Ajoute d'abord un compte pour l'utiliser";
+  function ligneGrise(id) { return '<button class="ligne grise" disabled aria-disabled="true" title="' + TITRE_GRISE + '">' + icone(id) + '<span class="nom">' + APPLIS[id].nom + "</span></button>"; }   // « Tous les comptes » sans la compagnie : rien d'office dans le volet
   function dessinerMenu() {
     var h = '<div class="marque">ORIGAMI</div><div class="groupe"><h2>Comptes</h2>';
     h += '<button class="ligne" data-compte="tous"' + (etat.compte === "tous" ? ' aria-current="true"' : "") + '><span class="point tous"></span><span class="nom">Tous les comptes</span></button>';
@@ -1797,6 +1814,19 @@ button.tuile:hover { border-color: var(--ligne); }
     });
     h += '<button class="ligne plus" data-vue="ajouter">' + icone("plus") + "<span>Ajouter un compte</span></button></div>";
     var c0 = compte(etat.compte);
+    if (!comptes().length) {   // appli vierge : modules et applis visibles, grisés
+      h += '<div class="groupe"><h2>Origami</h2><button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>';
+      APERCU_MODULES.forEach(function (id) { h += ligneGrise(id); });
+      h += '</div><div class="groupe"><h2>Applis</h2>';
+      APERCU_APPLIS.forEach(function (id) { h += ligneGrise(id); });
+      h += '</div><div class="groupe pied"><button class="ligne" data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + '<span class="nom">Réglages</span></button></div>';
+      menu.innerHTML = h;
+      var bv = '<button data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + "Accueil</button>";
+      APERCU_MODULES.concat(APERCU_APPLIS).forEach(function (id) { bv += '<button class="grise" disabled aria-disabled="true" title="' + TITRE_GRISE + '">' + icone(id) + APPLIS[id].nom + "</button>"; });
+      bv += '<button data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + "Réglages</button>";
+      barre.innerHTML = bv;
+      return;
+    }
     // « Tous les comptes » : le volet garde les modules et les applis de la compagnie, pour ne pas avoir à choisir le compte d'abord.
     var cv = c0 || compte("compagnie") || COMPTE_VIDE, volet = voletDe(cv);
     function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[cleCadre(cv, id)] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
@@ -2028,7 +2058,9 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!comptes().length) {   // appli vierge : aucun compte encore
       accueil.innerHTML = '<div class="bord"><div class="info vierge"><h1>Bienvenue dans Origami</h1><p>Commence par ajouter un compte Google. Chaque compte a ses applis et son dossier « Origami » dans son Drive.</p>' +
         '<div class="choix-ajout"><button class="carte-choix" data-guide="1"><strong>Installer Origami dans un compte Google</strong><span>Guide pas à pas, sur un ordinateur, environ 10 minutes. Une seule fois par compte.</span></button>' +
-        '<button class="carte-choix" data-guide="-1"><strong>Origami est déjà installé dans ce compte</strong><span>Colle son code de liaison (classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil »).</span></button></div></div></div>';
+        '<button class="carte-choix" data-guide="-1"><strong>Origami est déjà installé dans ce compte</strong><span>Colle son code de liaison (classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil »).</span></button></div>' +
+        '<h3 class="titre-apercu">Ce qui t\'attend</h3><p class="aide-fine">Tout s\'ouvre dès qu\'un compte est ajouté.</p><div class="apercu">' +
+        APERCU_MODULES.concat(APERCU_APPLIS).map(function (id) { return '<div class="tuile" aria-disabled="true">' + icone(id) + "<strong>" + APPLIS[id].nom + "</strong><span>" + (TEXTES_APERCU[id] || APPLIS[id].texte) + "</span></div>"; }).join("") + "</div></div></div>";
       return;
     }
     var tous = etat.compte === "tous", c0 = compte(etat.compte), comptesVus = tous ? affiches() : [c0], a = new Date(), hr = a.getHours();
