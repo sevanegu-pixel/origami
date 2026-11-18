@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.11">
+<meta name="origami-version" content="2026-11-18.12">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -315,6 +315,11 @@ a.lien { color: var(--accent); }
   function base(ok) { try { var r = indexedDB.open("diffusion-coquille", 1); r.onupgradeneeded = function () { r.result.createObjectStore("c"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
   function lireCache(ok) { base(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get("diffusion_jeton_donnees"); q.onsuccess = function () { ok(q.result || ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
   function ecrireCache(t) { base(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, "diffusion_jeton_donnees"); else s.delete("diffusion_jeton_donnees"); } catch (e) {} }); }
+  // Copie des dernières données de la Compta (18.11) : la même que celle de la page Compta (même adresse, même mémoire).
+  // Rendue seulement à un appareil qui a le jeton de la Compta ; effacée quand la Compta redemande le code PIN.
+  function baseCompta(ok) { try { var r = indexedDB.open("compta-coquille", 1); r.onupgradeneeded = function () { r.result.createObjectStore("c"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
+  function lireCopieCompta(ok) { if (!FORME_COMPTA.test(lire("origami_jeton"))) return ok(""); baseCompta(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get("donnees"); q.onsuccess = function () { ok(typeof q.result === "string" ? q.result : ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
+  function ecrireCopieCompta(t) { if (t && !FORME_COMPTA.test(lire("origami_jeton"))) return; baseCompta(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, "donnees"); else s.delete("donnees"); } catch (e) {} }); }
   var apercu = null;
   // Modules : Origami dit à Diffusion quelle rubrique montrer sans sa barre ('' : Diffusion entière, avec sa barre).
   // Une Diffusion qui ne connaît pas encore ce message l'ignore et s'affiche entière.
@@ -470,7 +475,9 @@ a.lien { color: var(--accent); }
       return;
     }
     if (id === "compta") {
-      if (d.origami === "jeton") { garder("origami_jeton", FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); return; }
+      if (d.origami === "jeton") { garder("origami_jeton", FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); if (!lire("origami_jeton")) ecrireCopieCompta(""); return; }
+      if (d.origami === "cache-lire") { lireCopieCompta(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
+      if (d.origami === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCopieCompta(d.texte); return; }
       // La Compta demande si un brouillon (PDF joint) peut s'ouvrir dans l'appli Boîte mail, puis le demande.
       if (d.origami === "boite-demande") { try { ev.source.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible(), directe: BOITE_BROUILLON && BOITE_DIRECT && boitePossible() }, ev.origin); } catch (e) {} return; }
       if (d.origami === "boite-ouvrir") {
