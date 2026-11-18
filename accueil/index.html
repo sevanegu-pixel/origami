@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.31">
+<meta name="origami-version" content="2026-11-18.32">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -393,8 +393,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.31"></script>
-<script src="repertoire.js?v=2026-11-18.31"></script>
+<script src="agenda.js?v=2026-11-18.32"></script>
+<script src="repertoire.js?v=2026-11-18.32"></script>
 <script>
 (function () {
   "use strict";
@@ -2383,7 +2383,8 @@ button.tuile:hover { border-color: var(--ligne); }
       h += "<li>Clique sur « Ouvrir l'éditeur du moteur ». Un nouvel onglet s'ouvre.</li>";
       h += "<li>En haut à droite : <strong>Déployer</strong>, puis <strong>Nouveau déploiement</strong>.</li>";
       h += "<li>À côté de « Sélectionner le type », la roue dentée, puis <strong>Application Web</strong>.</li>";
-      h += "<li>« Exécuter en tant que » : <strong>Moi</strong>. « Qui a accès » : <strong>Tout le monde</strong>. Puis Déployer. Si Google redemande l'autorisation, accepte comme à l'étape 3.</li>";
+      h += "<li>« Exécuter en tant que » : <strong>Moi</strong>. « Qui a accès » : <strong>Tout le monde</strong>. Puis <strong>Déployer</strong>.</li>";
+      h += "<li>Google demande une deuxième fois : « L'application Web vous demande l'autorisation d'accéder à vos données ». C'est normal. Clique sur <strong>Autoriser l'accès</strong>, choisis le compte, puis comme à l'étape 3 : <strong>Paramètres avancés</strong>, <strong>Accéder à … (non sécurisé)</strong>, et <strong>Continuer</strong>. Le déploiement se termine ensuite tout seul.</li>";
       h += "<li>Copie l'<strong>URL</strong> de l'application Web (elle finit par /exec). Reviens à l'onglet du classeur, colle-la dans la fenêtre, puis Continuer.</li></ol>";
       h += "<p class=\"aide-fine\">« Tout le monde » veut dire que l'adresse répond, mais sans code personne ne peut rien lire ni écrire : chaque appareil a sa propre clé.</p>";
     } else if (e === 5) {
