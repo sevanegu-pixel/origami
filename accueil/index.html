@@ -456,7 +456,7 @@ button.tuile:hover { border-color: var(--ligne); }
   };
   // Fichiers d'installation pour Mac, une appli par fichier (fabriqués par GitHub ; la Boîte mail a les siens).
   var VERSIONS_MAC = "https://github.com/sevanegu-pixel/origami/releases/download/";
-  var DMG = { boite: VERSIONS_MAC + "appli-boite-20/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
+  var DMG = { boite: VERSIONS_MAC + "appli-boite-21/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
   // Toutes les applis dans un seul fichier : on l'ouvre et on glisse tout dans Applications en un geste.
   var DMG_TOUT = VERSIONS_MAC + "applis-mac/Tout-Origami-Mac.dmg";
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -745,8 +745,8 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   var fileBoite = Promise.resolve();
   // Appli Mac : « Ouvrir » la Boîte mail = demander au Mac de lancer l'appli ou de la mettre devant (adresse muette pour elle).
-  function lancerBoite() {
-    function rate() { etat.compte = "compagnie"; etat.vue = "boite"; montrer(); avis("La Boîte mail ne s'est pas ouverte. Installe-la sur ce Mac avec le bouton ci-dessous.", true); }
+  function lancerBoite(id) {
+    function rate() { if (id && compte(id)) etat.compte = id; etat.vue = "boite"; montrer(); avis("La Boîte mail ne s'est pas ouverte. Installe-la sur ce Mac avec le bouton ci-dessous.", true); }
     try { Promise.resolve(MAC.opener.openUrl("boitemail://ouvrir")).then(function () {}, rate); } catch (e) { rate(); }
   }
   // Appli Mac : chaque fenêtre détachée est une fenêtre Origami d'une seule appli (nom « appli-… »), donc elle peut
@@ -1884,13 +1884,13 @@ button.tuile:hover { border-color: var(--ligne); }
     var a = APPLIS[id], action;
     if (id === "tickets0") return carteTickets(c);
     if (id === "diffusion0") return carteDiffusion(c);
-    if (id === "boite" && c.id === "compagnie" && !FENETRE && boitePossible()) action = '<button class="bouton fort" data-vue="boite" data-de="compagnie">Ouvrir</button><button class="bouton" data-vue="boite" data-de="compagnie" data-infos="1">En savoir plus</button>';
+    if (id === "boite") action = (!FENETRE && boitePossible() ? '<button class="bouton fort" data-vue="boite" data-de="' + c.id + '">Ouvrir</button>' : "") + '<button class="bouton' + (!FENETRE && boitePossible() ? "" : " fort") + '" data-vue="boite" data-de="' + c.id + '" data-infos="1">Installer pour ce compte</button>';
     else if (a.genre === "cadre" && (c.id === "compagnie" || (id === "compta" && comptaDe(c.id)))) action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[cleCadre(c, id)] ? "Revenir" : "Ouvrir") + "</button>";
     else if (a.genre === "lien" && c.id === "compagnie" && MAC && FENETRES_MAC[id] && !FENETRE) action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">Ouvrir</button>';
     else if (a.genre === "lien" && c.id === "compagnie") action = '<a class="bouton" href="' + a.lien + '" target="_blank" rel="noopener">Ouvrir à part</a>';
     else action = '<button class="bouton" data-vue="' + id + '" data-de="' + c.id + '">En savoir plus</button>';
     // Sur un Mac : chaque appli se télécharge aussi seule, pour s'installer et s'ouvrir sans passer par Origami.
-    if (SUR_MAC && !FENETRE && DMG[id] && c.id === "compagnie") action += '<a class="bouton" href="' + DMG[id] + '" target="_blank" rel="noopener" title="Installer cette appli seule sur ce Mac">Télécharger pour Mac</a>';
+    if (SUR_MAC && !FENETRE && DMG[id] && (c.id === "compagnie" || id === "boite")) action += '<a class="bouton" href="' + DMG[id] + '" target="_blank" rel="noopener" title="Installer cette appli seule sur ce Mac">Télécharger pour Mac</a>';
     return '<article class="carte"><div class="titre">' + icone(id) + "<h2>" + a.nom + "</h2></div><p>" + a.texte + '</p><div class="actions">' + action + "</div></article>";
   }
   // ---- Taille de l'affichage (Réglages) : les écrans d'Origami seulement ; chaque appli ouverte garde son propre réglage ----
@@ -2447,7 +2447,15 @@ button.tuile:hover { border-color: var(--ligne); }
         h += guideInstallation("Relier", cr.id);
       }
     } else if (vue === "boite") {
-      h += "<h1>Boîte mail</h1><p>Pour l'instant, la Boîte mail s'ouvre dans son appli sur le Mac. Elle rejoindra cette fenêtre avec le moteur Origami, sans rien changer à l'appli actuelle.</p>";
+      var cb0 = compte(etat.compte), nomB = cb0 ? texte(cb0.nom) : "ce compte";
+      h += "<h1>Installer la Boîte mail" + (cb0 ? " pour " + nomB : "") + "</h1><p>La Boîte mail est une appli à part sur le Mac. Elle réunit les mails de tous tes comptes Google, chacun avec son propre moteur mail. L'installation se fait une fois par compte, comme pour Origami.</p><ol class=\"pas\">";
+      h += "<li><strong>Installe l'appli sur ce Mac</strong>, si ce n'est pas déjà fait : télécharge-la, ouvre le fichier et glisse Boîte mail dans Applications. À la première ouverture, si le Mac bloque : Réglages Système, Confidentialité et sécurité, « Ouvrir quand même »." +
+        '<div class="actions"><a class="bouton' + (boitePossible() ? "" : " fort") + '" href="' + DMG.boite + '" target="_blank" rel="noopener">Télécharger Boîte mail pour Mac</a></div></li>';
+      h += "<li>Ouvre une <strong>fenêtre de navigation privée</strong> dans ton navigateur et connecte-toi au seul compte " + nomB + ", comme pour l'installation d'Origami.</li>";
+      h += "<li><strong>Ouvre Boîte mail</strong>, clique sur <strong>＋ Ajouter un compte</strong> et suis ses étapes : copie du classeur de la Boîte mail, autorisation (mêmes écrans Google que pour Origami : Paramètres avancés, puis Accéder à… non sécurisé), puis « Relier à l'appli »." +
+        (!FENETRE && boitePossible() ? '<div class="actions"><button class="bouton fort" data-vue="boite" data-de="' + (cb0 ? cb0.id : "") + '">Ouvrir Boîte mail</button></div>' : "") + "</li>";
+      h += "<li>C'est fini : le bouton <strong>Ouvrir</strong> de la carte Boîte mail ouvre ensuite directement l'appli.</li></ol>";
+      h += "<p class=\"aide-fine\">Pour l'instant, la Boîte mail garde son propre moteur dans chaque compte. Elle rejoindra le moteur Origami plus tard, sans que tu aies rien à refaire.</p>";
     } else if (vue === "frais") {
       if (FENETRE === "frais") {
         h += "<h1>Frais</h1><p>Frais s'ouvre avec ton lien personnel. Colle-le ici une fois : cette appli le garde ensuite.</p><p>Tu le trouves dans la Compta : Outils, puis Défraiements du personnel.</p>";
@@ -2553,7 +2561,7 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     if (d.vue) {
       if (d.vue === "ajouter") { guide.etape = 0; guide.pour = ""; }
-      if (d.vue === "boite" && !d.infos && (d.de || etat.compte) === "compagnie" && !FENETRE && boitePossible()) { lancerBoite(); return; }
+      if (d.vue === "boite" && !d.infos && !FENETRE && boitePossible()) { lancerBoite(d.de || etat.compte); return; }
       if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
       if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return;
     }
