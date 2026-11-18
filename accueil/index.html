@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.2">
+<meta name="origami-version" content="2026-11-18.3">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -21,6 +21,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 h1, h2, h3, p { margin: 0; }
 [hidden] { display: none !important; }
 #origami { display: flex; height: 100%; }
+/* Fenêtre d'une seule appli (appli Mac : une fenêtre par appli, ou l'appli installée seule) : ni volet ni barre. */
+html.fenetre #menu, html.fenetre #barre { display: none !important; }
 
 /* Menu de gauche */
 #menu { flex: none; width: 232px; display: flex; flex-direction: column; gap: 18px; padding: 18px 10px calc(14px + env(safe-area-inset-bottom)); border-right: 1px solid var(--ligne); overflow-y: auto; }
@@ -219,6 +221,10 @@ a.lien { color: var(--accent); }
     // Diffusion « à zéro » : son propre moteur dans le compte, affichée par cette page (lecture seule pour commencer).
     diffusion0: { nom: "Diffusion", texte: "Spectacles, suivi des lieux, prospection et agenda, lus dans ce compte.", genre: "moteur" }
   };
+  // Fichiers d'installation pour Mac, une appli par fichier (fabriqués par GitHub ; la Boîte mail a les siens).
+  var VERSIONS_MAC = "https://github.com/sevanegu-pixel/origami/releases/download/";
+  var DMG = { boite: VERSIONS_MAC + "appli-boite-17/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg" };
+  var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
   // Classeur modèle du moteur Origami, à copier dans un compte Google où il n'est pas encore installé (vide : pas de guide).
   var MODELE_MOTEUR = "";
   var COULEURS = ["#1f5cff", "#e0a800", "#15803d", "#b42318", "#7d3c5e", "#0e7490"];
@@ -244,7 +250,7 @@ a.lien { color: var(--accent); }
   function comptes() { return [COMPTE_COMPAGNIE].concat(etat.ajoutes); }
   function compte(id) { return comptes().filter(function (c) { return c.id === id; })[0] || null; }
   if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = "compagnie";
-  function retenir() { garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques })); }
+  function retenir() { if (FENETRE) return; garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques })); }
 
   var menu = document.getElementById("menu"), barre = document.getElementById("barre"), scene = document.getElementById("scene");
   var accueil = document.getElementById("accueil"), page = document.getElementById("page"), attente = document.getElementById("attente");
@@ -296,6 +302,23 @@ a.lien { color: var(--accent); }
   function direModule() { if (!fenDiffusion) return; try { fenDiffusion.w.postMessage({ origami: "module", vue: moduleVoulu }, fenDiffusion.o); } catch (e) {} }
   // Appli Mac (coquille Tauri) : les liens s'ouvrent dans le navigateur du Mac, « Détacher » ouvre une vraie fenêtre.
   var MAC = window.__TAURI__ || null;
+  // Adresse …/accueil/?fenetre=compta : cette fenêtre ne montre que cette appli (une fenêtre de l'appli Mac, ou l'appli installée seule).
+  var FENETRE = (/[?&]fenetre=(compta|tickets)(&|$)/.exec(location.search) || [])[1] || "";
+  if (FENETRE) document.documentElement.classList.add("fenetre");
+  // Appli Mac : Compta et Tickets s'ouvrent chacune dans sa fenêtre ; une fenêtre déjà ouverte revient devant.
+  var FENETRES_MAC = { compta: 1, tickets: 1 };
+  function ouvrirFenetre(id) {
+    var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
+    if (!W || FENETRE || !FENETRES_MAC[id]) return false;
+    var label = "appli-" + id, url = new URL("?fenetre=" + id, location.href.split("#")[0].split("?")[0]).href;
+    function creer() { try { new W(label, { url: url, title: APPLIS[id].nom, width: 1200, height: 860, minWidth: 380, minHeight: 520 }); } catch (e) {} }
+    try {
+      var p = typeof W.getByLabel === "function" ? W.getByLabel(label) : null;
+      if (p && typeof p.then === "function") p.then(function (w) { if (!w) return creer(); try { if (w.unminimize) w.unminimize(); } catch (e) {} return w.setFocus(); }).catch(creer);
+      else creer();
+    } catch (e) { creer(); }
+    return true;
+  }
   function fenetreCompta(url) {
     try {
       var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
@@ -1091,6 +1114,8 @@ a.lien { color: var(--accent); }
     if (a.genre === "cadre" && c.id === "compagnie") action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[id] ? "Revenir" : "Ouvrir") + "</button>";
     else if (a.genre === "lien" && c.id === "compagnie") action = '<a class="bouton" href="' + a.lien + '" target="_blank" rel="noopener">Ouvrir à part</a>';
     else action = '<button class="bouton" data-vue="' + id + '" data-de="' + c.id + '">En savoir plus</button>';
+    // Sur un Mac : chaque appli se télécharge aussi seule, pour s'installer et s'ouvrir sans passer par Origami.
+    if (SUR_MAC && !FENETRE && DMG[id] && c.id === "compagnie") action += '<a class="bouton" href="' + DMG[id] + '" target="_blank" rel="noopener" title="Installer cette appli seule sur ce Mac">Télécharger pour Mac</a>';
     return '<article class="carte"><div class="titre">' + icone(id) + "<h2>" + a.nom + "</h2></div><p>" + a.texte + '</p><div class="actions">' + action + "</div></article>";
   }
   function dessinerAccueil() {
@@ -1183,7 +1208,10 @@ a.lien { color: var(--accent); }
     if (clicTickets(b, d)) return;
     if (clicDiffusion(b, d)) return;
     if (d.compte) { etat.compte = d.compte; if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
-    if (d.vue) { if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return; }
+    if (d.vue) {
+      if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
+      if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return;
+    }
     if (d.cocher) { if (etat.masques[d.cocher]) delete etat.masques[d.cocher]; else etat.masques[d.cocher] = 1; montrer(); return; }
     if (d.couleur) { [].forEach.call(b.parentNode.children, function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); }); return; }
     if (d.ajouter) {
@@ -1215,6 +1243,8 @@ a.lien { color: var(--accent); }
   // Adresse avec une ancre (…/accueil/#tickets) : ouvre directement cette appli du compte de la compagnie.
   var ancre = (location.hash || "").slice(1);
   if (APPLIS[ancre] && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
+  if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE; }
+  else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (Object.keys(moteurs).length) Promise.all(Object.keys(moteurs).map(lireMemoire)).then(function () { montrer(); }, function () { montrer(); });
   else montrer();
