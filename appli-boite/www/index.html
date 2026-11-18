@@ -512,7 +512,7 @@
      départ est posée (« demarre ») : une rubrique peut partir, avant elle serait aussitôt remplacée par cette vue ; 2 les données du
      serveur sont affichées (« frais ») : « nouveau modèle » et « nouvelle campagne » peuvent partir, avant elles les rechargeraient. */
   var aDire = {}, demarre = {}, affiches = {};
-  function besoin(m) { return m.boiteMail === 'nouveau' ? 2 : (m.boiteMail === 'vue' ? 1 : 0); }
+  function besoin(m) { return (m.boiteMail === 'nouveau' || m.boiteMail === 'demandeEcrire') ? 2 : (m.boiteMail === 'vue' ? 1 : 0); }
   function direBientot(id, m) {
     if ((demarre[id] || 0) >= besoin(m) && direBoite(id, m)) return;
     aDire[id] = (aDire[id] || []).filter(function (x) { return !besoin(x) !== !besoin(m); }); aDire[id].push(m); // une seule rubrique demandée à la fois
@@ -786,6 +786,7 @@
     }
     if (d.boiteMail === 'ouvrir' && /^(https?:|mailto:|tel:)/i.test(String(d.url || ''))) ouvrirDehors(d.url);
     if (d.boiteMail === 'telecharger') { if (compteDuCadre(ev.source)) telecharger(d, ev.source); return; }
+    if (d.boiteMail === 'spectacles') { var qs = compteDuCadre(ev.source); if (qs) { spectacles[qs] = Math.max(0, Number(d.n) || 0); try { localStorage.setItem('boite-mail-spectacles', JSON.stringify(spectacles)); } catch (x) { /* plein */ } } return; }
     if (d.boiteMail === 'coquille?') { try { ev.source.postMessage({ boiteMail: 'coquille', telecharger: true }, '*'); } catch (x) { /* fermé */ } return; }
     if (d.boiteMail === 'fenetreEcrire' && !FEN) {
       var qf = Object.keys(sources).filter(function (k) { return sources[k] === ev.source; })[0];
@@ -1101,12 +1102,55 @@
   });
 
   /* ---------- Liens boitemail://relier?c=… ---------- */
-  function liens(urls) { (urls || []).forEach(function (u) { if (/^boitemail:\/\/relier/i.test(String(u))) relier(String(u)); }); }
+  /* ---------- Liens boitemail://ecrire?…, boitemail://conversation?… et boitemail://brouillon?… (18.11.2026) ----------
+     Une autre appli (Origami : Spectacle, Prospection, Agenda) ouvre la Boîte mail sur un geste précis. Champs, tous facultatifs :
+     ecrire : boite (adresse du compte), a, cc, objet, spectacle, lieu, mode (nouveau | relancer), conversation (id du fil Gmail),
+              modele (nom), pieces (noms des documents séparés par « | »), appel (ligne de la candidature) ;
+     conversation : boite, id ; brouillon : boite, conversation (id du fil du brouillon). boite = adresse du compte, ou « diffusion »
+     (la boîte qui porte les spectacles). Jamais de texte de mail ni de jeton dans l'adresse ; ce que la boîte ne connaît pas est ignoré. */
+  function champsLien(u) {
+    var r = {}, q = String(u).split('#')[0].split('?')[1] || '';
+    q.split('&').forEach(function (p) { if (!p) return; var i = p.indexOf('='), k = i < 0 ? p : p.slice(0, i), v = i < 0 ? '' : p.slice(i + 1);
+      try { r[decodeURIComponent(k)] = decodeURIComponent(v.replace(/\+/g, ' ')).slice(0, 600); } catch (e) { /* champ illisible : ignoré */ } });
+    return r;
+  }
+  // « boite=diffusion » : la boîte qui porte les spectacles (chaque écran dit combien il en a ; gardé d'une ouverture à l'autre)
+  var spectacles = {}; try { spectacles = JSON.parse(localStorage.getItem('boite-mail-spectacles') || '{}') || {}; } catch (e) { spectacles = {}; }
+  function compteDuLien(adresse) {
+    var e = String(adresse || '').trim().toLowerCase();
+    if (e === 'diffusion') {
+      var d = comptes.filter(function (x) { return spectacles[x.id] > 0; }).sort(function (x, y) { return spectacles[y.id] - spectacles[x.id]; })[0];
+      return d || comptes.filter(function (x) { return x.id === vue; })[0] || comptes[0] || null;
+    }
+    var c = e ? comptes.filter(function (x) { return String(x.email || '').toLowerCase() === e; })[0] : null;
+    if (!c && e) dire('La boîte ' + e + ' n\'est pas reliée à cette appli : ouvert dans la boîte affichée.');
+    return c || comptes.filter(function (x) { return x.id === vue; })[0] || comptes[0] || null;
+  }
+  function demandeDehors(u) {
+    var m = /^boitemail:\/\/(ecrire|conversation|brouillon)\b/i.exec(String(u)); if (!m) return false;
+    var p = champsLien(u), c = compteDuLien(p.boite);
+    try { if (T && T.window && T.window.getCurrentWindow) { var w = T.window.getCurrentWindow(); w.show(); if (w.unminimize) w.unminimize(); w.setFocus(); } } catch (e) { /* déjà visible */ }
+    if (!c) { dire('Reliez d\'abord une boîte mail à cette appli.'); return true; }
+    if (vue !== c.id) montrer(c.id);
+    if (m[1].toLowerCase() !== 'ecrire') { // conversation, ou brouillon (ouvert par sa conversation : champ « conversation », sinon « id »)
+      if (m[1].toLowerCase() === 'brouillon' && p.conversation) p.id = p.conversation;
+      if (!/^[0-9A-Za-z_-]{6,40}$/.test(p.id || '')) { dire('Conversation introuvable (identifiant illisible).'); return true; }
+      direBientot(c.id, { boiteMail: m[1].toLowerCase() === 'brouillon' ? 'ouvrirBrouillon' : 'ouvrirFil', id: p.id });
+    } else {
+      direBientot(c.id, { boiteMail: 'demandeEcrire', a: p.a || '', cc: p.cc || '', objet: p.objet || '', spectacle: p.spectacle || '', lieu: p.lieu || '',
+        mode: p.mode === 'relancer' ? 'relancer' : 'nouveau', conversation: /^[0-9A-Za-z_-]{6,40}$/.test(p.conversation || '') ? p.conversation : '',
+        modele: p.modele || '', pieces: String(p.pieces || '').split('|').map(function (x) { return x.trim(); }).filter(Boolean).slice(0, 20), appel: /^\d{1,6}$/.test(p.appel || '') ? Number(p.appel) : 0 });
+    }
+    return true;
+  }
+  window.__demandeDehors = demandeDehors; // pour les essais
+  function liens(urls) { (urls || []).forEach(function (u) { if (/^boitemail:\/\/relier/i.test(String(u))) relier(String(u)); else demandeDehors(u); }); }
   if (!FEN) try {
     if (T && T.core) T.core.invoke('plugin:deep-link|get_current').then(liens, function () { /* aucun */ });
     if (T && T.event) T.event.listen('deep-link://new-url', function (ev) { liens(ev.payload); });
   } catch (e) { /* pas dans l'appli */ }
   // Essai dans un navigateur : #relier=<code>
+  if (!FEN && /^#(ecrire|conversation|brouillon)\?/.test(location.hash)) { (function (l) { history.replaceState(null, '', location.pathname); setTimeout(function () { demandeDehors(l); }, 0); })('boitemail://' + location.hash.slice(1)); }
   if (!FEN && /^#relier=/.test(location.hash)) { relier(location.hash.slice(8)); history.replaceState(null, '', location.pathname); }
 
   if (FEN) { if (fenDonnees && comptes.some(function (c) { return c.id === fenDonnees.compte; })) montrer(fenDonnees.compte); else fermerCetteFenetre(); }
