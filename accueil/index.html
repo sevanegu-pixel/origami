@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.21">
+<meta name="origami-version" content="2026-11-18.22">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -345,8 +345,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.20"></script>
-<script src="repertoire.js?v=2026-11-18.20"></script>
+<script src="agenda.js?v=2026-11-18.22"></script>
+<script src="repertoire.js?v=2026-11-18.22"></script>
 <script>
 (function () {
   "use strict";
@@ -426,6 +426,19 @@ button.tuile:hover { border-color: var(--ligne); }
   } catch (e) {}
   function comptes() { return [COMPTE_COMPAGNIE].concat(etat.ajoutes); }
   function compte(id) { return comptes().filter(function (c) { return c.id === id; })[0] || null; }
+  // Compta d'un autre compte Google (18.11) : reconnue à l'empreinte de l'adresse du moteur relié sur cet appareil
+  // (l'adresse du moteur reste dans la mémoire de l'appareil, elle n'est pas écrite ici).
+  var COMPTAS_DES_MOTEURS = {
+    "11tf8zldagk": "https://script.google.com/macros/s/AKfycbz4_RviJ_TWUCv9wB7f_kz4WC5G29YZEYIsSdWfiOAFfcGAlxYVh1_fvXFGTwRI5XBE/exec"
+  };
+  function empreinte(t) { var h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (var i = 0, ch; i < t.length; i++) { ch = t.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36); }
+  function comptaDe(id) {
+    if (id === "compagnie") return ADRESSES.compta;
+    var m = typeof moteurs !== "undefined" && moteurs[id], d = m && /\/macros\/s\/([\w-]+)\/exec$/.exec(m.u);
+    return (d && COMPTAS_DES_MOTEURS[empreinte(d[1])]) || "";
+  }
+  function cleCadre(c, vue) { return vue === "compta" && c && c.id !== "compagnie" ? "compta@" + c.id : vue; }
+  function cleJetonCompta(id) { return id === "compagnie" ? "origami_jeton" : "origami_jeton@" + id; }
   if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = "compagnie";
   function retenir() { if (FENETRE) return; garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques })); }
 
@@ -442,6 +455,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (ap && ap.apparence) param = "&apparence=" + encodeURIComponent(JSON.stringify(ap.apparence));
       return ADRESSES.diffusion + (FORME_DIFFUSION.test(j) ? "?jeton=" + encodeURIComponent(j) + param : (param ? "?" + param.slice(1) : ""));
     }
+    if (id.indexOf("compta@") === 0) { var ja = lire(cleJetonCompta(id.slice(7))); return comptaDe(id.slice(7)) + (FORME_COMPTA.test(ja) ? "?jeton=" + ja : ""); }
     if (id === "compta") {
       var jc = lire("origami_jeton"), pc = [];
       if (FORME_COMPTA.test(jc)) pc.push("jeton=" + jc);
@@ -452,7 +466,7 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   function ouvrirCadre(id, discret) {
     if (cadres[id]) return cadres[id];
-    var a = APPLIS[id], f = document.createElement("iframe");
+    var a = APPLIS[id.split("@")[0]], f = document.createElement("iframe");
     f.title = a.titre; f.setAttribute("allow", a.droits);
     if (a.sansCompte) f.setAttribute("credentialless", "");
     if (a.fond) f.style.background = a.fond;
@@ -481,8 +495,10 @@ button.tuile:hover { border-color: var(--ligne); }
   // Copie des dernières données de la Compta (18.11) : la même que celle de la page Compta (même adresse, même mémoire).
   // Rendue seulement à un appareil qui a le jeton de la Compta ; effacée quand la Compta redemande le code PIN.
   function baseCompta(ok) { try { var r = indexedDB.open("compta-coquille", 1); r.onupgradeneeded = function () { r.result.createObjectStore("c"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
-  function lireCopieCompta(ok) { if (!FORME_COMPTA.test(lire("origami_jeton"))) return ok(""); baseCompta(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get("donnees"); q.onsuccess = function () { ok(typeof q.result === "string" ? q.result : ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
-  function ecrireCopieCompta(t) { if (t && !FORME_COMPTA.test(lire("origami_jeton"))) return; baseCompta(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, "donnees"); else s.delete("donnees"); } catch (e) {} }); }
+  function lireCopieCompta(ok, cid) { cid = cid || "compagnie"; if (!FORME_COMPTA.test(lire(cleJetonCompta(cid)))) return ok(""); baseCompta(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get(cid === "compagnie" ? "donnees" : "donnees@" + cid); q.onsuccess = function () { ok(typeof q.result === "string" ? q.result : ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
+  function ecrireCopieCompta(t, cid) { cid = cid || "compagnie"; var k = cid === "compagnie" ? "donnees" : "donnees@" + cid; if (t && !FORME_COMPTA.test(lire(cleJetonCompta(cid)))) return; baseCompta(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, k); else s.delete(k); } catch (e) {} }); }
+  // Un compte retiré ou délié : sa Compta se ferme et cet appareil oublie son jeton et sa copie.
+  function oublierCompta(id) { if (id === "compagnie") return; var k = "compta@" + id; if (cadres[k]) { cadres[k].remove(); delete cadres[k]; } garder(cleJetonCompta(id), ""); ecrireCopieCompta("", id); }
   var apercu = null;
   // Appli Mac : pas de window.open. L'aperçu d'un document de la Compta vit dans une fenêtre « appli-apercu » (…/accueil/?fenetre=apercu)
   // qui relit le document gardé ici, sur l'appareil ; il est remplacé à chaque aperçu et effacé quand la Compta redemande son code.
@@ -664,11 +680,11 @@ button.tuile:hover { border-color: var(--ligne); }
   });
   // Une appli ouverte dans Origami envoie des contacts au répertoire commun de son compte (un geste de la personne dans l'appli).
   // Demande : { fiches: [{ nom, mail, tel, structure, note }], n }. Réponse : { origami: "repertoire-recu", n, ajoutees, completees, dejaLa }.
-  function recevoirRepertoire(d, source, w, origine) {
+  function recevoirRepertoire(d, source, w, origine, cid) {
     var n = typeof d.n === "number" ? d.n : 0;
     function dire(r) { try { w.postMessage(Object.assign({ origami: "repertoire-recu", n: n }, r), origine); } catch (e) {} }
     if (!window.OrigamiRepertoire || !Array.isArray(d.fiches) || !d.fiches.length || d.fiches.length > 500) { dire({ refus: true }); return; }
-    window.OrigamiRepertoire.recevoir(pontRepertoire, "compagnie", d.fiches, source).then(function (r) { dire(r); avis("Répertoire commun : " + window.OrigamiRepertoire.bilan(r)); }, function () { dire({ refus: true }); });
+    window.OrigamiRepertoire.recevoir(pontRepertoire, cid || "compagnie", d.fiches, source).then(function (r) { dire(r); avis("Répertoire commun : " + window.OrigamiRepertoire.bilan(r)); }, function () { dire({ refus: true }); });
   }
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
@@ -695,16 +711,27 @@ button.tuile:hover { border-color: var(--ligne); }
       if (d.origami === "jeton" || d.diffusion === "jeton") garder("diffusion_jeton", FORME_DIFFUSION.test(d.jeton || "") ? d.jeton : "");
       return;
     }
-    if (id === "compta") {
-      if (d.origami === "jeton") { garder("origami_jeton", FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); if (!lire("origami_jeton")) { ecrireCopieCompta(""); garderResume(null); ecrireApercu(null); } redessinerBord(); return; }
-      // Tableau de bord : quelques totaux dits par la Compta (rien si elle redemande son code).
-      if (d.origami === "resume") { garderResume(d.resume); redessinerBord(); return; }
-      // Comptes : la Compta affiche le nom du compte et propose d'en changer. Une seule Compta existe pour l'instant (celle de la compagnie).
-      if (d.origami === "comptes-demande") { try { ev.source.postMessage({ origami: "comptes", actuel: "compagnie", repertoire: !!window.OrigamiRepertoire, liste: comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), compta: c.id === "compagnie" }; }) }, ev.origin); } catch (e) {} return; }
-      if (d.origami === "compte-choisir") { var cc = compte(String(d.id || "")); if (cc && cc.id !== "compagnie") avis("La Compta n'est pas encore installée dans le compte « " + cc.nom + " »."); return; }
-      if (d.origami === "repertoire") { recevoirRepertoire(d, "Compta", ev.source, ev.origin); return; }
-      if (d.origami === "cache-lire") { lireCopieCompta(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
-      if (d.origami === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCopieCompta(d.texte); return; }
+    if (id === "compta" || id.indexOf("compta@") === 0) {
+      // La Compta de la compagnie, ou celle d'un autre compte (« compta@<compte> ») : chacune son jeton et sa copie.
+      var cid = id === "compta" ? "compagnie" : id.slice(7), autre = cid !== "compagnie";
+      if (d.origami === "jeton") { garder(cleJetonCompta(cid), FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); if (!lire(cleJetonCompta(cid))) { ecrireCopieCompta("", cid); if (!autre) { garderResume(null); ecrireApercu(null); } } redessinerBord(); return; }
+      // Tableau de bord : quelques totaux dits par la Compta (rien si elle redemande son code). Seulement la Compta de la compagnie pour l'instant.
+      if (d.origami === "resume") { if (!autre) { garderResume(d.resume); redessinerBord(); } return; }
+      // Comptes : la Compta affiche le nom du compte et propose d'en changer.
+      if (d.origami === "comptes-demande") { try { ev.source.postMessage({ origami: "comptes", actuel: cid, repertoire: !!window.OrigamiRepertoire, liste: comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), compta: !!comptaDe(c.id) }; }) }, ev.origin); } catch (e) {} return; }
+      if (d.origami === "compte-choisir") {
+        var cc = compte(String(d.id || ""));
+        if (!cc || cc.id === cid) return;
+        if (!comptaDe(cc.id)) { avis("La Compta n'est pas encore installée dans le compte « " + cc.nom + " »."); return; }
+        etat.compte = cc.id; etat.vue = "compta"; montrer(); return;
+      }
+      if (d.origami === "repertoire") { recevoirRepertoire(d, "Compta", ev.source, ev.origin, cid); return; }
+      if (d.origami === "cache-lire") { lireCopieCompta(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }, cid); return; }
+      if (d.origami === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCopieCompta(d.texte, cid); return; }
+      // La Boîte mail et les fenêtres à part ne servent que la Compta de la compagnie pour l'instant : l'autre Compta passe par Gmail.
+      if (autre && d.origami === "boite-demande") { try { ev.source.postMessage({ origami: "boite", dispo: false, directe: false, liens: boitePossible() }, ev.origin); } catch (e) {} return; }
+      if (autre && d.origami === "boite-ouvrir") { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} return; }
+      if (autre && d.origami === "ouvrir") return;
       // La Compta demande si un brouillon (PDF joint) peut s'ouvrir dans l'appli Boîte mail, puis le demande.
       if (d.origami === "boite-demande") { fenCompta = { w: ev.source, o: ev.origin }; direBoiteCompta(); return; }
       if (d.origami === "boite-ouvrir") {
@@ -876,7 +903,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
   function offre(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.installables) && e.installables.some(function (a) { return a && a.id === appli; })); }
   function installee(id, appli) { var e = etatMoteur(id); return (e && Array.isArray(e.applis) ? e.applis : []).filter(function (a) { return a && a.id === appli; })[0] || null; }
-  function applisDe(c) { var l = c.applis.slice(); if (offre(c.id, "tickets")) l.push("tickets0"); if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
+  function applisDe(c) { var l = c.applis.slice(); if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets")) l.push("tickets0"); if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
   // Les modules d'un compte : pour l'instant ceux de la Diffusion du compte compagnie (son appli s'ouvre dans un cadre).
   var MODULES = ["spectacle", "prospection", "agenda"];
   function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) m.push("agenda"); return m; }   // l'Agenda vient du moteur du compte
@@ -1646,7 +1673,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var c0 = compte(etat.compte);
     // « Tous les comptes » : le volet garde les modules et les applis de la compagnie, pour ne pas avoir à choisir le compte d'abord.
     var cv = c0 || COMPTE_COMPAGNIE, volet = voletDe(cv);
-    function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
+    function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[cleCadre(cv, id)] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
     h += '<div class="groupe"><h2>' + (c0 ? "Origami" : "Dans tous les comptes") + "</h2>";
     h += '<button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>';
     var ligneRep = '<button class="ligne" data-vue="repertoire"' + (etat.vue === "repertoire" ? ' aria-current="true"' : "") + ">" + icone("repertoire") + '<span class="nom">Répertoire</span></button>';
@@ -1672,7 +1699,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (id === "tickets0") return carteTickets(c);
     if (id === "diffusion0") return carteDiffusion(c);
     if (id === "boite" && c.id === "compagnie" && !FENETRE && boitePossible()) action = '<button class="bouton fort" data-vue="boite" data-de="compagnie">Ouvrir</button><button class="bouton" data-vue="boite" data-de="compagnie" data-infos="1">En savoir plus</button>';
-    else if (a.genre === "cadre" && c.id === "compagnie") action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[id] ? "Revenir" : "Ouvrir") + "</button>";
+    else if (a.genre === "cadre" && (c.id === "compagnie" || (id === "compta" && comptaDe(c.id)))) action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[cleCadre(c, id)] ? "Revenir" : "Ouvrir") + "</button>";
     else if (a.genre === "lien" && c.id === "compagnie" && MAC && FENETRES_MAC[id] && !FENETRE) action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">Ouvrir</button>';
     else if (a.genre === "lien" && c.id === "compagnie") action = '<a class="bouton" href="' + a.lien + '" target="_blank" rel="noopener">Ouvrir à part</a>';
     else action = '<button class="bouton" data-vue="' + id + '" data-de="' + c.id + '">En savoir plus</button>';
@@ -2080,7 +2107,7 @@ button.tuile:hover { border-color: var(--ligne); }
   };
   function montrer() {
     var vue = etat.vue, c0 = compte(etat.compte);
-    var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : "";
+    var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : c0 && vue === "compta" && comptaDe(c0.id) ? cleCadre(c0, vue) : "";
     if (vue !== "accueil" && vue !== "reglages" && vue !== "ajouter" && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
     if (cadre) ouvrirCadre(cadre);
     if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
@@ -2142,12 +2169,12 @@ button.tuile:hover { border-color: var(--ligne); }
       moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; retenirMoteurs(); garderMemoire(d.relier);
       etat.vue = "reglages"; montrer(); return;
     }
-    if (d.delier) { delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
+    if (d.delier) { oublierCompta(d.delier); delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
     if (d.recharger) { b.disabled = true; fetch(location.href.split("#")[0], { cache: "reload" }).catch(function () {}).then(function () { location.reload(); }); return; }
     if (d.plusTard) { bandeauVersion.hidden = true; return; }
     if (d.retirer) {
-      etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
+      oublierCompta(d.retirer); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
       delete moteurs[d.retirer]; delete memoires[d.retirer]; oublierDiff(d.retirer); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(d.retirer); file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
       etat.compte = "compagnie"; etat.vue = "reglages"; montrer();
     }
