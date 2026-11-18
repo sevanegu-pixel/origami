@@ -646,14 +646,26 @@
     m.innerHTML = '<button type="button" role="menuitem" data-vue="ajouter">＋ Ajouter un compte</button>' + (comptes.length ? '<button type="button" role="menuitem" data-vue="comptes">Comptes reliés</button>' : '') +
       '<div class="taille"><span class="nom">Taille de l\'affichage</span><button type="button" data-taille="-1" aria-label="Plus petit" title="Plus petit">−</button><b id="taille-valeur">' + Math.round(taille * 100) + ' %</b><button type="button" data-taille="1" aria-label="Plus grand" title="Plus grand">+</button></div>' +
       '<div class="taille" style="border-top:0;margin-top:0;padding-top:2px"><span class="nom">Texte des mails</span><button type="button" data-texte="-1" aria-label="Texte plus petit" title="Plus petit">−</button><b id="texte-valeur">' + Math.round(texte * 100) + ' %</b><button type="button" data-texte="1" aria-label="Texte plus grand" title="Plus grand">+</button></div>' +
-      (T ? htmlTele() : '') +
+      (T ? htmlTele() : '') + htmlGarde() +
       (/^\d+$/.test(VERSION) ? '<div class="version">Appli Boîte mail · version ' + VERSION + '</div>' : '');
-    m.classList.add('visible');
+    m.classList.add('visible'); majGarde();
     var haut = r.top > window.innerHeight / 2;
     m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - m.offsetWidth - 8)) + 'px';
     m.style.top = (haut ? Math.max(8, r.top - m.offsetHeight - 6) : r.bottom + 6) + 'px';
   }
+  $('menu-roue').addEventListener('change', function (e) {
+    var g = e.target.closest('[data-garde-12]'); if (!g) return;
+    try { localStorage.setItem('boite-mail-garde-12', g.checked ? '1' : '0'); } catch (x) { /* plein */ }
+    Object.keys(cadres).forEach(function (k) { try { cadres[k].contentWindow.postMessage({ boiteMail: 'garde!', ecrit: !FEN, remplir: !!g.checked }, '*'); } catch (x) { /* cadre fermé */ } });
+  });
   $('menu-roue').addEventListener('change', function (e) { var c = e.target.closest('[data-tele="demander"]'); if (!c) return; var r = lireTele(); r.demander = !!c.checked; garderTele(r); var b = $('menu-roue').querySelector('.tele .ou b'); if (b) b.textContent = r.demander ? 'Demander à chaque fois' : 'Dans « ' + nomDossier(r.dossier || DOSSIER_DEFAUT) + ' »'; });
+  // Libérer de la place : un premier clic demande confirmation sur le bouton même, le second efface (les mails restent dans Gmail).
+  $('menu-roue').addEventListener('click', function (e) {
+    var g = e.target.closest('[data-garde]'); if (!g) return;
+    if (!g.hasAttribute('data-sur')) { g.setAttribute('data-sur', '1'); g.textContent = 'Effacer pour de bon'; return; }
+    g.disabled = true; g.textContent = 'Effacement…';
+    gardeEffacer(g.getAttribute('data-garde') === 'fil' ? ['fil', 'liste', 'meta'] : ['piece'], majGarde);
+  });
   $('menu-roue').addEventListener('click', function (e) { if (e.target.closest('[data-tele="dossier"]')) { $('menu-roue').classList.remove('visible'); return choisirDossierTele(); } var t = e.target.closest('[data-taille]'); if (t) return poserTaille(taille + 0.05 * Number(t.getAttribute('data-taille'))); var x = e.target.closest('[data-texte]'); if (x) return poserTexte(texte + 0.05 * Number(x.getAttribute('data-texte'))); var b = e.target.closest('[data-vue]'); if (b) { $('menu-roue').classList.remove('visible'); montrer(b.getAttribute('data-vue')); } });
   document.addEventListener('mousedown', function (e) { if (!e.target.closest('#menu-roue') && !e.target.closest('#roue')) $('menu-roue').classList.remove('visible'); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') $('menu-roue').classList.remove('visible'); });
@@ -768,9 +780,10 @@
   function avecCopie(suite) {
     if (baseCopie) return suite(baseCopie);
     try {
-      var r = indexedDB.open('boite-mail-copie', 1);
-      r.onupgradeneeded = function () { r.result.createObjectStore('c'); };
-      r.onsuccess = function () { baseCopie = r.result; suite(baseCopie); };
+      var r = indexedDB.open('boite-mail-copie', 2);
+      r.onupgradeneeded = function () { var n = r.result.objectStoreNames; ['c', 'g', 'gi'].forEach(function (x) { if (!n.contains(x)) r.result.createObjectStore(x); }); };
+      r.onsuccess = function () { baseCopie = r.result; baseCopie.onversionchange = function () { try { baseCopie.close(); } catch (e) { /* fermée */ } baseCopie = null; }; suite(baseCopie); };
+      r.onblocked = function () { suite(null); };
       r.onerror = function () { suite(null); };
     } catch (e) { suite(null); }
   }
@@ -784,6 +797,103 @@
   }
   function copieEcrire(cle, v) {
     avecCopie(function (db) { if (!db) return; try { var o = db.transaction('c', 'readwrite').objectStore('c'); if (v === null || v === '') o.delete(cle); else o.put(v, cle); } catch (e) { /* plein : la copie reste facultative */ } });
+  }
+  /* ---------- Grande copie (version 21) ----------
+     Mails des 12 derniers mois, pages des dossiers et pièces jointes déjà ouvertes : un enregistrement par élément (magasin « g »,
+     clé « compte|sorte|id », texte), son poids à part (magasin « gi ») pour compter la place sans tout relire.
+     Sortes : fil (conversation), liste (page d'un dossier), piece (pièce jointe ouverte), meta (avancement du remplissage). */
+  var SORTES_GARDE = { fil: 1, liste: 1, piece: 1, meta: 1 };
+  function bornesGarde(prefixe) { return IDBKeyRange.bound(prefixe, prefixe + '\uffff'); }
+  function gardeOp(compte, d, rendre) {
+    var sorte = String(d.sorte || ''), pre = compte + '|' + sorte + '|';
+    if (!SORTES_GARDE[sorte]) return rendre({ erreur: 'sorte' });
+    avecCopie(function (db) {
+      if (!db || !db.objectStoreNames.contains('g')) return rendre({ erreur: 'base' });
+      try {
+        var ids = (Array.isArray(d.ids) ? d.ids : []).map(String).slice(0, 500);
+        if (d.op === 'mettre') {
+          if (FEN) return rendre({ ok: false });
+          var texte = String(d.texte || ''), id = String(d.id || ''); if (!id || !texte || texte.length > 45000000) return rendre({ erreur: 'taille' });
+          var t = db.transaction(['g', 'gi'], 'readwrite');
+          t.objectStore('g').put(texte, pre + id); t.objectStore('gi').put(texte.length, pre + id);
+          t.oncomplete = function () { rendre({ ok: true }); }; t.onerror = t.onabort = function () { rendre({ erreur: 'plein' }); };
+          return;
+        }
+        if (d.op === 'oter') {
+          if (FEN) return rendre({ ok: false });
+          var t2 = db.transaction(['g', 'gi'], 'readwrite');
+          ids.forEach(function (i) { t2.objectStore('g').delete(pre + i); t2.objectStore('gi').delete(pre + i); });
+          t2.oncomplete = function () { rendre({ ok: true }); }; t2.onerror = t2.onabort = function () { rendre({ erreur: 'base' }); };
+          return;
+        }
+        if (d.op === 'prendre') {
+          var t3 = db.transaction('g'), o3 = t3.objectStore('g'), textes = {};
+          ids.forEach(function (i) { var q = o3.get(pre + i); q.onsuccess = function () { if (typeof q.result === 'string') textes[i] = q.result; }; });
+          t3.oncomplete = function () { rendre({ textes: textes }); }; t3.onerror = t3.onabort = function () { rendre({ textes: {} }); };
+          return;
+        }
+        if (d.op === 'tout') { // toute une sorte (listes, meta) : petites
+          var t4 = db.transaction('g'), tx = {}, c4 = t4.objectStore('g').openCursor(bornesGarde(pre));
+          c4.onsuccess = function () { var c = c4.result; if (!c) return; if (typeof c.value === 'string') tx[String(c.key).slice(pre.length)] = c.value; c.continue(); };
+          t4.oncomplete = function () { rendre({ textes: tx }); }; t4.onerror = t4.onabort = function () { rendre({ textes: {} }); };
+          return;
+        }
+        if (d.op === 'cles') {
+          var q5 = db.transaction('gi').objectStore('gi').getAllKeys(bornesGarde(pre));
+          q5.onsuccess = function () { rendre({ ids: (q5.result || []).map(function (k) { return String(k).slice(pre.length); }) }); }; q5.onerror = function () { rendre({ ids: [] }); };
+          return;
+        }
+        rendre({ erreur: 'op' });
+      } catch (e) { rendre({ erreur: 'base' }); }
+    });
+  }
+  /* Place prise sur ce Mac, par sorte (tous comptes), et effacement d'une sorte : menu Réglages. */
+  function gardeTailles(suite) {
+    var r = { fil: { n: 0, o: 0 }, piece: { n: 0, o: 0 }, liste: { n: 0, o: 0 } };
+    avecCopie(function (db) {
+      if (!db || !db.objectStoreNames.contains('gi')) return suite(r);
+      try {
+        var t = db.transaction('gi'), c = t.objectStore('gi').openCursor();
+        c.onsuccess = function () { var x = c.result; if (!x) return; var s = String(x.key).split('|')[1]; if (r[s]) { r[s].n++; r[s].o += Number(x.value) || 0; } x.continue(); };
+        t.oncomplete = function () { suite(r); }; t.onerror = t.onabort = function () { suite(r); };
+      } catch (e) { suite(r); }
+    });
+  }
+  function gardeEffacer(sortes, suite) {
+    avecCopie(function (db) {
+      if (!db || !db.objectStoreNames.contains('g')) return suite && suite();
+      try {
+        var t = db.transaction(['g', 'gi'], 'readwrite'), c = t.objectStore('gi').openCursor();
+        c.onsuccess = function () { var x = c.result; if (!x) return; if (sortes.indexOf(String(x.key).split('|')[1]) >= 0) { t.objectStore('g').delete(x.key); x.delete(); } x.continue(); };
+        t.oncomplete = t.onerror = t.onabort = function () {
+          Object.keys(cadres).forEach(function (k) { try { cadres[k].contentWindow.postMessage({ boiteMail: 'garde-vide', sortes: sortes }, '*'); } catch (e) { /* cadre fermé */ } });
+          if (suite) suite();
+        };
+      } catch (e) { if (suite) suite(); }
+    });
+  }
+  function gardeOublierCompte(compte) { // compte retiré de l'appli : ses mails gardés partent aussi
+    avecCopie(function (db) {
+      if (!db || !db.objectStoreNames.contains('g')) return;
+      try { var t = db.transaction(['g', 'gi'], 'readwrite'), b = bornesGarde(compte + '|'); t.objectStore('g').delete(b); t.objectStore('gi').delete(b); } catch (e) { /* facultatif */ }
+    });
+  }
+  function poidsLisible(o) { return o >= 1e9 ? (o / 1e9).toFixed(1).replace('.', ',') + ' Go' : o >= 1e6 ? Math.round(o / 1e6) + ' Mo' : o > 0 ? Math.max(1, Math.round(o / 1e3)) + ' ko' : '0'; }
+  function gardeRemplir() { try { return localStorage.getItem('boite-mail-garde-12') !== '0'; } catch (e) { return true; } }
+  function htmlGarde() {
+    return '<div class="tele" id="garde-menu"><span>Gardé sur ce Mac</span>' +
+      '<label title="Les mails des 12 derniers mois se rangent sur ce Mac petit à petit, pour s\'afficher sans attendre."><input type="checkbox" data-garde-12' + (gardeRemplir() ? ' checked' : '') + '> Garder 12 mois de mails</label>' +
+      '<div class="ou"><b id="garde-fil">Mails : …</b><button type="button" data-garde="fil">Effacer</button></div>' +
+      '<div class="ou"><b id="garde-piece">Pièces jointes : …</b><button type="button" data-garde="piece">Effacer</button></div></div>';
+  }
+  function majGarde() {
+    gardeTailles(function (r) {
+      var f = $('garde-fil'), p = $('garde-piece'); if (!f || !p) return;
+      f.textContent = 'Mails : ' + (r.fil.n ? r.fil.n.toLocaleString('fr-CH') + ' · ' + poidsLisible(r.fil.o + r.liste.o) : 'aucun');
+      p.textContent = 'Pièces jointes : ' + (r.piece.n ? r.piece.n.toLocaleString('fr-CH') + ' · ' + poidsLisible(r.piece.o) : 'aucune');
+      f.title = f.textContent; p.title = p.textContent;
+      [].forEach.call(document.querySelectorAll('#garde-menu [data-garde]'), function (b) { var s = b.getAttribute('data-garde'); b.disabled = !r[s].n; b.textContent = 'Effacer'; b.removeAttribute('data-sur'); });
+    });
   }
   function compteDuCadre(source) {
     return Object.keys(cadres).filter(function (k) { try { return source && cadres[k].contentWindow && estDans(source, cadres[k].contentWindow); } catch (e) { return false; } })[0] || '';
@@ -799,6 +909,12 @@
     if (d.boiteMail === 'cache-ecrire') {
       var qe = compteDuCadre(ev.source); if (!qe || FEN) return; // une fenêtre d'écriture lit la copie mais ne la remplace pas
       if (typeof d.texte === 'string' && d.texte.length < 40000000) copieEcrire('boite|' + qe, d.texte);
+      return;
+    }
+    if (d.boiteMail === 'garde?') { if (compteDuCadre(ev.source)) try { ev.source.postMessage({ boiteMail: 'garde!', ecrit: !FEN, remplir: gardeRemplir() }, '*'); } catch (x) { /* fermé */ } return; }
+    if (d.boiteMail === 'garde') {
+      var qg = compteDuCadre(ev.source), sg = ev.source, ng = d.n; if (!qg) return;
+      gardeOp(qg, d, function (r) { if (ng === undefined) return; r.boiteMail = 'garde-rep'; r.n = ng; try { sg.postMessage(r, '*'); } catch (x) { /* cadre fermé */ } });
       return;
     }
     if (d.boiteMail === 'ouvrir' && /^(https?:|mailto:|tel:)/i.test(String(d.url || ''))) ouvrirDehors(d.url);
@@ -1110,7 +1226,7 @@
     }
     if (e.target.classList.contains('cp-retirer')) {
       comptes = comptes.filter(function (x) { return x.id !== id; });
-      copieEcrire('boite|' + id, null); delete reperes[id]; garderToutes();
+      copieEcrire('boite|' + id, null); gardeOublierCompte(id); delete reperes[id]; garderToutes();
       if (cadres[id]) { cadres[id].remove(); delete cadres[id]; delete sources[id]; }
       delete demarre[id]; delete affiches[id]; delete aDire[id]; delete recus[id]; delete infos[id]; delete apercus[id]; garderInfos();
       garderComptes(); dessinerComptes(); dessinerNav();
