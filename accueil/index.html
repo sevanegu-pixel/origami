@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.35">
+<meta name="origami-version" content="2026-11-18.36">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -174,6 +174,16 @@ ol.pas .aide-fine { display: block; margin-top: 6px; }
 .etiquette.rate { background: #fde4e1; color: #b42318; }
 .lien { padding: 0; border: 0; background: none; color: var(--doux); font-size: 12.5px; text-decoration: underline; }
 .lien.rouge { color: #b42318; }
+.tk-options { flex: none; width: 30px; height: 26px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--doux); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.tk-options:hover, .tk-options[aria-expanded="true"] { background: var(--fond, rgba(0,0,0,.05)); border-color: var(--ligne); color: var(--texte); }
+.tk-options svg { width: 18px; height: 18px; }
+#tkOptionsMenu { position: fixed; z-index: 30; min-width: 210px; padding: 6px; border: 1px solid var(--ligne); border-radius: 12px; background: var(--carte); box-shadow: 0 10px 30px rgba(17, 16, 20, 0.18); display: flex; flex-direction: column; }
+#tkOptionsMenu[hidden] { display: none; }
+#tkOptionsMenu button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: none; color: var(--texte); font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+#tkOptionsMenu button:hover, #tkOptionsMenu button:focus-visible { background: rgba(31, 92, 255, 0.10); outline: none; }
+#tkOptionsMenu button svg { width: 18px; height: 18px; flex: none; color: var(--doux); }
+#tkOptionsMenu button.rouge, #tkOptionsMenu button.rouge svg { color: #b42318; }
+#tkOptionsMenu hr { border: 0; border-top: 1px solid var(--ligne); margin: 4px 2px; }
 a.lien { color: var(--accent); }
 #tkDest { margin-bottom: 14px; }
 .appli.large { max-width: 900px; }
@@ -416,8 +426,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.35"></script>
-<script src="repertoire.js?v=2026-11-18.35"></script>
+<script src="agenda.js?v=2026-11-18.36"></script>
+<script src="repertoire.js?v=2026-11-18.36"></script>
 <script>
 (function () {
   "use strict";
@@ -1168,12 +1178,64 @@ button.tuile:hover { border-color: var(--ligne); }
   function teteRangee(t) {
     return '<div><span class="quoi">' + texte(t.nom == null ? "" : t.nom) + (t.motif ? " · " + texte(t.motif) : "") + '</span><span class="combien">' + texte(Number(t.montant || 0).toFixed(2) + " " + (t.devise || "CHF")) + "</span></div>";
   }
+  // Gestes d'un ticket : un bouton « ⋯ » qui ouvre un petit menu (pictogramme + libellé), pour une liste plus légère.
+  function picto(d) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + d + "</svg>"; }
+  var PICTOS_TK = {
+    options: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+    voir: picto('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>'),
+    payer: picto('<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>'),
+    impaye: picto('<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>'),
+    modif: picto('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>'),
+    suppr: picto('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>')
+  };
+  var menuOptions = null;
+  function fermerOptions(rendreFocus) {
+    var m = document.getElementById("tkOptionsMenu"); if (!m || m.hidden) return;
+    m.hidden = true;
+    var b = menuOptions && document.querySelector('[data-tk-options="' + menuOptions + '"]');
+    if (b) { b.setAttribute("aria-expanded", "false"); if (rendreFocus) try { b.focus(); } catch (e) {} }
+    menuOptions = null;
+  }
+  function ouvrirOptions(idT, b) {
+    if (menuOptions === idT) { fermerOptions(true); return; }
+    fermerOptions(false);
+    var t = ticketsDe(etat.compte).filter(function (x) { return x.id === idT; })[0]; if (!t) return;
+    var i = texte(t.id), m = document.getElementById("tkOptionsMenu");
+    if (!m) { m = document.createElement("div"); m.id = "tkOptionsMenu"; m.setAttribute("role", "menu"); m.hidden = true; document.body.appendChild(m); }
+    var h = "";
+    if (lienDrive(t.fichierUrl)) h += '<button role="menuitem" data-tk-voir="' + i + '">' + PICTOS_TK.voir + "Justificatif</button>";
+    if (t.datePaiement) h += '<button role="menuitem" data-tk-impaye="' + i + '">' + PICTOS_TK.impaye + "Marquer pas payé</button>";
+    else if (t.statut === "envoye") h += '<button role="menuitem" data-tk-payer="' + i + '">' + PICTOS_TK.payer + "Marquer comme payé</button>";
+    h += '<button role="menuitem" data-tk-modif="' + i + '">' + PICTOS_TK.modif + 'Modifier</button><hr><button role="menuitem" class="rouge" data-tk-suppr="' + i + '">' + PICTOS_TK.suppr + "Supprimer</button>";
+    m.innerHTML = h; m.hidden = false; menuOptions = idT; b.setAttribute("aria-expanded", "true");
+    var r = b.getBoundingClientRect(), l = m.offsetWidth, ht = m.offsetHeight;
+    var gauche = Math.max(8, Math.min(r.right - l, innerWidth - l - 8)), haut = r.bottom + 4;
+    if (haut + ht > innerHeight - 8) haut = Math.max(8, r.top - ht - 4);
+    m.style.left = gauche + "px"; m.style.top = haut + "px";
+    var p = m.querySelector("button"); if (p) try { p.focus(); } catch (e) {}
+  }
+  document.addEventListener("click", function (ev) {
+    var m = document.getElementById("tkOptionsMenu");
+    if (!m || m.hidden) return;
+    if (ev.target.closest && ev.target.closest("#tkOptionsMenu button")) { setTimeout(function () { fermerOptions(false); }, 0); return; }
+    if (!(ev.target.closest && ev.target.closest("#tkOptionsMenu, [data-tk-options]"))) fermerOptions(false);
+  }, true);
+  document.addEventListener("keydown", function (ev) {
+    var m = document.getElementById("tkOptionsMenu");
+    if (!m || m.hidden) return;
+    var l = Array.prototype.slice.call(m.querySelectorAll("button")), k = l.indexOf(document.activeElement);
+    if (ev.key === "Escape") { ev.preventDefault(); ev.stopImmediatePropagation(); fermerOptions(true); }
+    else if (ev.key === "ArrowDown") { ev.preventDefault(); l[(k + 1) % l.length].focus(); }
+    else if (ev.key === "ArrowUp") { ev.preventDefault(); l[(k - 1 + l.length) % l.length].focus(); }
+    else if (ev.key === "Tab") fermerOptions(false);
+  }, true);
+  window.addEventListener("resize", function () { fermerOptions(false); });
+  document.addEventListener("scroll", function () { fermerOptions(false); }, true);
   function rangeeTicket(t) {
     var e = t.statut !== "envoye" ? '<span class="etiquette">En attente</span>' : t.datePaiement ? '<span class="etiquette paye" title="' + (t.payeIci === true || t.payeIci === "true" ? "Indiqué payé dans l'appli" : "Confirmé par le destinataire") + '">Payé le ' + jour(t.datePaiement) + "</span>" : '<span class="etiquette parti">Envoyé le ' + jour(t.dateEnvoi) + "</span>";
     var u = lienDrive(t.fichierUrl), i = texte(t.id);
-    var paie = t.datePaiement ? '<button class="lien" data-tk-impaye="' + i + '">Pas payé</button>' : t.statut === "envoye" ? '<button class="lien" data-tk-payer="' + i + '">Marquer payé</button>' : "";
     return '<div class="rangee">' + teteRangee(t) + '<div><span class="detail">' + jour(t.dateTicket) + (t.commentaire ? " · " + texte(t.commentaire) : "") + '</span><span class="gestes">' + e +
-      (u ? '<button class="lien" data-tk-voir="' + i + '">Justificatif</button>' : "") + paie + '<button class="lien" data-tk-modif="' + i + '">Modifier</button><button class="lien rouge" data-tk-suppr="' + i + '">Supprimer</button></span></div></div>';
+      '<button class="tk-options" data-tk-options="' + i + '" aria-haspopup="menu" aria-expanded="false" aria-label="Options du ticket" title="Options">' + PICTOS_TK.options + "</button></span></div></div>";
   }
   // Recherche : chaque mot doit se trouver dans le ticket (nom, motif, commentaire, montant, date, fichier), sans tenir compte des accents.
   function plat(v) { return String(v == null ? "" : v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
@@ -1709,6 +1771,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (etat.vue !== "tickets0" || !compte(etat.compte)) return false;
     if (d.onglet) { tk.onglet = d.onglet; tk.plus = 50; dessinerTickets(); return true; }
     if (d.tk === "plus") { tk.plus += 50; majTickets(); return true; }
+    if (d.tkOptions) { ouvrirOptions(d.tkOptions, b); return true; }
     if (d.tkModif) { ouvrirModification(d.tkModif); return true; }
     if (d.tkVoir) { voirJustificatif(d.tkVoir); return true; }
     if (d.tkPayer) { marquerPaye([d.tkPayer], true); return true; }
