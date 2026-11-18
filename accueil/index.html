@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.24">
+<meta name="origami-version" content="2026-11-18.25">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -101,6 +101,10 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .couleurs { display: flex; gap: 8px; }
 .couleurs button { width: 22px; height: 22px; padding: 0; border: 2px solid transparent; border-radius: 50%; }
 .couleurs button[aria-pressed="true"] { border-color: var(--texte); box-shadow: inset 0 0 0 2px var(--fond); }
+.explication { margin: 8px 0 0; color: var(--doux); font-size: 13px; line-height: 1.4; }
+.bouton.petit { padding: 0 9px; min-width: 32px; justify-content: center; }
+.reglage .couleurs { margin: 10px 0 4px; }
+#nomCompteR { max-width: 420px; }
 #attente { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 3; padding: 4px 12px; border-radius: 999px; background: var(--texte); color: var(--fond); font-size: 12.5px; pointer-events: none; }
 
 /* Applis installées « à zéro » dans le compte (Tickets) */
@@ -345,8 +349,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.24"></script>
-<script src="repertoire.js?v=2026-11-18.23"></script>
+<script src="agenda.js?v=2026-11-18.25"></script>
+<script src="repertoire.js?v=2026-11-18.25"></script>
 <script>
 (function () {
   "use strict";
@@ -414,7 +418,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function texte(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
   // ---- Mémoire de l'appareil : comptes ajoutés, compte et appli ouverts, comptes cochés ----
-  var etat = { compte: "compagnie", vue: "accueil", ajoutes: [], masques: {} };
+  var etat = { compte: "compagnie", vue: "accueil", ajoutes: [], masques: {}, noms: {}, ouverture: "" };
   try {
     var garde = JSON.parse(lire("origami_appli_etat") || "null");
     if (garde && typeof garde === "object") {
@@ -422,6 +426,10 @@ button.tuile:hover { border-color: var(--ligne); }
       if (garde.masques && typeof garde.masques === "object") etat.masques = garde.masques;
       if (typeof garde.compte === "string") etat.compte = garde.compte;
       if (typeof garde.vue === "string") etat.vue = garde.vue;
+      // Nom et couleur de la compagnie changés dans les Réglages ; « noms » : comptes dont le nom est déjà accordé avec leur moteur.
+      if (garde.compagnie && typeof garde.compagnie.nom === "string" && garde.compagnie.nom.trim() && COULEURS.indexOf(garde.compagnie.couleur) >= 0) { COMPTE_COMPAGNIE.nom = garde.compagnie.nom.trim().slice(0, 40); COMPTE_COMPAGNIE.couleur = garde.compagnie.couleur; }
+      if (garde.noms && typeof garde.noms === "object") etat.noms = garde.noms;
+      if (garde.ouverture === "bord") etat.ouverture = "bord";
     }
   } catch (e) {}
   function comptes() { return [COMPTE_COMPAGNIE].concat(etat.ajoutes); }
@@ -440,7 +448,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function cleCadre(c, vue) { return vue === "compta" && c && c.id !== "compagnie" ? "compta@" + c.id : vue; }
   function cleJetonCompta(id) { return id === "compagnie" ? "origami_jeton" : "origami_jeton@" + id; }
   if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = "compagnie";
-  function retenir() { if (FENETRE) return; garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques })); }
+  function retenir() { if (FENETRE) return; garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques, compagnie: { nom: COMPTE_COMPAGNIE.nom, couleur: COMPTE_COMPAGNIE.couleur }, noms: etat.noms, ouverture: etat.ouverture })); }
 
   var menu = document.getElementById("menu"), barre = document.getElementById("barre"), scene = document.getElementById("scene");
   var accueil = document.getElementById("accueil"), page = document.getElementById("page"), attente = document.getElementById("attente"), zoneReglages = document.getElementById("reglages");
@@ -478,6 +486,10 @@ button.tuile:hover { border-color: var(--ligne); }
     cadres[id] = f;
     return f;
   }
+  // Les Compta ouvertes reçoivent la liste des comptes ; elle leur est redite quand un compte change de nom ou de couleur.
+  var fenComptes = {};
+  function listeComptes(cid) { return { origami: "comptes", actuel: cid, repertoire: !!window.OrigamiRepertoire, liste: comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), couleur: c.couleur, compta: !!comptaDe(c.id) }; }) }; }
+  function direComptes() { Object.keys(fenComptes).forEach(function (cid) { var f = fenComptes[cid]; try { f.w.postMessage(listeComptes(cid), f.o); } catch (e) { delete fenComptes[cid]; } }); }
   // De quelle appli ouverte vient un message ? (lui-même ou un cadre placé dedans, jamais une autre page)
   function appliDe(w) {
     try {
@@ -718,7 +730,7 @@ button.tuile:hover { border-color: var(--ligne); }
       // Tableau de bord : quelques totaux dits par la Compta (rien si elle redemande son code). Seulement la Compta de la compagnie pour l'instant.
       if (d.origami === "resume") { if (!autre) { garderResume(d.resume); redessinerBord(); } return; }
       // Comptes : la Compta affiche le nom du compte et propose d'en changer.
-      if (d.origami === "comptes-demande") { try { ev.source.postMessage({ origami: "comptes", actuel: cid, repertoire: !!window.OrigamiRepertoire, liste: comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), compta: !!comptaDe(c.id) }; }) }, ev.origin); } catch (e) {} return; }
+      if (d.origami === "comptes-demande") { fenComptes[cid] = { w: ev.source, o: ev.origin }; try { ev.source.postMessage(listeComptes(cid), ev.origin); } catch (e) {} return; }
       if (d.origami === "compte-choisir") {
         var cc = compte(String(d.id || ""));
         if (!cc || cc.id === cid) return;
@@ -844,6 +856,7 @@ button.tuile:hover { border-color: var(--ligne); }
         return r[0].c ? r : moteurAppel(id, "changements", { depuis: m.version || 0 }, { sans: true }).then(function (ch) { if (memoires[id] === m) appliquer(id, ch); return r; });
       }).then(function (r) {
         m.etat = r[0].r || null; m.tableau = r[1] || null; m.releve = Date.now(); m.panne = "";
+        if (memoires[id] === m) accorderNom(id);
         if (moteurs[id] && memoires[id] === m) garderMemoire(id);
       }, function (e) { m.panne = String((e && e.message) || e); });
     }).then(function () {
@@ -852,6 +865,46 @@ button.tuile:hover { border-color: var(--ligne); }
     });
     return releves[id];
   }
+  // Le nom et la couleur d'un compte vivent aussi dans son moteur (onglet Réglages du classeur du compte).
+  // Première fois qu'un appareil voit le moteur : son nom à lui est envoyé. Ensuite, le moteur fait foi, sauf un changement
+  // fait ici et pas encore parti (il repart au relevé suivant).
+  function pousserNom(id) {
+    var c = compte(id);
+    if (!c || !moteurs[id] || etat.noms[id] === "ok") return;
+    var nom = c.nom, couleur = c.couleur;
+    moteurAppel(id, "compte.regler", { nom: nom, couleur: couleur }, { sans: true }).then(function () {
+      var m = memoires[id], cc = compte(id);
+      if (cc && cc.nom === nom && cc.couleur === couleur) { etat.noms[id] = "ok"; retenir(); }
+      if (m && m.etat && m.etat.compte) { m.etat.compte.nom = nom; m.etat.compte.couleur = couleur; }
+    }, function () {});
+  }
+  function accorderNom(id) {
+    var c = compte(id), m = memoires[id], e = m && m.etat && m.etat.compte;
+    if (!c || !e) return;
+    if (etat.noms[id] !== "ok") { pousserNom(id); return; }
+    var nom = String(e.nom || "").trim().slice(0, 40), couleur = COULEURS.indexOf(e.couleur) >= 0 ? e.couleur : c.couleur;
+    if (nom && (nom !== c.nom || couleur !== c.couleur)) { c.nom = nom; c.couleur = couleur; retenir(); direComptes(); }
+  }
+  function changerCompte(id, nom, couleur) {
+    var c = compte(id);
+    nom = String(nom || "").trim().slice(0, 40);
+    if (!c || !nom) return false;
+    c.nom = nom; if (COULEURS.indexOf(couleur) >= 0) c.couleur = couleur;
+    delete etat.noms[id]; retenir(); direComptes(); pousserNom(id);
+    return true;
+  }
+  // Les autres fenêtres d'Origami (appli Mac) suivent un changement de nom fait dans l'une d'elles.
+  window.addEventListener("storage", function (ev) {
+    if (ev.key !== "origami_appli_etat") return;
+    try {
+      var g = JSON.parse(ev.newValue || "null");
+      if (!g) return;
+      if (g.compagnie && typeof g.compagnie.nom === "string" && g.compagnie.nom.trim() && COULEURS.indexOf(g.compagnie.couleur) >= 0) { COMPTE_COMPAGNIE.nom = g.compagnie.nom.trim().slice(0, 40); COMPTE_COMPAGNIE.couleur = g.compagnie.couleur; }
+      (Array.isArray(g.ajoutes) ? g.ajoutes : []).forEach(function (x) { var c = x && compte(x.id); if (c && c.id !== "compagnie" && typeof x.nom === "string" && x.nom.trim() && COULEURS.indexOf(x.couleur) >= 0) { c.nom = x.nom.slice(0, 40); c.couleur = x.couleur; } });
+      if (g.noms && typeof g.noms === "object") etat.noms = g.noms;
+      dessinerMenu(); rafraichir(etat.compte); direComptes();
+    } catch (e) {}
+  });
   function releverSiVieux(id) {
     if (!moteurs[id] || releves[id]) return;
     lireMemoire(id).then(function (m) { if (Date.now() - (m.essai || m.releve || 0) > 60000) { relever(id); } rafraichir(id); });
@@ -1989,7 +2042,15 @@ button.tuile:hover { border-color: var(--ligne); }
     h += '<div class="choix tel" role="group" aria-label="Comptes"><button class="puce" data-compte="tous" aria-pressed="' + (tous ? "true" : "false") + '"><span class="point tous"></span>Tous</button>';
     comptes().forEach(function (c) { h += '<button class="puce" data-compte="' + c.id + '" aria-pressed="' + (etat.compte === c.id ? "true" : "false") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
     h += '<button class="puce" data-vue="ajouter">+ Compte</button></div>';
+    if (!tous) {
+      // Ce compte : son nom et sa couleur (partout : volet, menus des comptes des applis, moteur et autres appareils), ses appareils.
+      h += '<h2 class="sous-titre">Ce compte</h2><div class="reglage"><label class="champ">Nom du compte<input id="nomCompteR" maxlength="40" autocomplete="off" value="' + texte(c0.nom) + '"></label><div class="couleurs" role="group" aria-label="Couleur du compte">';
+      COULEURS.forEach(function (cl, i) { h += '<button data-couleur="' + cl + '" aria-pressed="' + (cl === c0.couleur ? "true" : "false") + '" aria-label="Couleur ' + (i + 1) + '" style="background:' + cl + '"></button>'; });
+      h += '</div><p id="messageNom" class="souci" role="status"></p><div class="actions"><button class="bouton fort" data-renommer="' + c0.id + '">Enregistrer</button>' + (moteurs[c0.id] ? '<button class="bouton" data-appareils="' + c0.id + '">Appareils reliés</button>' : "") + "</div>";
+      h += '<p class="explication">' + (moteurs[c0.id] ? "Le nom et la couleur changent dans le volet, dans le menu des comptes de la Compta et sur tes autres appareils reliés à ce compte." : "Le nom et la couleur changent dans le volet et dans le menu des comptes de la Compta. Relie ce compte à son moteur pour qu'ils suivent aussi sur tes autres appareils.") + "</p></div>";
+    }
     h += '<h2 class="sous-titre">Affichage</h2>' + blocTaille();
+    h += '<div class="reglage"><div class="rangs"><div class="rang-r"><span class="nom">Toujours ouvrir le tableau de bord<small>Allumé : Origami s\'ouvre sur le tableau de bord. Éteint : il reprend le dernier écran.</small></span><button class="inter" role="switch" aria-checked="' + (etat.ouverture === "bord" ? "true" : "false") + '" aria-label="Toujours ouvrir le tableau de bord" data-ouverture="1"></button></div></div></div>';
     h += '<div class="reglage"><h3>Tableau de bord</h3><p>Les blocs affichés et leur ordre. Le même choix s\'ouvre depuis le tableau de bord.</p><div class="rangs" id="bordRangs">' + rangsBlocs() + "</div></div>";
     h += '<h2 class="sous-titre">Applis</h2>';
     if (tous) {
@@ -2006,20 +2067,92 @@ button.tuile:hover { border-color: var(--ligne); }
     });
     if (!l.length) h += '<p class="note">Aucun compte coché.</p>';
     h += '<h2 class="sous-titre">Comptes</h2><div class="reglage"><div class="rangs">';
-    comptes().forEach(function (c) {
-      h += '<div class="rang-r"><span class="point" style="background:' + c.couleur + '"></span><span class="nom">' + texte(c.nom) + "<small>" + (moteurs[c.id] ? "Relié à son moteur" : "Pas encore relié") + '</small></span><button class="bouton" data-compte="' + c.id + '">Voir</button>' + (c.id !== "compagnie" ? '<button class="bouton" data-retirer="' + c.id + '">Retirer</button>' : "") + "</div>";
+    comptes().forEach(function (c, i) {
+      var n = etat.ajoutes.length, ordre = c.id === "compagnie" || n < 2 ? "" : '<button class="bouton petit" data-monter="' + c.id + '" aria-label="Monter « ' + texte(c.nom) + ' »"' + (i <= 1 ? " disabled" : "") + '>↑</button><button class="bouton petit" data-descendre="' + c.id + '" aria-label="Descendre « ' + texte(c.nom) + ' »"' + (i >= n ? " disabled" : "") + ">↓</button>";
+      h += '<div class="rang-r"><span class="point" style="background:' + c.couleur + '"></span><span class="nom">' + texte(c.nom) + "<small>" + (moteurs[c.id] ? "Relié à son moteur" : "Pas encore relié") + "</small></span>" + ordre + '<button class="bouton" data-compte="' + c.id + '">Modifier</button>' + (c.id !== "compagnie" ? '<button class="bouton" data-retirer="' + c.id + '">Retirer</button>' : "") + "</div>";
     });
     h += '</div><div><button class="bouton" data-vue="ajouter">Ajouter un compte</button></div></div>';
     h += '<h2 class="sous-titre">Cet appareil</h2><div class="reglage"><div class="rangs">';
     h += '<div class="rang-r"><span class="nom">Version d\'Origami<small>' + texte((document.querySelector('meta[name="origami-version"]') || {}).content || "inconnue") + '</small></span><button class="bouton" data-recharger="1">Recharger</button></div>';
     h += '<div class="rang-r"><span class="nom">Lien personnel de Frais<small>' + (cleFrais() ? "Gardé sur cet appareil : Frais s'ouvre directement." : "Aucun lien gardé sur cet appareil.") + '</small></span><button class="bouton" data-frais-r="changer">' + (cleFrais() ? "Changer" : "Ajouter") + "</button>" + (cleFrais() ? '<button class="bouton" data-frais-r="oublier">Oublier</button>' : "") + "</div>";
+    connexions().forEach(function (x) { h += '<div class="rang-r"><span class="nom">' + texte(x.nom) + "<small>" + texte(x.texte) + '</small></span><button class="bouton" data-deconnecter="' + x.id + '">' + texte(x.bouton) + "</button></div>"; });
     h += '<div class="rang-r"><span class="nom">Chiffres de la Compta gardés ici<small>' + (lire("origami_resume_compta") ? "Le tableau de bord garde quelques totaux de la Compta sur cet appareil." : "Aucun pour l'instant.") + '</small></span><button class="bouton" data-oublier-resume="1"' + (lire("origami_resume_compta") ? "" : " disabled") + ">Oublier</button></div>";
+    var liens = Object.keys(moteurs).length, nbCo = connexions().length + (cleFrais() ? 1 : 0);
+    h += '<div class="rang-r"><span class="nom">Tout déconnecter sur cet appareil<small>' + (liens || nbCo ? "Déconnecte d'un coup Diffusion, les Compta, Tickets, le lien de Frais et les liaisons aux moteurs des comptes. Les comptes restent dans la liste ; tes données dans Google ne bougent pas. La Boîte mail se déconnecte depuis la Boîte mail elle-même." : "Rien n'est connecté sur cet appareil.") + '</small></span><button class="bouton" data-tout-deco="1"' + (liens || nbCo ? "" : " disabled") + ">Tout déconnecter</button></div>";
     // Seulement dans l'appli Origami du Mac : la fenêtre d'écriture directe demande l'appli Boîte mail version 20 ou plus.
     if (BOITE_BROUILLON && BOITE_DIRECT && boitePossible()) h += '<div class="rang-r"><span class="nom">Boîte mail version 20 installée sur ce Mac<small>Allumé : depuis la Compta, le mail s\'ouvre tout de suite dans sa petite fenêtre et le PDF le rejoint. Éteint : la Compta passe par un brouillon, comme avant.</small></span><button class="inter" role="switch" aria-checked="' + (lire("origami_boite20") === "1" ? "true" : "false") + '" aria-label="Boîte mail version 20 installée sur ce Mac" data-boite20="1"></button></div>';
     h += "</div></div></div>";
     zoneReglages.innerHTML = h;
   }
+  // Applis où cet appareil est connecté (code PIN déjà donné, code d'accès gardé) : on peut s'en déconnecter ici.
+  function connexions() {
+    var l = [];
+    if (FORME_DIFFUSION.test(lire("diffusion_jeton"))) l.push({ id: "diffusion", nom: "Diffusion", texte: "Connectée sur cet appareil : elle s'ouvre sans redemander le code.", bouton: "Se déconnecter" });
+    comptes().forEach(function (c) { if (comptaDe(c.id) && FORME_COMPTA.test(lire(cleJetonCompta(c.id)))) l.push({ id: "compta:" + c.id, nom: "Compta" + (comptes().length > 1 ? " · " + c.nom : ""), texte: "Connectée sur cet appareil : elle s'ouvre sans redemander le code PIN.", bouton: "Se déconnecter" }); });
+    if (lire("tickets_code")) l.push({ id: "tickets", nom: "Tickets (appli d'origine)", texte: "Son code d'accès est gardé sur cet appareil.", bouton: "Oublier le code" });
+    return l;
+  }
+  function fermerCadre(k) { if (cadres[k]) { cadres[k].remove(); delete cadres[k]; } }
+  function deconnecter(id) {
+    if (id === "diffusion") { garder("diffusion_jeton", ""); ecrireCache(""); diffBord = null; diffLu = false; fermerCadre("diffusion"); return "Diffusion"; }
+    if (id === "tickets") { garder("tickets_code", ""); fermerCadre("tickets"); return "Tickets"; }
+    var cid = id.slice(7);
+    if (id.indexOf("compta:") !== 0 || !compte(cid)) return "";
+    garder(cleJetonCompta(cid), ""); ecrireCopieCompta("", cid); delete fenComptes[cid];
+    if (cid === "compagnie") { garderResume(null); ecrireApercu(null); fermerCadre("compta"); } else fermerCadre("compta@" + cid);
+    return "la Compta";
+  }
+  // Appareils reliés au moteur d'un compte : la liste et le retrait d'un accès (en deux temps).
+  function dateCourte(t) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(t || "")); return m ? m[3] + "." + m[2] + "." + m[1] : ""; }
+  function montrerAppareils(id, l, souci) {
+    var c = compte(id), h = "<h2>Appareils reliés</h2><p>" + texte(c ? c.nom : "") + " : chaque appareil a sa propre clé. Retirer un appareil lui coupe l'accès à ce compte ; si c'est celui-ci, il faudra le relier de nouveau.</p>";
+    if (souci) h += '<p class="souci">' + texte(souci) + "</p>";
+    if (l && !l.length) h += "<p>Aucun appareil relié.</p>";
+    if (l && l.length) { h += '<div class="rangs">'; l.forEach(function (a) { h += '<div class="rang-r"><span class="nom">' + texte(a.nom || "Appareil") + "<small>Relié le " + dateCourte(a.cree) + (a.vu ? ", vu le " + dateCourte(a.vu) : ", jamais vu") + '</small></span><button class="bouton" data-app-retirer="' + texte(a.id) + '" data-de="' + id + '">Retirer</button></div>'; }); h += "</div>"; }
+    if (!l && !souci) h += "<p>Chargement…</p>";
+    ouvrirVoile(h + '<div class="actions"><button class="bouton" data-fermer-voile="1">Fermer</button></div>');
+  }
+  function chargerAppareils(id) {
+    montrerAppareils(id, null);
+    moteurAppel(id, "appareils.lister", null, { sans: true }).then(function (l) { if (!voile.hidden) montrerAppareils(id, Array.isArray(l) ? l : []); }, function (e) { if (!voile.hidden) montrerAppareils(id, null, String((e && e.message) || e)); });
+  }
   function clicReglages(b, d) {
+    if (d.fermerVoile) { fermerVoile(); return true; }
+    if (d.renommer) {
+      var cr = compte(d.renommer), champ = document.getElementById("nomCompteR"), pc = zoneReglages.querySelector('[data-couleur][aria-pressed="true"]');
+      if (!cr || !champ) return true;
+      if (!champ.value.trim()) { document.getElementById("messageNom").textContent = "Le nom du compte ne peut pas être vide."; champ.focus(); return true; }
+      changerCompte(cr.id, champ.value, pc ? pc.dataset.couleur : cr.couleur);
+      avis("Compte enregistré : " + cr.nom + "."); dessinerMenu(); dessinerReglages(); return true;
+    }
+    if (d.ouverture) { etat.ouverture = etat.ouverture === "bord" ? "" : "bord"; retenir(); dessinerReglages(); return true; }
+    if (d.monter || d.descendre) {
+      var idm = d.monter || d.descendre, i = etat.ajoutes.map(function (c) { return c.id; }).indexOf(idm), j = d.monter ? i - 1 : i + 1;
+      if (i >= 0 && j >= 0 && j < etat.ajoutes.length) { var x = etat.ajoutes[i]; etat.ajoutes[i] = etat.ajoutes[j]; etat.ajoutes[j] = x; retenir(); dessinerMenu(); dessinerReglages(); direComptes(); }
+      return true;
+    }
+    if (d.deconnecter) { var quoi = deconnecter(d.deconnecter); if (quoi) avis("Déconnecté de " + quoi + " sur cet appareil."); redessinerBord(); dessinerMenu(); dessinerReglages(); return true; }
+    if (d.toutDeco) {
+      if (b.dataset.sur !== "1") {
+        if (file.length) { avis(file.length + (file.length > 1 ? " tickets sont" : " ticket est") + " en cours d'enregistrement : attends qu'ils soient partis, puis recommence.", true); return true; }
+        b.dataset.sur = "1"; b.textContent = "Confirmer : tout déconnecter"; b.classList.add("fort");
+        return true;
+      }
+      connexions().forEach(function (x) { deconnecter(x.id); });
+      try { localStorage.removeItem(CLE_FRAIS); } catch (e) {}
+      garderResume(null);
+      // Les contacts du répertoire pas encore partis restent sur l'appareil : ils repartiront à la prochaine liaison du compte.
+      Object.keys(moteurs).forEach(function (id) { delete etat.noms[id]; oublierCompta(id); delete moteurs[id]; delete memoires[id]; oublierDiff(id); garderMemoire(id); });
+      fenComptes = {}; retenirMoteurs(); retenir();
+      avis("Tout est déconnecté sur cet appareil."); redessinerBord(); dessinerMenu(); dessinerReglages(); return true;
+    }
+    if (d.appareils) { if (moteurs[d.appareils]) chargerAppareils(d.appareils); return true; }
+    if (d.appRetirer && d.de) {
+      if (b.dataset.sur !== "1") { b.dataset.sur = "1"; b.textContent = "Confirmer le retrait"; b.classList.add("fort"); return true; }
+      b.disabled = true;
+      moteurAppel(d.de, "appareils.retirer", { id: d.appRetirer }, { sans: true }).then(function () { avis("Accès retiré."); chargerAppareils(d.de); }, function (e) { montrerAppareils(d.de, null, String((e && e.message) || e)); });
+      return true;
+    }
     if (d.taille) {
       var n = tailleGardee();
       reglerTaille(d.taille === "moins" ? n - 5 : d.taille === "plus" ? n + 5 : parseInt(d.taille, 10) || 100);
@@ -2180,15 +2313,15 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.relier && compte(d.relier)) {
       var recu = lireCode(document.getElementById("codeCompte").value);
       if (!recu) { document.getElementById("messageCode").textContent = "Ce code n'est pas reconnu. Copie-le en entier depuis le classeur du compte."; return; }
-      moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; retenirMoteurs(); garderMemoire(d.relier);
+      moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; delete etat.noms[d.relier]; retenirMoteurs(); garderMemoire(d.relier);
       etat.vue = "reglages"; montrer(); return;
     }
-    if (d.delier) { oublierCompta(d.delier); delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
+    if (d.delier) { delete etat.noms[d.delier]; oublierCompta(d.delier); delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
     if (d.recharger) { b.disabled = true; fetch(location.href.split("#")[0], { cache: "reload" }).catch(function () {}).then(function () { location.reload(); }); return; }
     if (d.plusTard) { bandeauVersion.hidden = true; return; }
     if (d.retirer) {
-      oublierCompta(d.retirer); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
+      delete etat.noms[d.retirer]; delete fenComptes[d.retirer]; oublierCompta(d.retirer); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
       delete moteurs[d.retirer]; delete memoires[d.retirer]; oublierDiff(d.retirer); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(d.retirer); file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
       etat.compte = "compagnie"; etat.vue = "reglages"; montrer();
     }
@@ -2198,6 +2331,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // Au démarrage et au rechargement, on revient à un écran du volet. Diffusion entière (ouverte depuis les Réglages) et son
   // agenda d'origine n'y sont pas : sans cela on retombait sur l'écran « Aujourd'hui » de Diffusion, sans rien de surligné.
   if (!FENETRE && (etat.vue === "agendaDiff" || (etat.vue === "diffusion" && modulesDe(COMPTE_COMPAGNIE).length))) etat.vue = "accueil";
+  if (!FENETRE && etat.ouverture === "bord") etat.vue = "accueil";   // réglage « Toujours ouvrir le tableau de bord »
   if (ancre === "reglages") etat.vue = "reglages";
   if (APPLIS[ancre] && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
   if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE; }
