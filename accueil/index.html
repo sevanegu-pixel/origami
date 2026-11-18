@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.27">
+<meta name="origami-version" content="2026-11-18.28">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -383,8 +383,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.27"></script>
-<script src="repertoire.js?v=2026-11-18.27"></script>
+<script src="agenda.js?v=2026-11-18.28"></script>
+<script src="repertoire.js?v=2026-11-18.28"></script>
 <script>
 (function () {
   "use strict";
@@ -457,10 +457,13 @@ button.tuile:hover { border-color: var(--ligne); }
   function texte(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 
   // ---- Mémoire de l'appareil : comptes ajoutés, compte et appli ouverts, comptes cochés ----
-  var etat = { compte: "compagnie", vue: "accueil", ajoutes: [], masques: {}, noms: {}, ouverture: "" };
+  // sansCompagnie (18.11, demande de Sévane) : le compte de la compagnie se retire comme les autres. Une installation neuve
+  // (aucune mémoire sur l'appareil) démarre vierge, sans aucun compte ; la compagnie revient quand on l'ajoute avec son code.
+  var etat = { compte: "", vue: "accueil", ajoutes: [], masques: {}, noms: {}, ouverture: "", sansCompagnie: true };
   try {
     var garde = JSON.parse(lire("origami_appli_etat") || "null");
     if (garde && typeof garde === "object") {
+      etat.sansCompagnie = garde.sansCompagnie === true;
       if (Array.isArray(garde.ajoutes)) etat.ajoutes = garde.ajoutes.filter(function (c) { return c && /^c[0-9a-z]{4,12}$/.test(c.id) && typeof c.nom === "string" && COULEURS.indexOf(c.couleur) >= 0; }).slice(0, 12).map(function (c) { return { id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, applis: ["boite"] }; });
       if (garde.masques && typeof garde.masques === "object") etat.masques = garde.masques;
       if (typeof garde.compte === "string") etat.compte = garde.compte;
@@ -471,7 +474,14 @@ button.tuile:hover { border-color: var(--ligne); }
       if (garde.ouverture === "bord") etat.ouverture = "bord";
     }
   } catch (e) {}
-  function comptes() { return [COMPTE_COMPAGNIE].concat(etat.ajoutes); }
+  // Les fenêtres à part du Mac (Compta, Tickets, Frais) et Tickets seul ouvrent toujours les applis de la compagnie.
+  var EN_FENETRE = /[?&]fenetre=(compta|tickets0|tickets|frais)(&|$)/.test(location.search);
+  function avecCompagnie() { return EN_FENETRE || !etat.sansCompagnie; }
+  function comptes() { return (avecCompagnie() ? [COMPTE_COMPAGNIE] : []).concat(etat.ajoutes); }
+  function compteParDefaut() { var l = comptes(); return l.length ? l[0].id : "tous"; }
+  // Moteur du compte de la compagnie : reconnu à l'empreinte de son adresse (l'adresse elle-même n'est pas écrite ici).
+  var EMPREINTE_MOTEUR_COMPAGNIE = "6226d1x2ct";
+  function estMoteurCompagnie(u) { var d = /\/macros\/s\/([\w-]+)\/exec$/.exec(String(u || "")); return !!d && empreinte(d[1]) === EMPREINTE_MOTEUR_COMPAGNIE; }
   function compte(id) { return comptes().filter(function (c) { return c.id === id; })[0] || null; }
   // Compta d'un autre compte Google (18.11) : reconnue à l'empreinte de l'adresse du moteur relié sur cet appareil
   // (l'adresse du moteur reste dans la mémoire de l'appareil, elle n'est pas écrite ici).
@@ -486,8 +496,8 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   function cleCadre(c, vue) { return vue === "compta" && c && c.id !== "compagnie" ? "compta@" + c.id : vue; }
   function cleJetonCompta(id) { return id === "compagnie" ? "origami_jeton" : "origami_jeton@" + id; }
-  if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = "compagnie";
-  function retenir() { if (FENETRE) return; garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques, compagnie: { nom: COMPTE_COMPAGNIE.nom, couleur: COMPTE_COMPAGNIE.couleur }, noms: etat.noms, ouverture: etat.ouverture })); }
+  if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
+  function retenir() { if (FENETRE) return; garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques, compagnie: { nom: COMPTE_COMPAGNIE.nom, couleur: COMPTE_COMPAGNIE.couleur }, noms: etat.noms, ouverture: etat.ouverture, sansCompagnie: !!etat.sansCompagnie })); }
 
   var menu = document.getElementById("menu"), barre = document.getElementById("barre"), scene = document.getElementById("scene");
   var accueil = document.getElementById("accueil"), page = document.getElementById("page"), attente = document.getElementById("attente"), zoneReglages = document.getElementById("reglages");
@@ -1778,6 +1788,7 @@ button.tuile:hover { border-color: var(--ligne); }
 
   // ---- Écrans ----
   function affiches() { return comptes().filter(function (c) { return !etat.masques[c.id]; }); }
+  var COMPTE_VIDE = { id: "", nom: "", couleur: "", applis: [] };   // « Tous les comptes » sans la compagnie : rien d'office dans le volet
   function dessinerMenu() {
     var h = '<div class="marque">ORIGAMI</div><div class="groupe"><h2>Comptes</h2>';
     h += '<button class="ligne" data-compte="tous"' + (etat.compte === "tous" ? ' aria-current="true"' : "") + '><span class="point tous"></span><span class="nom">Tous les comptes</span></button>';
@@ -1787,7 +1798,7 @@ button.tuile:hover { border-color: var(--ligne); }
     h += '<button class="ligne plus" data-vue="ajouter">' + icone("plus") + "<span>Ajouter un compte</span></button></div>";
     var c0 = compte(etat.compte);
     // « Tous les comptes » : le volet garde les modules et les applis de la compagnie, pour ne pas avoir à choisir le compte d'abord.
-    var cv = c0 || COMPTE_COMPAGNIE, volet = voletDe(cv);
+    var cv = c0 || compte("compagnie") || COMPTE_VIDE, volet = voletDe(cv);
     function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[cleCadre(cv, id)] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
     h += '<div class="groupe"><h2>' + (c0 ? "Origami" : "Dans tous les comptes") + "</h2>";
     h += '<button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>';
@@ -1801,7 +1812,7 @@ button.tuile:hover { border-color: var(--ligne); }
     h += '<div class="groupe pied"><button class="ligne" data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + '<span class="nom">Réglages</span></button></div>';
     menu.innerHTML = h;
     var b = '<button data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + "Accueil</button>";
-    var cb = c0 || COMPTE_COMPAGNIE;
+    var cb = c0 || compte("compagnie") || COMPTE_VIDE;
     var vb = voletDe(cb); vb.modules.concat(vb.applis).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + nomAppli(cb, id) + "</button>"; });
     b += '<button data-vue="repertoire"' + (etat.vue === "repertoire" ? ' aria-current="true"' : "") + ">" + icone("repertoire") + "Répertoire</button>";
     b += '<button data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + "Réglages</button>";
@@ -2014,6 +2025,12 @@ button.tuile:hover { border-color: var(--ligne); }
     return { h: h, le: 0, diff: false };
   }
   function dessinerAccueil() {
+    if (!comptes().length) {   // appli vierge : aucun compte encore
+      accueil.innerHTML = '<div class="bord"><div class="info vierge"><h1>Bienvenue dans Origami</h1><p>Commence par ajouter un compte Google. Chaque compte a ses applis et son dossier « Origami » dans son Drive.</p>' +
+        '<div class="choix-ajout"><button class="carte-choix" data-guide="1"><strong>Installer Origami dans un compte Google</strong><span>Guide pas à pas, sur un ordinateur, environ 10 minutes. Une seule fois par compte.</span></button>' +
+        '<button class="carte-choix" data-guide="-1"><strong>Origami est déjà installé dans ce compte</strong><span>Colle son code de liaison (classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil »).</span></button></div></div></div>';
+      return;
+    }
     var tous = etat.compte === "tous", c0 = compte(etat.compte), comptesVus = tous ? affiches() : [c0], a = new Date(), hr = a.getHours();
     if (!diffLu) { diffLu = true; lireCache(function (t) { diffBord = lireTexteDiff(t); redessinerBord(); rafraichirDiffusion(false); }); }
     var salut = hr < 5 ? "Encore debout ?" : hr < 12 ? "Bonjour" : hr < 18 ? "Bon après-midi" : "Bonsoir";
@@ -2084,7 +2101,7 @@ button.tuile:hover { border-color: var(--ligne); }
       h += '<div class="actions">';
       if (!moteurs[c0.id]) h += '<button class="bouton" data-vue="relier">Relier au moteur du compte</button>';
       if (c0.id === "compagnie" && SUR_MAC && !FENETRE) h += '<a class="bouton" href="' + DMG_TOUT + '" target="_blank" rel="noopener" title="Un seul fichier avec Origami, Boîte mail, Compta, Tickets et Frais : ouvre-le et glisse tout dans Applications">Tout installer sur ce Mac</a>';
-      if (c0.id !== "compagnie") h += '<button class="bouton" data-retirer="' + c0.id + '">Retirer ce compte de l\'appli</button>';
+      h += '<button class="bouton" data-retirer="' + c0.id + '">Retirer ce compte de l\'appli</button>';
       h += "</div>";
     }
     h += "</div>";
@@ -2118,7 +2135,7 @@ button.tuile:hover { border-color: var(--ligne); }
     h += '<h2 class="sous-titre">Comptes</h2><div class="reglage"><div class="rangs">';
     comptes().forEach(function (c, i) {
       var n = etat.ajoutes.length, ordre = c.id === "compagnie" || n < 2 ? "" : '<button class="bouton petit" data-monter="' + c.id + '" aria-label="Monter « ' + texte(c.nom) + ' »"' + (i <= 1 ? " disabled" : "") + '>↑</button><button class="bouton petit" data-descendre="' + c.id + '" aria-label="Descendre « ' + texte(c.nom) + ' »"' + (i >= n ? " disabled" : "") + ">↓</button>";
-      h += '<div class="rang-r"><span class="point" style="background:' + c.couleur + '"></span><span class="nom">' + texte(c.nom) + "<small>" + (moteurs[c.id] ? "Relié à son moteur" : "Pas encore relié") + "</small></span>" + ordre + '<button class="bouton" data-compte="' + c.id + '">Modifier</button>' + (c.id !== "compagnie" ? '<button class="bouton" data-retirer="' + c.id + '">Retirer</button>' : "") + "</div>";
+      h += '<div class="rang-r"><span class="point" style="background:' + c.couleur + '"></span><span class="nom">' + texte(c.nom) + "<small>" + (moteurs[c.id] ? "Relié à son moteur" : "Pas encore relié") + "</small></span>" + ordre + '<button class="bouton" data-modifier-compte="' + c.id + '">Modifier</button>' + '<button class="bouton" data-retirer="' + c.id + '">Retirer</button>' + "</div>";
     });
     h += '</div><div><button class="bouton" data-vue="ajouter">Ajouter un compte</button></div></div>';
     h += '<h2 class="sous-titre">Cet appareil</h2><div class="reglage"><div class="rangs">';
@@ -2131,7 +2148,11 @@ button.tuile:hover { border-color: var(--ligne); }
     // Seulement dans l'appli Origami du Mac : la fenêtre d'écriture directe demande l'appli Boîte mail version 20 ou plus.
     if (BOITE_BROUILLON && BOITE_DIRECT && boitePossible()) h += '<div class="rang-r"><span class="nom">Boîte mail version 20 installée sur ce Mac<small>Allumé : depuis la Compta, le mail s\'ouvre tout de suite dans sa petite fenêtre et le PDF le rejoint. Éteint : la Compta passe par un brouillon, comme avant.</small></span><button class="inter" role="switch" aria-checked="' + (lire("origami_boite20") === "1" ? "true" : "false") + '" aria-label="Boîte mail version 20 installée sur ce Mac" data-boite20="1"></button></div>';
     h += "</div></div></div>";
+    // Une relève qui redessine pendant qu'on écrit le nom du compte ne fait perdre ni le texte ni le curseur.
+    var enCours = document.activeElement && document.activeElement.id === "nomCompteR" ? { v: document.activeElement.value, d: document.activeElement.selectionStart, f: document.activeElement.selectionEnd, c: etat.compte } : null;
     zoneReglages.innerHTML = h;
+    var nr = enCours && enCours.c === etat.compte && document.getElementById("nomCompteR");
+    if (nr) { nr.value = enCours.v; nr.focus(); try { nr.setSelectionRange(enCours.d, enCours.f); } catch (e) {} }
   }
   // Applis où cet appareil est connecté (code PIN déjà donné, code d'accès gardé) : on peut s'en déconnecter ici.
   function connexions() {
@@ -2380,6 +2401,7 @@ button.tuile:hover { border-color: var(--ligne); }
     relier: function (id) { if (!compte(id)) return; etat.compte = id; etat.vue = "relier"; montrer(); },   // la liaison d'Origami, la même pour tous les modules
     ouvrir: function (vue) {
       if (vue === "boite" && !FENETRE && boitePossible()) { lancerBoite(); return; }
+      if (!compte("compagnie")) return;
       etat.compte = "compagnie"; etat.vue = vue; montrer();
     }
   };
@@ -2404,6 +2426,7 @@ button.tuile:hover { border-color: var(--ligne); }
     }
   };
   function montrer() {
+    if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : c0 && vue === "compta" && comptaDe(c0.id) ? cleCadre(c0, vue) : "";
     if (vue !== "accueil" && vue !== "reglages" && vue !== "ajouter" && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
@@ -2435,6 +2458,12 @@ button.tuile:hover { border-color: var(--ligne); }
     if (clicTickets(b, d)) return;
     if (clicDiffusion(b, d)) return;
     if (clicBord(b, d) || clicReglages(b, d)) return;
+    if (d.modifierCompte && compte(d.modifierCompte)) {   // « Modifier » d'un compte dans Réglages : sa section « Ce compte », champ du nom prêt
+      etat.compte = d.modifierCompte; etat.vue = "reglages"; montrer();
+      var nc = document.getElementById("nomCompteR");
+      if (nc) { try { nc.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { nc.scrollIntoView(); } nc.focus(); nc.select(); }
+      return;
+    }
     if (d.compte) { etat.compte = d.compte; if ((etat.vue === "agenda" || etat.vue === "repertoire" || etat.vue === "reglages") && (d.compte === "tous" || compte(d.compte))) { montrer(); return; } if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
     if (d.guide !== undefined) {
       var ge = parseInt(d.guide, 10);
@@ -2472,6 +2501,13 @@ button.tuile:hover { border-color: var(--ligne); }
       var nom = (document.getElementById("nomCompte").value || "").trim().slice(0, 40), choisie = page.querySelector('[data-couleur][aria-pressed="true"]');
       var saisi = (document.getElementById("codeCompte").value || "").trim(), code = saisi ? lireCode(saisi) : null;
       if (saisi && !code) { document.getElementById("messageCode").textContent = "Ce code n'est pas reconnu. Copie-le en entier depuis le classeur du compte."; return; }
+      if (code && estMoteurCompagnie(code.u)) {   // le moteur de la compagnie : c'est elle qui revient, avec ses applis
+        if (moteurs.compagnie && compte("compagnie")) { document.getElementById("messageCode").textContent = "Ce compte est déjà dans l'appli : « " + COMPTE_COMPAGNIE.nom + " »."; return; }
+        etat.sansCompagnie = false; moteurs.compagnie = { u: code.u, c: code.c }; memoires.compagnie = { version: 0, listes: {} }; delete etat.noms.compagnie; retenirMoteurs(); garderMemoire("compagnie"); LIEN_RELIER = null;
+        var cc = page.querySelector('[data-couleur][aria-pressed="true"]');
+        if (nom) { COMPTE_COMPAGNIE.nom = nom; if (cc) COMPTE_COMPAGNIE.couleur = cc.dataset.couleur; }
+        guide.etape = 0; guide.pour = ""; etat.compte = "compagnie"; etat.vue = "reglages"; montrer(); return;
+      }
       if (!nom && code) nom = code.nom;
       if (!nom) { document.getElementById("nomCompte").focus(); return; }
       var nouveau = { id: "c" + Date.now().toString(36), nom: nom, couleur: choisie ? choisie.dataset.couleur : COULEURS[1], applis: ["boite"] };
@@ -2482,6 +2518,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.relier && compte(d.relier)) {
       var recu = lireCode(document.getElementById("codeCompte").value);
       if (!recu) { document.getElementById("messageCode").textContent = "Ce code n'est pas reconnu. Copie-le en entier depuis le classeur du compte."; return; }
+      if (d.relier !== "compagnie" && estMoteurCompagnie(recu.u)) { document.getElementById("messageCode").textContent = "Ce code est celui du compte de la compagnie. Retire ce compte-ci, puis ajoute la compagnie avec ce code (« Ajouter un compte »)."; return; }
       moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; delete etat.noms[d.relier]; retenirMoteurs(); garderMemoire(d.relier); LIEN_RELIER = null;
       guide.etape = 0; guide.pour = "";
       etat.vue = FENETRE === "tickets0" ? "tickets0" : "reglages"; montrer(); if (FENETRE === "tickets0") relever(d.relier); return;
@@ -2490,12 +2527,30 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
     if (d.recharger) { b.disabled = true; fetch(location.href.split("#")[0], { cache: "reload" }).catch(function () {}).then(function () { location.reload(); }); return; }
     if (d.plusTard) { bandeauVersion.hidden = true; return; }
+    if (d.retirer === "compagnie") {
+      if (!compte("compagnie")) return;
+      demander("Retirer « " + COMPTE_COMPAGNIE.nom + " » de cette appli ?", "Sur cet appareil, Origami oublie ce compte et se déconnecte de ses applis (Diffusion, Compta, Tickets, Frais). Rien n'est effacé dans ton Drive ni dans les applis. Pour le remettre : « Ajouter un compte », puis colle le code de liaison de son classeur « Origami - Réglages du compte ».",
+        [{ nom: "Annuler" }, { nom: "Retirer", fort: true, action: function () { retirerCompagnie(); } }]);
+      return;
+    }
     if (d.retirer) {
       delete etat.noms[d.retirer]; delete fenComptes[d.retirer]; oublierCompta(d.retirer); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
       delete moteurs[d.retirer]; delete memoires[d.retirer]; oublierDiff(d.retirer); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(d.retirer); file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
-      etat.compte = "compagnie"; etat.vue = "reglages"; montrer();
+      etat.compte = compteParDefaut(); etat.vue = comptes().length ? "reglages" : "accueil"; montrer();
     }
   });
+  // Retirer la compagnie : tout ce qui la relie à cet appareil est oublié, puis elle disparaît des comptes.
+  function retirerCompagnie() {
+    ["diffusion", "tickets", "compta:compagnie"].forEach(function (x) { deconnecter(x); });
+    try { localStorage.removeItem(CLE_FRAIS); } catch (e) {}
+    garderResume(null);
+    Object.keys(cadres).forEach(function (k) { if (k.indexOf("@") < 0) fermerCadre(k); });
+    delete etat.noms.compagnie; delete fenComptes.compagnie; delete etat.masques.compagnie;
+    delete moteurs.compagnie; delete memoires.compagnie; oublierDiff("compagnie"); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier("compagnie");
+    file = file.filter(function (x) { return x.compte !== "compagnie"; }); retenirMoteurs(); garderMemoire("compagnie");
+    etat.sansCompagnie = true; etat.compte = compteParDefaut(); etat.vue = comptes().length ? "reglages" : "accueil";
+    avis("Compte retiré de cette appli."); montrer();
+  }
   // Adresse avec une ancre (…/accueil/#tickets) : ouvre directement cette appli du compte de la compagnie.
   var ancre = (location.hash || "").slice(1);
   // Lien « Relier un autre appareil » (#relier=compte.code) : le code ne quitte pas l'appareil, l'ancre est effacée tout de suite.
@@ -2514,7 +2569,7 @@ button.tuile:hover { border-color: var(--ligne); }
   if (!FENETRE && (etat.vue === "agendaDiff" || (etat.vue === "diffusion" && modulesDe(COMPTE_COMPAGNIE).length))) etat.vue = "accueil";
   if (!FENETRE && etat.ouverture === "bord") etat.vue = "accueil";   // réglage « Toujours ouvrir le tableau de bord »
   if (ancre === "reglages") etat.vue = "reglages";
-  if (APPLIS[ancre] && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
+  if (APPLIS[ancre] && compte("compagnie") && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
   if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE; }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
