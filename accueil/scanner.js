@@ -17,7 +17,7 @@
 (function (global) {
   "use strict";
   if (global.OrigamiScanner) return;
-  var VERSION = "2026-11-18.1";
+  var VERSION = "2026-11-18.2";
   var MAX_SOURCE = 2600, MAX_SORTIE = 2000, MAX_APERCU = 1100, QUALITE = 0.86;
   var EFFETS = [
     { id: "original", nom: "Original" },
@@ -69,6 +69,11 @@
     ".osc-question{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#232323;border-radius:16px;padding:18px;width:min(360px,calc(100% - 32px));box-shadow:0 10px 40px rgba(0,0,0,.6);z-index:4}",
     ".osc-question p{margin:0 0 14px}.osc-question .osc-rang{justify-content:flex-end}",
     ".osc-voile{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:3}",
+    ".osc-camera{flex:1;position:relative;min-height:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}",
+    ".osc-camera video{max-width:100%;max-height:100%;width:auto;height:auto;display:block;background:#000}",
+    ".osc-declencher{width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:var(--osc-accent);cursor:pointer;padding:0;box-shadow:0 0 0 3px rgba(0,0,0,.4)}",
+    ".osc-declencher:disabled{opacity:.4;cursor:default}.osc-declencher:focus-visible{outline:3px solid #fff;outline-offset:3px}",
+    ".osc-eclair{position:absolute;inset:0;background:#fff;opacity:.85;pointer-events:none;transition:opacity .25s}",
     "@media (max-width:420px){.osc-b{padding:8px 11px;font-size:13px}.osc-b .osc-t{display:none}.osc-b.p .osc-t,.osc-b.t .osc-t{display:inline}}",
     "@media (min-width:900px){.osc-bas{padding-left:24px;padding-right:24px}}"
   ].join("\n");
@@ -81,6 +86,7 @@
     plus: '<path d="M12 5v14M5 12h14" />',
     photo: '<path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" />',
     image: '<rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="2" /><path d="m21 17-5-5-9 8" />',
+    camera: '<path d="M3 7h12v10H3z" /><path d="m15 11 6-3v8l-6-3" />',
     corbeille: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />'
   };
   function icone(n) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONES[n] + "</svg>"; }
@@ -387,7 +393,7 @@
       var contenu = el("div"); contenu.style.cssText = "display:contents"; racine.appendChild(contenu);
 
       function fermer(resultat) {
-        if (fini) return; fini = true;
+        if (fini) return; fini = true; arreterCamera();
         window.removeEventListener("resize", surTaille); document.removeEventListener("keydown", surTouche, true);
         racine.remove(); document.documentElement.style.overflow = ancienDebord;
         try { if (ancienFocus && ancienFocus.focus) ancienFocus.focus(); } catch (e) {}
@@ -413,8 +419,9 @@
 
       // ---- écran de départ : prendre une photo ou choisir une image
       function ecranDepart() {
-        etape = "depart";
-        var h = '<div class="osc-haut">' + bouton("annuler", "Annuler", "", "t") + '<div class="osc-titre">' + (pages.length ? "Page " + (pages.length + 1) : (options.titre || "Scanner un ticket")) + "</div>" +
+        etape = "depart"; arreterCamera();
+        // Une page de plus (pages déjà faites) : « Retour » ramène aux pages, sans rien perdre ; « Annuler » ne sert qu'au tout début.
+        var h = '<div class="osc-haut">' + (pages.length ? bouton("retour-pages", "Retour", "", "t", "Revenir aux pages déjà faites") : bouton("annuler", "Annuler", "", "t")) + '<div class="osc-titre">' + (pages.length ? "Page " + (pages.length + 1) : (options.titre || "Scanner un ticket")) + "</div>" +
           (pages.length ? bouton("terminer", "Terminer", "", "p") : '<span style="width:72px"></span>') + "</div>";
         h += '<div class="osc-depart">' + bouton("photo", "Prendre une photo", "photo", "p t") + bouton("image", "Choisir une image", "image", "t") +
           '<div class="osc-depose" data-depose>…ou dépose une image ici</div><p>Pose le ticket à plat sur un fond plus foncé que lui, avec une bonne lumière : les coins seront trouvés tout seuls.</p></div>';
@@ -439,6 +446,72 @@
       }
       entreePhoto.addEventListener("change", function () { var f = Array.prototype.slice.call(entreePhoto.files || []); entreePhoto.value = ""; if (f.length) recevoir(f); });
       entreeImage.addEventListener("change", function () { var f = Array.prototype.slice.call(entreeImage.files || []); entreeImage.value = ""; if (f.length) recevoir(f); });
+
+      // ---- caméra en direct (ordinateur) : sur téléphone, « Prendre une photo » ouvre l'appareil photo du téléphone (entreePhoto, capture).
+      // options.camera : false = jamais la caméra en direct (par exemple une coquille qui n'a pas le droit d'ouvrir la caméra).
+      var flux = null, cameras = [], cameraNo = -1, video = null;
+      function cameraEnDirect() {
+        if (options.camera === false) return false;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+        if (options.camera === true) return true;
+        return !!(window.matchMedia && window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(pointer:coarse)").matches);
+      }
+      function arreterCamera() {
+        if (flux) { try { flux.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} flux = null; }
+        if (video) { try { video.srcObject = null; } catch (e) {} video = null; }
+      }
+      function ecranCamera() {
+        etape = "camera"; arreterCamera();
+        contenu.innerHTML = '<div class="osc-haut">' + bouton("retour-camera", "Retour", "", "t") + '<div class="osc-titre">' + (pages.length ? "Page " + (pages.length + 1) : "Prendre une photo") + "</div>" +
+          '<span data-cam-autre style="min-width:72px;display:flex;justify-content:flex-end"></span></div>' +
+          '<div class="osc-camera"><video playsinline muted autoplay></video></div>' +
+          '<div class="osc-bas"><div class="osc-aide" data-cam-aide>Ouverture de la caméra…</div><div class="osc-rang"><button type="button" class="osc-declencher" data-osc="declencher" aria-label="Prendre la photo" title="Prendre la photo" disabled></button></div></div>';
+        video = contenu.querySelector("video");
+        demarrerCamera();
+      }
+      function demarrerCamera() {
+        if (flux) { try { flux.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} flux = null; }
+        var c = { width: { ideal: 3840 }, height: { ideal: 2160 } };
+        if (cameraNo >= 0 && cameras[cameraNo]) c.deviceId = { exact: cameras[cameraNo].deviceId }; else c.facingMode = { ideal: "environment" };
+        var v = video;
+        navigator.mediaDevices.getUserMedia({ video: c, audio: false }).then(function (s) {
+          if (fini || etape !== "camera" || video !== v) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
+          flux = s; v.srcObject = s;
+          var p = v.play(); if (p && p.catch) p.catch(function () {});
+          var pret = function () { var b = contenu.querySelector('[data-osc="declencher"]'); if (b) { b.disabled = false; try { b.focus(); } catch (e) {} } var a = contenu.querySelector("[data-cam-aide]"); if (a) a.textContent = "Tiens le ticket bien à plat devant la caméra, sur un fond plus foncé que lui."; };
+          if (v.readyState >= 2) pret(); else v.addEventListener("loadeddata", pret, { once: true });
+          if (navigator.mediaDevices.enumerateDevices) navigator.mediaDevices.enumerateDevices().then(function (l) {
+            cameras = l.filter(function (d) { return d.kind === "videoinput"; });
+            var piste = s.getVideoTracks()[0], reglage = piste && piste.getSettings ? piste.getSettings() : {};
+            cameras.forEach(function (d, i) { if (reglage.deviceId && d.deviceId === reglage.deviceId) cameraNo = i; });
+            var z = contenu.querySelector("[data-cam-autre]");
+            if (z && video === v) z.innerHTML = cameras.length > 1 ? bouton("autre-camera", "Autre caméra", "camera", "t", "Changer de caméra") : "";
+          }, function () {});
+        }, function (e) {
+          if (fini || etape !== "camera" || video !== v) return;
+          var nom = e && e.name;
+          ecranDepart();
+          if (nom === "NotAllowedError" || nom === "SecurityError") avertir("La caméra n'est pas autorisée. Sur Mac : Réglages Système › Confidentialité et sécurité › Caméra, coche l'appli ou le navigateur, puis réessaie. Tu peux aussi choisir une image.");
+          else if (nom === "NotFoundError" || nom === "OverconstrainedError") avertir("Aucune caméra trouvée sur cet appareil. Tu peux choisir une image ou en déposer une.");
+          else if (nom === "NotReadableError") avertir("La caméra est déjà utilisée par une autre appli. Ferme-la, puis réessaie.");
+          else avertir("La caméra n'a pas pu s'ouvrir. Tu peux choisir une image ou en déposer une.");
+        });
+      }
+      function declencher() {
+        var v = video;
+        if (!v || !flux || !v.videoWidth) return;
+        var c = document.createElement("canvas"); c.width = v.videoWidth; c.height = v.videoHeight;
+        c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+        var e = el("div", "osc-eclair"); var sc = contenu.querySelector(".osc-camera"); if (sc) { sc.appendChild(e); requestAnimationFrame(function () { e.style.opacity = "0"; }); }
+        var b = contenu.querySelector('[data-osc="declencher"]'); if (b) b.disabled = true;
+        c.toBlob(function (blob) {
+          if (fini) return;
+          if (!blob) { if (b) b.disabled = false; avertir("La photo n'a pas pu être prise. Réessaie."); return; }
+          arreterCamera();
+          var f; try { f = new File([blob], "photo.jpg", { type: "image/jpeg" }); } catch (x) { f = blob; f.name = "photo.jpg"; }
+          recevoir([f]);
+        }, "image/jpeg", 0.92);
+      }
 
       // ---- recadrage : 4 coins + 4 milieux de bords, loupe pendant qu'on déplace
       var vue = null, prise = null;
@@ -632,7 +705,11 @@
         }
         if (b.hasAttribute("data-page")) { var n = Number(b.getAttribute("data-page")); if (n !== courante) ecranEffets(n); else ecranRecadrer(n); return; }
         if (a === "annuler") annuler();
-        else if (a === "photo") entreePhoto.click();
+        else if (a === "photo") { if (cameraEnDirect()) ecranCamera(); else if (options.sansCamera) avertir(options.sansCamera); else entreePhoto.click(); }
+        else if (a === "declencher") declencher();
+        else if (a === "autre-camera") { if (cameras.length > 1) { cameraNo = (cameraNo + 1) % cameras.length; demarrerCamera(); } }
+        else if (a === "retour-camera") ecranDepart();
+        else if (a === "retour-pages") { remplacer = null; if (pages.length) ecranEffets(Math.max(0, Math.min(courante, pages.length - 1))); else ecranDepart(); }
         else if (a === "image") entreeImage.click();
         else if (a === "retour-depart") {
           question("Reprendre une autre photo pour cette page ? Celle-ci sera abandonnée.", function () { pages.splice(courante, 1); remplacer = courante; ecranDepart(); }, "Garder", "Reprendre");
@@ -656,7 +733,7 @@
       });
       function surTaille() { if (etape === "recadrer") dessinerScene(); else if (etape === "effets") rendreApercu(); }
       function surTouche(ev) {
-        if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); var q = racine.querySelector(".osc-question"); if (q) { q.previousElementSibling.remove(); q.remove(); } else annuler(); }
+        if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); var q = racine.querySelector(".osc-question"); if (q) { q.previousElementSibling.remove(); q.remove(); } else if (etape === "camera") ecranDepart(); else if (etape === "depart" && pages.length) { remplacer = null; ecranEffets(Math.max(0, Math.min(courante, pages.length - 1))); } else annuler(); }
       }
       window.addEventListener("resize", surTaille);
       document.addEventListener("keydown", surTouche, true);
