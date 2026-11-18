@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.4">
+<meta name="origami-version" content="2026-11-18.5">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -224,6 +224,8 @@ a.lien { color: var(--accent); }
   // Fichiers d'installation pour Mac, une appli par fichier (fabriqués par GitHub ; la Boîte mail a les siens).
   var VERSIONS_MAC = "https://github.com/sevanegu-pixel/origami/releases/download/";
   var DMG = { boite: VERSIONS_MAC + "appli-boite-17/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
+  // Toutes les applis dans un seul fichier : on l'ouvre et on glisse tout dans Applications en un geste.
+  var DMG_TOUT = VERSIONS_MAC + "applis-mac/Tout-Origami-Mac.dmg";
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
   // Classeur modèle du moteur Origami, à copier dans un compte Google où il n'est pas encore installé (vide : pas de guide).
   var MODELE_MOTEUR = "";
@@ -1134,6 +1136,7 @@ a.lien { color: var(--accent); }
     if (!tous) {
       h += '<div class="actions">';
       if (!moteurs[c0.id]) h += '<button class="bouton" data-vue="relier">Relier au moteur du compte</button>';
+      if (c0.id === "compagnie" && SUR_MAC && !FENETRE) h += '<a class="bouton" href="' + DMG_TOUT + '" target="_blank" rel="noopener" title="Un seul fichier avec Origami, Boîte mail, Compta, Tickets et Frais : ouvre-le et glisse tout dans Applications">Tout installer sur ce Mac</a>';
       if (c0.id !== "compagnie") h += '<button class="bouton" data-retirer="' + c0.id + '">Retirer ce compte de l\'appli</button>';
       h += "</div>";
     }
