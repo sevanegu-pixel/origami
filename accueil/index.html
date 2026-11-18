@@ -4,10 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.9">
+<meta name="origami-version" content="2026-11-18.10">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
+<script>
+// Fenêtre d'une seule appli : le fond de la page prend tout de suite la couleur de l'appli (le haut de la fenêtre du Mac et le bord de défilement la suivent).
+(function () {
+  var m = /[?&]fenetre=(compta|tickets)(&|$)/.exec(location.search);
+  if (!m) return;
+  var r = document.documentElement, t = document.querySelector('meta[name="theme-color"]');
+  r.classList.add("sombre"); r.style.setProperty("--fond", m[1] === "compta" ? "#070707" : "#161616");
+  if (t) t.content = m[1] === "compta" ? "#070707" : "#0d0d0d";
+})();
+</script>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Origami">
@@ -23,6 +33,7 @@ h1, h2, h3, p { margin: 0; }
 #origami { display: flex; height: 100%; }
 /* Fenêtre d'une seule appli (appli Mac : une fenêtre par appli, ou l'appli installée seule) : ni volet ni barre. */
 html.fenetre #menu, html.fenetre #barre { display: none !important; }
+html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9a9a9; --ligne: #353535; color-scheme: dark; }
 
 /* Menu de gauche */
 #menu { flex: none; width: 232px; display: flex; flex-direction: column; gap: 18px; padding: 18px 10px calc(14px + env(safe-area-inset-bottom)); border-right: 1px solid var(--ligne); overflow-y: auto; }
@@ -209,7 +220,7 @@ a.lien { color: var(--accent); }
   var APPLIS = {
     boite: { nom: "Boîte mail", texte: "Tes mails, dans l'appli Boîte mail du Mac.", genre: "info" },
     diffusion: { nom: "Diffusion", texte: "Suivi des lieux, relances, candidatures, agenda.", genre: "cadre", titre: "Diffusion Origami", droits: "clipboard-read; clipboard-write; camera", sansCompte: true },
-    compta: { nom: "Compta", texte: "Devis, factures, salaires, journal.", genre: "cadre", titre: "Compta", droits: "clipboard-read; clipboard-write; camera", sansCompte: true },
+    compta: { nom: "Compta", texte: "Devis, factures, salaires, journal.", genre: "cadre", titre: "Compta", fond: "#070707", droits: "clipboard-read; clipboard-write; camera", sansCompte: true },
     frais: { nom: "Frais", texte: "Notes de frais et défraiements.", genre: "lien", lien: "https://sevanegu-pixel.github.io/frais/" },
     tickets: { nom: "Tickets", texte: "Justificatifs envoyés par mail, suivi des paiements.", genre: "cadre", titre: "Tickets", droits: "camera; clipboard-write" },
     // Modules de l'appli mère : les écrans d'origine de Diffusion, ouverts par le volet d'Origami (sans la barre de Diffusion).
@@ -267,7 +278,12 @@ a.lien { color: var(--accent); }
       if (ap && ap.apparence) param = "&apparence=" + encodeURIComponent(JSON.stringify(ap.apparence));
       return ADRESSES.diffusion + (FORME_DIFFUSION.test(j) ? "?jeton=" + encodeURIComponent(j) + param : (param ? "?" + param.slice(1) : ""));
     }
-    if (id === "compta") { var jc = lire("origami_jeton"); return ADRESSES.compta + (FORME_COMPTA.test(jc) ? "?jeton=" + jc : ""); }
+    if (id === "compta") {
+      var jc = lire("origami_jeton"), pc = [];
+      if (FORME_COMPTA.test(jc)) pc.push("jeton=" + jc);
+      if (FENETRE === "compta" && OUVRIR) pc.push("ouvrir=" + OUVRIR);   // fenêtre détachée : l'écran demandé
+      return ADRESSES.compta + (pc.length ? "?" + pc.join("&") : "");
+    }
     return ADRESSES[id];
   }
   function ouvrirCadre(id) {
@@ -275,6 +291,7 @@ a.lien { color: var(--accent); }
     var a = APPLIS[id], f = document.createElement("iframe");
     f.title = a.titre; f.setAttribute("allow", a.droits);
     if (a.sansCompte) f.setAttribute("credentialless", "");
+    if (a.fond) f.style.background = a.fond;
     f.hidden = true;
     attente.hidden = false;
     f.addEventListener("load", function () { setTimeout(function () { attente.hidden = true; }, 1200); });
@@ -307,6 +324,8 @@ a.lien { color: var(--accent); }
   // Adresse …/accueil/?fenetre=compta : cette fenêtre ne montre que cette appli (une fenêtre de l'appli Mac, ou l'appli installée seule).
   var FENETRE = (/[?&]fenetre=(compta|tickets|frais)(&|$)/.exec(location.search) || [])[1] || "";
   if (FENETRE) document.documentElement.classList.add("fenetre");
+  // Fenêtre détachée de la Compta (son bouton « nouvelle fenêtre ») : …/accueil/?fenetre=compta&ouvrir=… dit quel écran ouvrir.
+  var OUVRIR = (/[?&]ouvrir=([A-Za-z0-9_-]{1,6000})(&|$)/.exec(location.search) || [])[1] || "";
   // Frais a sa propre page (même site, donc même mémoire) : elle s'ouvre avec le lien personnel reçu de la compagnie, gardé sous ce nom.
   // Dans une fenêtre Frais, un lien déjà connu ouvre Frais tout de suite ; sinon l'écran demande de le coller une fois.
   var CLE_FRAIS = "origami_frais_cle", FORME_CLE_FRAIS = /^[A-Za-z0-9]{16,64}$/;
@@ -381,12 +400,19 @@ a.lien { color: var(--accent); }
     function rate() { etat.compte = "compagnie"; etat.vue = "boite"; montrer(); avis("La Boîte mail ne s'est pas ouverte. Installe-la sur ce Mac avec le bouton ci-dessous.", true); }
     try { Promise.resolve(MAC.opener.openUrl("boitemail://ouvrir")).then(function () {}, rate); } catch (e) { rate(); }
   }
-  function fenetreCompta(url) {
+  // Appli Mac : chaque fenêtre détachée est une fenêtre Origami d'une seule appli (nom « appli-… »), donc elle peut
+  // à son tour en ouvrir d'autres, autant qu'on veut. Dans un navigateur : la page de la Compta, comme avant.
+  var nFenetres = 0;
+  function fenetreCompta(ouvrir) {
     try {
       var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
-      if (W) { new W("compta-" + Date.now().toString(36), { url: url, title: "Compta", width: 1100, height: 900 }); return; }
+      if (W) {
+        var ici = location.href.split("#")[0].split("?")[0];
+        new W("appli-compta-" + Date.now().toString(36) + "-" + (++nFenetres), { url: ici + "?fenetre=compta&ouvrir=" + ouvrir, title: "Compta", width: 1100, height: 900, minWidth: 380, minHeight: 520 });
+        return;
+      }
     } catch (e) {}
-    window.open(url, "_blank", "popup=yes,width=1100,height=900");
+    window.open(new URL("../index.html?ouvrir=" + ouvrir, location.href).href, "_blank", "popup=yes,width=1100,height=900");
   }
   document.addEventListener("click", function (ev) {
     var a = ev.target.closest ? ev.target.closest('a[target="_blank"]') : null;
@@ -423,7 +449,7 @@ a.lien { color: var(--accent); }
         else { try { ev.source.postMessage({ origami: "boite-refus", n: 0 }, ev.origin); } catch (e) {} }
         return;
       }
-      if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { fenetreCompta(new URL("../index.html?ouvrir=" + d.ouvrir, location.href).href); return; }
+      if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { fenetreCompta(d.ouvrir); return; }
       if (d.origami === "apercu" && typeof d.html === "string" && d.html.length < 8e6) {
         if (MAC) return;   // appli Mac : pas encore de fenêtre d'aperçu à part
         if (!apercu || apercu.closed) {
