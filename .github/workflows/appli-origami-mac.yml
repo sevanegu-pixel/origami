@@ -1,6 +1,7 @@
-# Fabrique l'appli Origami pour Mac (coquille Tauri du dossier appli-origami/) et la publie comme « version » GitHub à télécharger.
+# Fabrique les applis Origami pour Mac (coquille Tauri du dossier appli-origami/) et les publie comme « version » GitHub à télécharger.
+# Une seule coquille pour trois applis : Origami (l'appli mère), Compta et Tickets (chacune seule dans sa fenêtre).
 # La coquille ne contient aucune appli : elle affiche la page Origami en ligne (dossier accueil/).
-name: Appli Origami Mac
+name: Applis Origami Mac
 
 on:
   workflow_dispatch:
@@ -16,6 +17,10 @@ permissions:
 jobs:
   mac:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        appli: [origami, compta, tickets]
     steps:
       - uses: actions/checkout@v4
 
@@ -35,9 +40,14 @@ jobs:
         working-directory: appli-origami
         run: npm install --no-audit --no-fund
 
+      - name: Nom, identité, icône et adresse de cette appli
+        id: appli
+        working-directory: appli-origami
+        run: node preparer.js ${{ matrix.appli }}
+
       - name: Icônes
         working-directory: appli-origami
-        run: npx tauri icon icone-1024.png
+        run: npx tauri icon icone-appli.png
 
       - name: Fabrication (Mac Apple et Intel)
         working-directory: appli-origami
@@ -46,21 +56,41 @@ jobs:
       - name: Fichier à télécharger
         run: |
           f=$(ls appli-origami/src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg | head -1)
-          cp "$f" "Origami-Mac.dmg"
+          cp "$f" "${{ steps.appli.outputs.fichier }}"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Origami-Mac
-          path: Origami-Mac.dmg
+          name: ${{ matrix.appli }}
+          path: ${{ steps.appli.outputs.fichier }}
 
-      - name: Version à télécharger
+  publier:
+    needs: mac
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Version numérotée
         uses: softprops/action-gh-release@v2
         with:
           tag_name: appli-origami-${{ github.run_number }}
-          name: Appli Origami pour Mac (${{ github.run_number }})
+          name: Applis Origami pour Mac (${{ github.run_number }})
           target_commitish: ${{ github.sha }}
           prerelease: true
-          files: Origami-Mac.dmg
+          files: "*-Mac.dmg"
           body: |
-            Appli Origami pour Mac (essai) : les applis de la compagnie dans une seule fenêtre. Ouvrir le fichier .dmg, glisser « Origami » dans Applications.
+            Applis Origami pour Mac (essai) : Origami (l'appli mère), Compta et Tickets, chacune dans son fichier. Ouvrir le fichier .dmg, glisser l'appli dans Applications.
+            Première ouverture : l'appli n'est pas signée par Apple ; Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
+
+      # Adresse fixe pour les boutons « Télécharger pour Mac » de la page Origami : toujours les derniers fichiers.
+      - name: Dernière version (adresse fixe)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: applis-mac
+          name: Applis Origami pour Mac (dernière version)
+          prerelease: true
+          files: "*-Mac.dmg"
+          body: |
+            Les derniers fichiers d'installation des applis Origami pour Mac : Origami-Mac.dmg, Compta-Mac.dmg, Tickets-Mac.dmg.
             Première ouverture : l'appli n'est pas signée par Apple ; Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
