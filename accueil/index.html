@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.7">
+<meta name="origami-version" content="2026-11-18.8">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -1162,10 +1162,12 @@ a.lien { color: var(--accent); }
     });
     h += '<button class="ligne plus" data-vue="ajouter">' + icone("plus") + "<span>Ajouter un compte</span></button></div>";
     var c0 = compte(etat.compte);
-    var volet = c0 ? voletDe(c0) : { modules: [], applis: [] };
-    function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(c0, id) + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
+    // « Tous les comptes » : le volet garde les modules et les applis de la compagnie, pour ne pas avoir à choisir le compte d'abord.
+    var cv = c0 || COMPTE_COMPAGNIE, volet = voletDe(cv);
+    function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[id] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
     h += '<div class="groupe"><h2>' + (c0 ? "Origami" : "Dans tous les comptes") + "</h2>";
     h += '<button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>';
+    if (!c0 && volet.modules.length) h += '</div><div class="groupe"><h2>' + texte(cv.nom) + "</h2>";
     volet.modules.forEach(function (id) { h += ligne(id); });
     h += "</div>";
     if (volet.applis.length) { h += '<div class="groupe"><h2>Applis</h2>'; volet.applis.forEach(function (id) { h += ligne(id); }); h += "</div>"; }
