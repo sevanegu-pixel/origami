@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.37">
+<meta name="origami-version" content="2026-11-18.38">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -76,6 +76,37 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .logo-appli { flex: none; width: 52px; height: 52px; border-radius: 12px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #16141c; }
 .logo-appli img { width: 100%; height: 100%; display: block; }
 .logo-appli svg { width: 26px; height: 26px; fill: none; stroke: var(--c, #fff); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sur-ce-mac { margin: 18px 0 8px; }
+.sur-ce-mac h2 { font-size: 15px; margin: 0 0 4px; }
+.sur-ce-mac > p { margin: 0 0 10px; color: var(--doux); font-size: 13px; }
+.liste-mac { display: flex; flex-direction: column; border-radius: 14px; background: var(--carte); box-shadow: 0 1px 2px rgba(17, 16, 20, 0.06); margin: 8px 0 18px; }
+.rang-mac { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-top: 1px solid var(--trait, rgba(0, 0, 0, 0.07)); min-width: 0; background: none; box-shadow: none; border-radius: 0; flex-wrap: wrap; }
+.rang-mac:first-child { border-top: 0; }
+.rang-mac .logo-appli { width: 48px; height: 48px; border-radius: 11px; }
+.rang-mac .corps { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 140px; }
+.rang-mac .corps strong { font-size: 15px; }
+.rang-mac .etat-mac, .rang-mac .etat-appli { font-size: 12.5px; color: var(--doux); font-weight: 500; }
+.rang-mac .etat-appli.ok { color: #15803d; }
+.rang-mac .actions, .zone-mac { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rang-mac.eteinte { opacity: 0.55; }
+.zone-mac .bouton { min-width: 96px; justify-content: center; }
+.progression { display: inline-flex; flex-direction: column; gap: 3px; min-width: 150px; font-size: 12px; color: var(--doux); }
+.progression progress { width: 150px; height: 6px; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
+.progression progress::-webkit-progress-bar { background: rgba(0, 0, 0, 0.1); border-radius: 3px; }
+.progression progress::-webkit-progress-value { background: #1f5cff; border-radius: 3px; transition: width 0.2s; }
+.plus-mac, .info details.plus-mac { position: relative; border: 0; padding: 0; margin: 0; background: none; box-shadow: none; }
+.logo-appli.sans-fond { background: none; }
+.plus-mac summary { list-style: none; cursor: pointer; width: 30px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--doux); border: 1px solid var(--trait, rgba(0, 0, 0, 0.12)); }
+.plus-mac summary::-webkit-details-marker { display: none; }
+.plus-mac[open] summary { background: rgba(0, 0, 0, 0.06); }
+.menu-mac { position: absolute; right: 0; top: 32px; z-index: 30; min-width: 210px; padding: 5px; border-radius: 10px; background: var(--carte); box-shadow: 0 8px 28px rgba(17, 16, 20, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06); display: flex; flex-direction: column; }
+.menu-mac button { font: inherit; text-align: left; padding: 7px 10px; border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+.menu-mac button:hover, .menu-mac button:focus-visible { background: #1f5cff; color: #fff; }
+.souci-mac { flex-basis: 100%; font-size: 12.5px; color: #b42318; }
+.annonce-mac { margin: 14px 0 18px; padding: 14px 16px; border-radius: 14px; background: rgba(31, 92, 255, 0.08); border: 1px solid rgba(31, 92, 255, 0.25); }
+.annonce-mac p { margin: 0 0 6px; }
+.annonce-mac ol { margin: 0 0 10px; padding-left: 20px; font-size: 13px; }
+@media (max-width: 520px) { .rang-mac .actions, .rang-mac .zone-mac { width: 100%; padding-left: 62px; } }
 .du-compte-applis { display: flex; align-items: center; gap: 8px; margin: 18px 0 0; font-size: 14px; }
 .ligne.grise:hover { background: none; }
 .titre-apercu { margin: 26px 0 2px; font-size: 14px; text-align: left; }
@@ -440,8 +471,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.37"></script>
-<script src="repertoire.js?v=2026-11-18.37"></script>
+<script src="agenda.js?v=2026-11-18.38"></script>
+<script src="repertoire.js?v=2026-11-18.38"></script>
 <script>
 (function () {
   "use strict";
@@ -496,7 +527,7 @@ button.tuile:hover { border-color: var(--ligne); }
   };
   // Fichiers d'installation pour Mac, une appli par fichier (fabriqués par GitHub ; la Boîte mail a les siens).
   var VERSIONS_MAC = "https://github.com/sevanegu-pixel/origami/releases/download/";
-  var DMG = { boite: VERSIONS_MAC + "appli-boite-21/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
+  var DMG = { origami: VERSIONS_MAC + "applis-mac/Origami-Mac.dmg", boite: VERSIONS_MAC + "appli-boite-21/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
   // Toutes les applis dans un seul fichier : on l'ouvre et on glisse tout dans Applications en un geste.
   var DMG_TOUT = VERSIONS_MAC + "applis-mac/Tout-Origami-Mac.dmg";
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -672,9 +703,104 @@ button.tuile:hover { border-color: var(--ligne); }
   function direModule() { if (!fenDiffusion) return; try { fenDiffusion.w.postMessage({ origami: "module", vue: moduleVoulu, boite: BOITE_LIEN && boitePossible(), repertoire: !!window.OrigamiRepertoire }, fenDiffusion.o); } catch (e) {} }
   // Appli Mac (coquille Tauri) : les liens s'ouvrent dans le navigateur du Mac, « Détacher » ouvre une vraie fenêtre.
   var MAC = window.__TAURI__ || null;
+  if (MAC) SUR_MAC = true;   // l'appli Origami n'existe que pour Mac
   // La caméra en direct n'est permise qu'aux applis Mac de la version 0.2 ou plus (elles ont le droit « Caméra » ; une plus ancienne se fermerait).
   var CAMERA_MAC = false;
   if (MAC && MAC.app && MAC.app.getVersion) try { MAC.app.getVersion().then(function (v) { var n = String(v || "").split(".").map(Number); CAMERA_MAC = n[0] > 0 || n[1] >= 2; }, function () {}); } catch (e) {}
+  // Appli Mac Origami 0.3 et plus (19.11) : elle installe elle-même les applis (Compta, Tickets, Frais, Boîte mail) et se met
+  // à jour, avec une barre de progression, sans navigateur ni GitHub. Une seule commande par appli : Installer, la barre, Ouvrir.
+  var INSTALLEUR = false, MAC_VERSION = "", MAC_APPLIS = null, MAC_INSTALL = {};
+  function invoquer(cmd, args) { return MAC.core.invoke(cmd, args || {}); }
+  function relireMac() { return invoquer("applis_mac").then(function (l) { MAC_APPLIS = {}; (l || []).forEach(function (a) { MAC_APPLIS[a.id] = a; }); majMac(); }, function () { MAC_APPLIS = MAC_APPLIS || {}; majMac(); }); }
+  function majMac() {
+    document.querySelectorAll("[data-mac-zone]").forEach(function (z) { var t = document.createElement("span"); t.innerHTML = actionMac(z.getAttribute("data-mac-zone"), z.getAttribute("data-fort") === "1"); if (t.firstChild) z.replaceWith(t.firstChild); });
+    majRangsMac();
+  }
+  if (MAC && MAC.app && MAC.app.getVersion && MAC.core && MAC.core.invoke && !/[?&]fenetre=/.test(location.search)) try {
+    MAC.app.getVersion().then(function (v) {
+      var n = String(v || "").split(".").map(Number); MAC_VERSION = String(v || ""); INSTALLEUR = n[0] > 0 || n[1] >= 3;
+      if (!INSTALLEUR) return;
+      if (MAC.event && MAC.event.listen) {
+        MAC.event.listen("origami-installation", function (e) { var p = e && e.payload; if (!p || !p.appli) return; MAC_INSTALL[p.appli] = p; if (p.etape === "fini" || p.etape === "erreur") relireMac(); else majMac(); });
+        MAC.event.listen("origami-aller", function (e) { var v = e && e.payload; if (v === "applis" || v === "reglages") { etat.vue = v; montrer(); } });
+      }
+      relireMac().then(function () { if (etat.vue === "applis" || etat.vue === "boite") montrer(); });
+    }, function () {});
+  } catch (e) {}
+  function nomMac(id) { return id === "origami" ? "Origami" : APPLIS[id].nom; }
+  // Versions publiées des applis du Mac (à changer à chaque nouvelle version) et leurs notes de version.
+  // Boîte mail : numérotée par ses fichiers (appli-boite-NN), pas de comparaison possible ; « Réinstaller » prend la dernière.
+  var VERSIONS_MAC = { origami: "0.3.0", compta: "0.3.0", tickets: "0.3.0", frais: "0.3.0" };
+  var NOTES_MAC = {
+    origami: [["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    compta: [["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    tickets: [["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    frais: [["0.3.0", "S'installe depuis Origami."]],
+    boite: [["21", "Douze mois de mails gardés sur le Mac, pièces jointes ouvertes gardées, réglage « Gardé sur ce Mac »."], ["20", "La Compta ouvre directement la fenêtre d'écriture, avec le PDF joint."]]
+  };
+  function plusRecente(a, b) { var x = String(a || "").split(".").map(Number), y = String(b || "").split(".").map(Number); for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; }
+  function aMettreAJour(id) { var a = MAC_APPLIS && MAC_APPLIS[id]; return !!(a && a.presente && VERSIONS_MAC[id] && plusRecente(VERSIONS_MAC[id], a.version)); }
+  // La commande d'une appli du Mac, selon son état (comme un lanceur d'applis) : Installer, la barre de progression, puis
+  // Ouvrir, ou Mettre à jour quand une version plus récente existe ; à côté, « … » : Finder, notes, réinstaller, désinstaller.
+  function actionMac(id, fort) {
+    var h = "";
+    if (INSTALLEUR) {
+      var a = MAC_APPLIS && MAC_APPLIS[id], p = MAC_INSTALL[id], present = !!(a && a.presente);
+      if (p && (p.etape === "telechargement" || p.etape === "installation")) h = '<span class="progression" role="status"><progress max="100" value="' + (p.etape === "installation" ? 100 : (p.pct || 0)) + '"></progress><span>' + (p.etape === "installation" ? "Installation…" : "Téléchargement " + (p.pct || 0) + " %") + "</span></span>";
+      else if (!MAC_APPLIS) h = '<span class="etat-appli">Un instant…</span>';
+      else {
+        if (aMettreAJour(id)) h = '<button class="bouton fort" data-mac-installer="' + id + '">Mettre à jour</button>';
+        else if (id === "origami") h = '<span class="etat-appli ok">À jour</span>';
+        else if (present) h = '<button class="bouton' + (fort ? " fort" : "") + '" data-mac-ouvrir="' + id + '">Ouvrir</button>';
+        else h = '<button class="bouton fort" data-mac-installer="' + id + '">Installer</button>';
+        h += '<details class="plus-mac"><summary aria-label="Autres actions pour ' + nomMac(id) + '" title="Autres actions">…</summary><div class="menu-mac">' +
+          (present ? '<button data-mac-finder="' + id + '">Afficher dans le Finder</button>' : "") +
+          '<button data-mac-notes="' + id + '">Notes de version</button>' +
+          (present ? '<button data-mac-installer="' + id + '">Réinstaller</button>' : "") +
+          (present && id !== "origami" ? '<button data-mac-desinstaller="' + id + '">Désinstaller</button>' : "") + "</div></details>";
+      }
+      if (p && p.etape === "erreur") h += '<span class="souci-mac">' + texte(p.message || "L'installation n'a pas abouti.") + "</span>";
+    } else if (MAC) h = (id === "boite" && boitePossible() ? '<button class="bouton fort" data-vue="boite" data-ouvrir="1">Ouvrir</button>' : "") + '<button class="bouton' + (id === "boite" && boitePossible() ? "" : " fort") + '" data-mac-nouvelle="1">Installer</button>';   // appli Mac 0.2 : l'installation passe par la nouvelle version
+    else if (SUR_MAC && DMG[id]) h = '<a class="bouton fort" href="' + DMG[id] + '" target="_blank" rel="noopener">Télécharger pour Mac</a>';
+    if (!h) return "";
+    return '<span class="zone-mac" data-mac-zone="' + id + '" data-fort="' + (fort ? 1 : 0) + '">' + h + "</span>";
+  }
+  // « Sur ce Mac » : la liste des applis du Mac, comme dans un lanceur d'applis.
+  var ORDRE_MAC = ["boite", "compta", "tickets", "frais", "origami"];
+  var LOGO_ORIGAMI = "icone-192.png";
+  function etatMacTexte(id) {
+    if (!INSTALLEUR) return "";
+    var a = MAC_APPLIS && MAC_APPLIS[id];
+    if (!MAC_APPLIS) return "";
+    if (id === "origami") return "Version " + texte(MAC_VERSION) + (aMettreAJour(id) ? " · nouvelle version " + VERSIONS_MAC.origami : "");
+    if (!a || !a.presente) return "Pas installée";
+    return "Version " + texte(a.version || "?") + (aMettreAJour(id) ? " · nouvelle version " + VERSIONS_MAC[id] : "") + (a.ouverte ? " · ouverte" : "");
+  }
+  function dessinerSurCeMac() {
+    if (!SUR_MAC || FENETRE) return "";
+    if (MAC && !INSTALLEUR) return annonceInstalleur();
+    var h = '<section class="sur-ce-mac"><h2>Sur ce Mac</h2><p>Chaque appli a son icône dans le Dock et s\'ouvre seule. ' + (INSTALLEUR ? "Origami les installe et les met à jour d'ici." : "Dans l'appli Origami pour Mac, elles s'installent d'ici en un clic.") + '</p><div class="liste-mac">';
+    ORDRE_MAC.forEach(function (id) {
+      h += '<div class="rang-mac" data-rang-mac="' + id + '">' + (id === "origami" ? '<span class="logo-appli" aria-hidden="true"><img src="' + LOGO_ORIGAMI + '" alt=""></span>' : logoAppli(id)) +
+        '<div class="corps"><strong>' + nomMac(id) + '</strong><span class="etat-mac">' + etatMacTexte(id) + "</span></div>" + actionMac(id, true) + "</div>";
+    });
+    return h + "</div></section>";
+  }
+  function majRangsMac() { document.querySelectorAll("[data-rang-mac]").forEach(function (r) { var e = r.querySelector(".etat-mac"); if (e) e.innerHTML = etatMacTexte(r.getAttribute("data-rang-mac")); }); }
+  function macInstaller(id) {
+    if (!INSTALLEUR || !DMG[id]) return;
+    MAC_INSTALL[id] = { appli: id, etape: "telechargement", pct: 0 }; majMac();
+    invoquer("installer_appli", { appli: id, url: DMG[id] }).then(function () {
+      MAC_INSTALL[id] = { appli: id, etape: "fini" }; relireMac();
+      if (id === "origami") { avis("Nouvelle version d'Origami installée : elle redémarre."); setTimeout(function () { invoquer("relancer_origami").catch(function () {}); }, 1800); }
+      else avis(nomMac(id) + " est installée sur ce Mac.");
+    }, function (e) { MAC_INSTALL[id] = { appli: id, etape: "erreur", message: String(e && e.message || e || "") }; majMac(); });
+  }
+  function macOuvrir(id) { invoquer("ouvrir_appli", { appli: id }).catch(function (e) { avis(String(e && e.message || e || (nomMac(id) + " ne s'est pas ouverte.")), true); relireMac(); }); }
+  function annonceInstalleur() {
+    if (!MAC || INSTALLEUR || FENETRE) return "";
+    return '<div class="annonce-mac"><p><strong>Nouveau : Origami installe lui-même les applis sur ce Mac.</strong> Pour cela, installe une dernière fois Origami à la main : ensuite, elle se met à jour toute seule.</p><ol><li>Télécharge la nouvelle version.</li><li>Ouvre le fichier et glisse Origami dans Applications (elle remplace l\'ancienne).</li><li>Quitte Origami et rouvre-la.</li></ol><div class="actions"><a class="bouton fort" href="' + DMG.origami + '" target="_blank" rel="noopener">Télécharger la nouvelle version d\'Origami</a></div></div>';
+  }
   // Adresse …/accueil/?fenetre=compta : cette fenêtre ne montre que cette appli (une fenêtre de l'appli Mac, ou l'appli installée seule).
   var FENETRE = (/[?&]fenetre=(compta|tickets0|tickets|frais)(&|$)/.exec(location.search) || [])[1] || "";
   if (FENETRE) document.documentElement.classList.add("fenetre");
@@ -2126,13 +2252,11 @@ button.tuile:hover { border-color: var(--ligne); }
     var a = APPLIS[id], action;
     if (id === "tickets0") return carteTickets(c);
     if (id === "diffusion0") return carteDiffusion(c);
-    if (id === "boite") action = (!FENETRE && boitePossible() ? '<button class="bouton fort" data-vue="boite" data-ouvrir="1" data-de="' + c.id + '">Ouvrir</button>' : "") + '<button class="bouton' + (!FENETRE && boitePossible() ? "" : " fort") + '" data-vue="boite" data-de="' + c.id + '" data-infos="1">Installer pour ce compte</button>';
+    if (id === "boite") action = !FENETRE && SUR_MAC ? actionMac("boite", true) : '<button class="bouton" data-vue="applis">Voir dans Applis</button>';
     else if (a.genre === "cadre" && (c.id === "compagnie" || (id === "compta" && comptaDe(c.id)))) action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">' + (cadres[cleCadre(c, id)] ? "Revenir" : "Ouvrir") + "</button>";
     else if (a.genre === "lien" && c.id === "compagnie" && MAC && FENETRES_MAC[id] && !FENETRE) action = '<button class="bouton fort" data-vue="' + id + '" data-de="' + c.id + '">Ouvrir</button>';
     else if (a.genre === "lien" && c.id === "compagnie") action = '<a class="bouton" href="' + a.lien + '" target="_blank" rel="noopener">Ouvrir à part</a>';
     else action = '<button class="bouton" data-vue="' + id + '" data-de="' + c.id + '">En savoir plus</button>';
-    // Sur un Mac : chaque appli se télécharge aussi seule, pour s'installer et s'ouvrir sans passer par Origami.
-    if (SUR_MAC && !FENETRE && DMG[id] && (c.id === "compagnie" || id === "boite")) action += '<a class="bouton" href="' + DMG[id] + '" target="_blank" rel="noopener" title="Installer cette appli seule sur ce Mac">Télécharger pour Mac</a>';
     return '<article class="carte"><div class="titre">' + icone(id) + "<h2>" + a.nom + "</h2></div><p>" + a.texte + '</p><div class="actions">' + action + "</div></article>";
   }
   // ---- Taille de l'affichage (Réglages) : les écrans d'Origami seulement ; chaque appli ouverte garde son propre réglage ----
@@ -2147,7 +2271,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // ---- Tableau de bord : ce que les applis ont laissé sur cet appareil, rassemblé ----
   // Diffusion confie déjà sa copie de données à cette page (message « cache-ecrire ») ; la Compta dit quelques totaux (« resume »).
   // Aucun serveur n'est interrogé pour dessiner cet écran. Les chiffres d'une appli ne s'affichent que si l'appareil a encore sa clé.
-  var BLOCS = [["jour", "Le point du jour"], ["applis", "Applis du compte"], ["relances", "Relances"], ["mails", "Mails"], ["dates", "Prochaines dates"], ["appels", "Appels à projets"], ["compta", "Compta"], ["suivi", "Suivi des spectacles"], ["campagnes", "Campagnes"], ["tickets", "Tickets"], ["moteur", "Autres chiffres du compte"]];
+  var BLOCS = [["jour", "Le point du jour"], ["relances", "Relances"], ["mails", "Mails"], ["dates", "Prochaines dates"], ["appels", "Appels à projets"], ["compta", "Compta"], ["suivi", "Suivi des spectacles"], ["campagnes", "Campagnes"], ["tickets", "Tickets"], ["moteur", "Autres chiffres du compte"]];
   var bord = { caches: {}, ordre: [] };
   try { var gb = JSON.parse(lire("origami_bord") || "null"); if (gb && typeof gb === "object") { if (gb.caches && typeof gb.caches === "object") bord.caches = gb.caches; if (Array.isArray(gb.ordre)) bord.ordre = gb.ordre; } } catch (e) {}
   function ordreBlocs() {
@@ -2323,7 +2447,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var h = '<article class="bloc" data-bloc="applis"><div class="tete"><h2>Applis du compte</h2></div>', mac = !FENETRE && boitePossible();
     if (tk) h += rang("tickets", "Tickets", "Installé.", '<button class="bouton" data-vue="tickets0" data-de="' + c.id + '">Ouvrir</button>');
     else if (offre(c.id, "tickets")) h += rang("tickets", "Tickets", "Justificatifs envoyés par mail, rangés dans ton Drive.", '<button class="bouton fort" data-vue="tickets0" data-de="' + c.id + '">Installer</button>');
-    h += rang("boite", "Boîte mail", "L'appli des mails de tous tes comptes, sur le Mac.", (mac ? '<button class="bouton" data-vue="boite" data-ouvrir="1" data-de="' + c.id + '">Ouvrir</button>' : "") + '<button class="bouton' + (mac ? "" : " fort") + '" data-vue="boite" data-de="' + c.id + '" data-infos="1">Installer</button>');
+    if (SUR_MAC && !FENETRE) h += rang("boite", "Boîte mail", "L'appli des mails de tous tes comptes, sur le Mac.", actionMac("boite", false));
     h += rang("agenda", "Agenda", "Déjà là : tes agendas Google.", '<button class="bouton" data-vue="agenda" data-de="' + c.id + '">Ouvrir</button>');
     if (comptaDe(c.id)) h += rang("compta", "Compta", "Installée.", '<button class="bouton" data-vue="compta" data-de="' + c.id + '">Ouvrir</button>');
     else h += rang("compta", "Compta", "Pas encore installable d'ici : demande-la à Claude pour l'instant.", "");
@@ -2335,7 +2459,7 @@ button.tuile:hover { border-color: var(--ligne); }
   var TEINTES = { spectacle: "#f5b83d", prospection: "#3fc1b0", agenda: "#ff7a66" };
   var ORDRE_APPLIS = ["spectacle", "prospection", "agenda", "compta", "tickets", "frais", "boite"];
   var TEXTES_APPLIS = { spectacle: "Tes spectacles, leurs étapes et leurs dates.", prospection: "Lieux, contacts, relances et candidatures.", agenda: "Tes agendas Google et tes dates.", compta: "Devis, factures, salaires, journal.", tickets: "Justificatifs envoyés par mail, suivi des paiements.", frais: "Notes de frais et défraiements.", boite: "Les mails de tous tes comptes, dans une appli du Mac." };
-  function logoAppli(id) { return '<span class="logo-appli" aria-hidden="true">' + (LOGOS[id] ? '<img src="' + LOGOS[id] + '" alt="">' : '<svg viewBox="0 0 24 24" style="--c:' + (TEINTES[id] || "#fff") + '">' + ICONES[id] + "</svg>") + "</span>"; }
+  function logoAppli(id) { return '<span class="logo-appli' + (id === "boite" ? " sans-fond" : "") + '" aria-hidden="true">' + (LOGOS[id] ? '<img src="' + LOGOS[id] + '" alt="">' : '<svg viewBox="0 0 24 24" style="--c:' + (TEINTES[id] || "#fff") + '">' + ICONES[id] + "</svg>") + "</span>"; }
   function tuileAppli(c, id) {
     var relie = !!(c && (c.id === "compagnie" || moteurs[c.id])), mac = !FENETRE && boitePossible(), etatT = "", ok = false, act = "", eteinte = false;
     function b(attrs, texte, fort) { return '<button class="bouton' + (fort ? " fort" : "") + '" ' + attrs + ">" + texte + "</button>"; }
@@ -2354,22 +2478,22 @@ button.tuile:hover { border-color: var(--ligne); }
       if (c.id === "compagnie") { ok = true; etatT = "Prêt."; act = MAC && FENETRES_MAC.frais && !FENETRE ? b('data-vue="frais" data-de="compagnie"', "Ouvrir", true) : '<a class="bouton fort" href="' + APPLIS.frais.lien + '" target="_blank" rel="noopener">Ouvrir</a>'; }
       else { etatT = "Arrive avec la Compta."; eteinte = true; }
     } else if (id === "boite") {
-      etatT = "Une appli à part sur le Mac.";
-      act = (mac ? b('data-vue="boite" data-ouvrir="1" data-de="' + c.id + '"', "Ouvrir", true) : "") + b('data-vue="boite" data-infos="1" data-de="' + c.id + '"', "Installer", !mac);
+      var mb = INSTALLEUR && MAC_APPLIS && MAC_APPLIS.boite;
+      if (FENETRE || !SUR_MAC) { etatT = "Une appli du Mac."; eteinte = true; }
+      else { ok = !!(mb && mb.presente); etatT = ok ? "Installée sur ce Mac" + (mb.version ? " · version " + texte(mb.version) : "") + "." : "Une appli à part sur le Mac."; act = actionMac("boite", true); }
     }
-    if (c && SUR_MAC && !FENETRE && DMG[id] && !eteinte && id !== "boite") act += '<a class="bouton" href="' + DMG[id] + '" target="_blank" rel="noopener" title="Installer cette appli seule sur ce Mac">Sur ce Mac</a>';
-    return '<article class="tuile-appli' + (eteinte ? " eteinte" : "") + '" data-appli="' + id + '">' + logoAppli(id) + '<div class="corps"><h3>' + APPLIS[id].nom + "</h3><p>" + TEXTES_APPLIS[id] + '</p><span class="etat-appli' + (ok ? " ok" : "") + '">' + etatT + "</span>" + (act ? '<div class="actions">' + act + "</div>" : "") + "</div></article>";
+    return '<div class="rang-mac tuile-appli' + (eteinte ? " eteinte" : "") + '" data-appli="' + id + '">' + logoAppli(id) + '<div class="corps"><strong>' + APPLIS[id].nom + '</strong><span class="etat-appli' + (ok ? " ok" : "") + '">' + etatT + "</span></div>" + (act ? '<span class="actions">' + act + "</span>" : "") + "</div>";
   }
   function dessinerApplis() {
     var l = !comptes().length ? [null] : etat.compte === "tous" ? affiches() : [compte(etat.compte)];
-    var h = "<h1>Applis</h1><p>Toutes les applis d'Origami, compte par compte. Installe ou ouvre-les d'ici.</p>";
+    var h = "<h1>Applis</h1><p>Installer, ouvrir et mettre à jour les applis d'Origami. Ce qu'elles contiennent est dans le tableau de bord.</p>" + dessinerSurCeMac() + '<section class="sur-ce-mac"><h2>' + (l.length === 1 && l[0] ? "Dans le compte " + texte(l[0].nom) : "Dans tes comptes") + "</h2>";
     l.forEach(function (c) {
       if (c && l.length > 1) h += '<h2 class="du-compte-applis"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</h2>";
       if (c && c.id !== "compagnie" && !moteurs[c.id]) h += '<p class="note">' + texte(c.nom) + ' n\'est pas encore relié sur cet appareil. <button class="lien" data-vue="relier" data-de="' + c.id + '">Le relier</button></p>';
-      h += '<div class="applis-grille">' + ORDRE_APPLIS.map(function (id) { return tuileAppli(c, id); }).join("") + "</div>";
+      h += '<div class="liste-mac applis-grille">' + ORDRE_APPLIS.filter(function (id) { return !(id === "boite" && SUR_MAC && !FENETRE); }).map(function (id) { return tuileAppli(c, id); }).join("") + "</div>";
     });
     if (!comptes().length) h += '<p><button class="bouton fort" data-vue="ajouter">Ajouter un compte</button></p>';
-    return h;
+    return h + "</section>";
   }
   function bordAutre(c) {
     var h = {}, tk = installee(c.id, "tickets");
@@ -2379,7 +2503,7 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     var bm = blocsMoteur(c);
     if (bm) h.moteur = bm;
-    if (moteurs[c.id]) h.applis = blocApplis(c, tk);
+    // Plus de bloc « Applis du compte » ici (19.11, Sévane) : les applis se gèrent dans l'écran Applis, le tableau de bord montre le contenu.
     return { h: h, le: 0, diff: false };
   }
   function dessinerAccueil() {
@@ -2747,15 +2871,11 @@ button.tuile:hover { border-color: var(--ligne); }
     } else if (vue === "applis") {
       h = '<div class="info large">' + dessinerApplis();
     } else if (vue === "boite") {
-      var cb0 = compte(etat.compte), nomB = cb0 ? texte(cb0.nom) : "ce compte", macB = !FENETRE && boitePossible();
-      h += "<h1>Boîte mail</h1><p>La Boîte mail est une appli à part sur le Mac. Elle réunit les mails de tous tes comptes Google.</p><div class=\"actions\">" +
-        (macB ? '<button class="bouton fort" data-vue="boite" data-ouvrir="1" data-de="' + (cb0 ? cb0.id : "") + '">Ouvrir Boîte mail</button>' : "") +
-        '<a class="bouton' + (macB ? "" : " fort") + '" href="' + DMG.boite + '" target="_blank" rel="noopener">Télécharger la dernière version</a></div>';
-      h += "<p class=\"aide-fine\">Pas encore installée sur ce Mac, ou une ancienne version s'ouvre ? Télécharge la dernière version, ouvre le fichier et glisse Boîte mail dans Applications (remplace l'ancienne). Vide la corbeille si une vieille copie y traîne. À la première ouverture, si le Mac bloque : Réglages Système, Confidentialité et sécurité, « Ouvrir quand même ».</p>";
-      h += "<h2>Ajouter " + nomB + " dans la Boîte mail</h2><p>Une seule fois par compte :</p><ol class=\"pas\">";
-      h += "<li>Ouvre une <strong>fenêtre de navigation privée</strong> dans ton navigateur et connecte-toi au seul compte " + nomB + ", comme pour l'installation d'Origami.</li>";
-      h += "<li>Dans Boîte mail, clique sur <strong>＋ Ajouter un compte</strong> et suis ses étapes : copie du classeur de la Boîte mail, autorisation (mêmes écrans Google que pour Origami : Paramètres avancés, puis Accéder à… non sécurisé), puis « Relier à l'appli ».</li></ol>";
-      h += "<p class=\"aide-fine\">Bientôt, Origami installera lui-même la Boîte mail et ses comptes, sans ces étapes (voir la proposition en cours).</p>";
+      var mb2 = INSTALLEUR && MAC_APPLIS && MAC_APPLIS.boite;
+      h += "<h1>Boîte mail</h1><p>La Boîte mail est une appli à part sur le Mac. Elle réunit les mails de tous tes comptes Google.</p>" + annonceInstalleur();
+      if (mb2 && mb2.presente) h += '<p class="etat-appli ok">Installée sur ce Mac' + (mb2.version ? " · version " + texte(mb2.version) : "") + ".</p>";
+      h += '<div class="actions">' + (SUR_MAC && !FENETRE ? actionMac("boite", true) : "") + "</div>";
+      h += '<p class="aide-fine">Bientôt, Origami y ajoutera lui-même chacun de tes comptes, sans aucune étape.</p>';
     } else if (vue === "frais") {
       if (FENETRE === "frais") {
         h += "<h1>Frais</h1><p>Frais s'ouvre avec ton lien personnel. Colle-le ici une fois : cette appli le garde ensuite.</p><p>Tu le trouves dans la Compta : Outils, puis Défraiements du personnel.</p>";
@@ -2859,6 +2979,27 @@ button.tuile:hover { border-color: var(--ligne); }
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ch.value).then(function () { avis("Lien copié."); }, repliC); else repliC();
       return;
     }
+    // Applis du Mac (lanceur « Sur ce Mac ») : installer, ouvrir, menu « … ».
+    if (d.macInstaller || d.macOuvrir || d.macFinder || d.macNotes || d.macDesinstaller || d.macNouvelle) {
+      var dt = b.closest("details"); if (dt) dt.open = false;
+      if (d.macNouvelle) { etat.vue = "applis"; montrer(); return; }
+      if (!INSTALLEUR) return;
+      if (d.macInstaller) { macInstaller(d.macInstaller); return; }
+      if (d.macOuvrir) { macOuvrir(d.macOuvrir); return; }
+      if (d.macFinder) { invoquer("montrer_dans_finder", { appli: d.macFinder }).catch(function (e) { avis(String(e && e.message || e), true); }); return; }
+      if (d.macNotes && NOTES_MAC[d.macNotes]) {
+        ouvrirVoile("<h2>" + nomMac(d.macNotes) + " · notes de version</h2>" + NOTES_MAC[d.macNotes].map(function (n) { return '<p><strong>' + (d.macNotes === "boite" ? "Version " + n[0] : n[0]) + "</strong><br>" + texte(n[1]) + "</p>"; }).join("") + '<div class="actions"><button class="bouton fort" data-mac-fermer="1">Fermer</button></div>');
+        return;
+      }
+      if (d.macDesinstaller) {
+        var idD = d.macDesinstaller;
+        demander("Désinstaller " + nomMac(idD) + " ?", nomMac(idD) + " va à la Corbeille du Mac : tu peux l'en sortir tant que la Corbeille n'est pas vidée. Tes données dans Google ne bougent pas, et tu peux la réinstaller d'ici à tout moment.",
+          [{ nom: "Annuler" }, { nom: "Désinstaller", fort: true, action: function () { invoquer("desinstaller_appli", { appli: idD }).then(function () { avis(nomMac(idD) + " est dans la Corbeille."); relireMac(); }, function (e) { avis(String(e && e.message || e), true); }); } }]);
+        return;
+      }
+      return;
+    }
+    if (d.macFermer) { fermerVoile(); return; }
     if (d.vue) {
       if (d.vue === "ajouter") { guide.etape = 0; guide.pour = ""; }
       // La Boîte mail ne s'ouvre que sur un bouton « Ouvrir » ; le volet mène à sa page dans Origami (18.11, Sévane :
