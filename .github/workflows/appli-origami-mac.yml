@@ -63,13 +63,65 @@ jobs:
           name: ${{ matrix.appli }}
           path: ${{ steps.appli.outputs.fichier }}
 
-  publier:
+      # L'appli elle-même, pour le fichier « tout en un ».
+      - name: Appli pour le fichier tout en un
+        run: ditto -c -k --keepParent "appli-origami/src-tauri/target/universal-apple-darwin/release/bundle/macos/${{ steps.appli.outputs.nom }}.app" "${{ steps.appli.outputs.nom }}.app.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ matrix.appli }}
+          path: ${{ steps.appli.outputs.nom }}.app.zip
+
+  # Un seul fichier avec toutes les applis : on l'ouvre, on glisse tout dans Applications en un geste.
+  # La Boîte mail vient de sa propre version (fabriquée ailleurs dans ce dépôt) ; si elle manque, le fichier se fait sans elle.
+  tout:
     needs: mac
+    runs-on: macos-latest
+    env:
+      BOITE_DMG: https://github.com/sevanegu-pixel/origami/releases/download/appli-boite-17/Boite-mail-Mac.dmg
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: app-*
+          merge-multiple: true
+
+      - name: Rassembler les applis
+        run: |
+          mkdir "Applis Origami"
+          for z in *.app.zip; do ditto -x -k "$z" "Applis Origami"; done
+          if curl -fsSL -o boite.dmg "$BOITE_DMG"; then
+            mkdir boite
+            if hdiutil attach boite.dmg -nobrowse -readonly -mountpoint boite; then
+              for a in boite/*.app; do ditto "$a" "Applis Origami/$(basename "$a")"; done
+              hdiutil detach boite || true
+            fi
+          else
+            echo "Boîte mail introuvable : fichier fait sans elle"
+          fi
+          ln -s /Applications "Applis Origami/Applications"
+          ls -la "Applis Origami"
+          test -d "Applis Origami/Origami.app"
+
+      - name: Fichier tout en un
+        run: hdiutil create -volname "Applis Origami" -srcfolder "Applis Origami" -ov -format UDZO Tout-Origami-Mac.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tout
+          path: Tout-Origami-Mac.dmg
+
+  publier:
+    needs: [mac, tout]
+    # Si le fichier tout en un a raté, les fichiers de chaque appli sont publiés quand même.
+    if: ${{ !cancelled() && needs.mac.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
+
+      - name: Garder seulement les fichiers d'installation
+        run: rm -f *.app.zip && ls -la
 
       - name: Version numérotée
         uses: softprops/action-gh-release@v2
@@ -80,7 +132,7 @@ jobs:
           prerelease: true
           files: "*-Mac.dmg"
           body: |
-            Applis Origami pour Mac (essai) : Origami (l'appli mère), Compta, Tickets et Frais, chacune dans son fichier. Ouvrir le fichier .dmg, glisser l'appli dans Applications.
+            Applis Origami pour Mac (essai) : Origami (l'appli mère), Compta, Tickets et Frais, chacune dans son fichier, et Tout-Origami-Mac.dmg qui les contient toutes avec la Boîte mail. Ouvrir le fichier .dmg, glisser l'appli (ou les applis) dans Applications.
             Première ouverture : l'appli n'est pas signée par Apple ; Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
 
       # Adresse fixe pour les boutons « Télécharger pour Mac » de la page Origami : toujours les derniers fichiers.
@@ -92,5 +144,5 @@ jobs:
           prerelease: true
           files: "*-Mac.dmg"
           body: |
-            Les derniers fichiers d'installation des applis Origami pour Mac : Origami-Mac.dmg, Compta-Mac.dmg, Tickets-Mac.dmg, Frais-Mac.dmg.
+            Les derniers fichiers d'installation des applis Origami pour Mac : Origami-Mac.dmg, Compta-Mac.dmg, Tickets-Mac.dmg, Frais-Mac.dmg, et Tout-Origami-Mac.dmg (toutes les applis d'un coup, Boîte mail comprise).
             Première ouverture : l'appli n'est pas signée par Apple ; Réglages Système › Confidentialité et sécurité › « Ouvrir quand même ».
