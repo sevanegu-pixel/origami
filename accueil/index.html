@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.22">
+<meta name="origami-version" content="2026-11-18.23">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -345,8 +345,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.22"></script>
-<script src="repertoire.js?v=2026-11-18.22"></script>
+<script src="agenda.js?v=2026-11-18.23"></script>
+<script src="repertoire.js?v=2026-11-18.23"></script>
 <script>
 (function () {
   "use strict";
@@ -903,7 +903,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
   function offre(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.installables) && e.installables.some(function (a) { return a && a.id === appli; })); }
   function installee(id, appli) { var e = etatMoteur(id); return (e && Array.isArray(e.applis) ? e.applis : []).filter(function (a) { return a && a.id === appli; })[0] || null; }
-  function applisDe(c) { var l = c.applis.slice(); if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets")) l.push("tickets0"); if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
+  function applisDe(c) { var l = c.applis.slice(); if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets") || (c.applis.indexOf("tickets") >= 0 && !etatMoteur(c.id))) l.push("tickets0");   /* sans moteur relié sur cet appareil : la ligne reste, l'écran dit comment relier */ if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
   // Les modules d'un compte : pour l'instant ceux de la Diffusion du compte compagnie (son appli s'ouvre dans un cadre).
   var MODULES = ["spectacle", "prospection", "agenda"];
   function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) m.push("agenda"); return m; }   // l'Agenda vient du moteur du compte
@@ -953,6 +953,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // Sur le tableau de bord : les chiffres sont comptés ici, dans la mémoire de l'appareil.
   function carteTickets(c) {
     var h = '<article class="carte"><div class="titre">' + icone("tickets0") + "<h2>" + nomAppli(c, "tickets0") + "</h2></div>";
+    if (!etatMoteur(c.id)) return h + "<p>" + APPLIS.tickets0.texte + ' Cet appareil n\'est pas encore relié au moteur du compte.</p><div class="actions"><button class="bouton" data-vue="tickets0" data-de="' + c.id + '">Voir comment</button></div></article>';
     if (!installee(c.id, "tickets")) return h + "<p>" + APPLIS.tickets0.texte + ' Pas encore installé.</p><div class="actions"><button class="bouton" data-vue="tickets0" data-de="' + c.id + '">Installer</button></div></article>';
     var tous = ticketsDe(c.id), attente = tous.filter(function (t) { return t.statut !== "envoye"; }).concat(fileDe(c.id).map(function (x) { return x.t; })), confirmes = {};
     envoisDe(c.id).forEach(function (e) { if (e.confirmation) confirmes[e.id] = 1; });
@@ -965,6 +966,18 @@ button.tuile:hover { border-color: var(--ligne); }
   // Le cadre de l'écran n'est refait que si le compte, l'installation ou l'onglet changent : une saisie en cours reste en place.
   function dessinerTickets() {
     var c = compte(etat.compte), inst = installee(c.id, "tickets"), cadre = c.id + "|" + (inst ? tk.onglet : "installer"), racine = page.firstElementChild;
+    if (!etatMoteur(c.id)) {   // appareil pas encore relié au moteur du compte (souvent le téléphone), ou moteur pas encore lu
+      var hr = '<div class="appli" data-cadre="' + c.id + '|relier"><div class="entete"><div><h1>' + nomAppli(c, "tickets0") + "</h1><p>" + texte(c.nom) + '</p></div></div><div class="carte">';
+      if (moteurs[c.id]) hr += '<p>Lecture du compte en cours…</p><div class="actions"><button class="bouton" data-relever="' + c.id + '">Actualiser</button></div>';
+      else {
+        hr += "<p>Cet appareil n'est pas encore relié au moteur de ton compte. Tickets (nouveau), avec le scanner, les paiements et la relance, vit dans ce moteur : il faut relier l'appareil une fois.</p>";
+        hr += "<p>Sur ton ordinateur, ouvre le classeur « Origami - Réglages du compte », menu Origami, puis « Relier un appareil ». Envoie-toi le code obtenu (par exemple dans une note), puis colle-le ici.</p>";
+        hr += '<div class="actions"><button class="bouton fort" data-vue="relier" data-de="' + c.id + '">Relier cet appareil</button></div>';
+      }
+      if (c.applis.indexOf("tickets") >= 0) hr += "<p>Ton appli Tickets habituelle reste dans « Tickets ».</p>";
+      if (!racine || racine.getAttribute("data-cadre") !== c.id + "|relier") page.innerHTML = hr + "</div></div>";
+      return;
+    }
     if (!racine || racine.getAttribute("data-cadre") !== cadre) {
       var h = '<div class="appli" data-cadre="' + cadre + '"><div class="entete"><div><h1>' + nomAppli(c, "tickets0") + "</h1><p>" + texte(c.nom) + "</p></div>";
       if (!inst) {
