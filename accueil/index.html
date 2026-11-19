@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.42">
+<meta name="origami-version" content="2026-11-19.43">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -483,8 +483,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.42"></script>
-<script src="repertoire.js?v=2026-11-19.42"></script>
+<script src="agenda.js?v=2026-11-19.43"></script>
+<script src="repertoire.js?v=2026-11-19.43"></script>
 <script>
 (function () {
   "use strict";
@@ -818,13 +818,21 @@ button.tuile:hover { border-color: var(--ligne); }
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && document.querySelector("details.plus-mac[open]")) { var o = document.querySelector("details.plus-mac[open]"); fermerMenusMac(null); var s = o.querySelector("summary"); if (s) try { s.focus(); } catch (x) {} } });
   // L'appli Compta du Mac a sa propre mémoire : en l'ouvrant, Origami lui transmet les comptes qui ont une Compta (nom, couleur,
   // adresse de la Compta ; jamais de code, de PIN ni de jeton) et celui à montrer (le compte choisi ici, s'il a une Compta).
-  function lienComptaMac() {
+  function lienComptaMac(voulu) {
     var l = etat.ajoutes.filter(function (c) { return /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(comptaDe(c.id)); }).map(function (c) { return { id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, u: comptaDe(c.id) }; });
-    var ch = etat.compte && etat.compte !== "tous" && (etat.compte === "compagnie" || l.some(function (x) { return x.id === etat.compte; })) ? etat.compte : "";
+    var v = voulu || etat.compte, ch = v && v !== "tous" && (v === "compagnie" || l.some(function (x) { return x.id === v; })) ? v : "";
     var j = JSON.stringify({ c: ch, l: l.slice(0, 12) }), b = btoa(unescape(encodeURIComponent(j))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     return b.length > 3800 ? null : "https://sevanegu-pixel.github.io/origami/accueil/?fenetre=compta#comptas=" + b;
   }
-  function macOuvrir(id) { var lien = id === "compta" ? lienComptaMac() : null; invoquer("ouvrir_appli", lien ? { appli: id, lien: lien } : { appli: id }).catch(function (e) { avis(String(e && e.message || e || (nomMac(id) + " ne s'est pas ouverte.")), true); relireMac(); }); }
+  function macOuvrir(id, de) {
+    var lien = id === "compta" ? lienComptaMac(de) : null;
+    if (id === "compta") {   // dire tout de suite pourquoi l'appli Compta montrera la compagnie
+      var v = de || etat.compte, cv = v && v !== "tous" && v !== "compagnie" ? compte(v) : null;
+      var sans = etat.ajoutes.filter(function (c) { return !comptaDe(c.id); });
+      if (cv && !comptaDe(cv.id)) avis("La Compta de « " + cv.nom + " » n'est pas encore installée : l'appli Compta s'ouvre sur la compagnie. Pour l'installer : Applis, compte « " + cv.nom + " », ligne Compta.", true);
+      else if (!cv && sans.length && sans.length === etat.ajoutes.length) avis("Aucun autre compte n'a encore sa Compta installée : l'appli Compta s'ouvre sur la compagnie.");
+    }
+    invoquer("ouvrir_appli", lien ? { appli: id, lien: lien } : { appli: id }).catch(function (e) { avis(String(e && e.message || e || (nomMac(id) + " ne s'est pas ouverte.")), true); relireMac(); }); }
   function annonceInstalleur() {
     if (!MAC || INSTALLEUR || FENETRE) return "";
     return '<div class="annonce-mac"><p><strong>Nouveau : Origami installe lui-même les applis sur ce Mac.</strong> Pour cela, installe une dernière fois Origami à la main : ensuite, elle se met à jour toute seule.</p><ol><li>Télécharge la nouvelle version.</li><li>Ouvre le fichier et glisse Origami dans Applications (elle remplace l\'ancienne).</li><li>Quitte Origami et rouvre-la.</li></ol><div class="actions"><a class="bouton fort" href="' + DMG.origami + '" target="_blank" rel="noopener">Télécharger la nouvelle version d\'Origami</a></div></div>';
@@ -2601,7 +2609,8 @@ button.tuile:hover { border-color: var(--ligne); }
       else if (cm && cm.adresse && !comptaAutorisee(c.id)) { etatT = "Installée. Dernière étape : l'autoriser."; act = b('data-compta-guide="' + c.id + '"', "Continuer", true); }
       else if (c.id === "compagnie" || comptaDe(c.id)) {
         ok = true; etatT = cm && cm.miseAJour ? "Une nouvelle version est prête." : "Installée.";
-        act = (cm && cm.miseAJour ? b('data-compta-maj="' + c.id + '"', "Mettre à jour", true) + " " : "") + b('data-vue="compta" data-de="' + c.id + '"', "Ouvrir", !(cm && cm.miseAJour));
+        var appliC = c.id !== "compagnie" && !FENETRE && INSTALLEUR && MAC_APPLIS && MAC_APPLIS.compta && MAC_APPLIS.compta.presente;   // l'appli Compta du Mac, sur ce compte
+        act = (cm && cm.miseAJour ? b('data-compta-maj="' + c.id + '"', "Mettre à jour", true) + " " : "") + (appliC ? b('data-mac-ouvrir="compta" data-de="' + c.id + '"', "Ouvrir", !(cm && cm.miseAJour)) : b('data-vue="compta" data-de="' + c.id + '"', "Ouvrir", !(cm && cm.miseAJour)));
       }
       else if (cm && cm.possible) { etatT = cm.enCours ? "Installation commencée : reprends-la." : "Pas encore installée. Une minute environ."; act = b('data-compta-guide="' + c.id + '"', cm.enCours ? "Reprendre" : "Installer", true); }
       else if (relie && etatMoteur(c.id)) { etatT = "Arrive avec la prochaine mise à jour du moteur de ce compte."; eteinte = true; }
@@ -3122,7 +3131,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (d.macNouvelle) { etat.vue = "applis"; montrer(); return; }
       if (!INSTALLEUR) return;
       if (d.macInstaller) { macInstaller(d.macInstaller); return; }
-      if (d.macOuvrir) { macOuvrir(d.macOuvrir); return; }
+      if (d.macOuvrir) { macOuvrir(d.macOuvrir, d.de && compte(d.de) ? d.de : ""); return; }
       if (d.macFinder) { invoquer("montrer_dans_finder", { appli: d.macFinder }).catch(function (e) { avis(String(e && e.message || e), true); }); return; }
       if (d.macNotes && NOTES_MAC[d.macNotes]) {
         ouvrirVoile("<h2>" + nomMac(d.macNotes) + " · notes de version</h2>" + NOTES_MAC[d.macNotes].map(function (n) { return '<p><strong>' + (d.macNotes === "boite" ? "Version " + n[0] : n[0]) + "</strong><br>" + texte(n[1]) + "</p>"; }).join("") + '<div class="actions"><button class="bouton fort" data-mac-fermer="1">Fermer</button></div>');
