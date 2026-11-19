@@ -63,6 +63,7 @@
       <p><strong>À toi, deux gestes.</strong> La mini-appli 3 est en ligne, mais Google ne l'a pas encore autorisée.</p>
       <p>1. Clique ce lien : Google doit ouvrir son écran d'autorisation. Choisis le même compte et accepte. Si rien ne s'affiche ou si Google montre une erreur, fais une capture.</p>
       <p><a id="lienAutoriser" target="_blank" rel="noopener">Autoriser la mini-appli 3</a></p>
+      <p class="doux">Ce lien dit à Google quel compte doit autoriser (celui que tu viens de choisir). Pour comparer, le même lien sans cette précision : <a id="lienSimple" target="_blank" rel="noopener">lien simple</a>.</p>
       <p>2. Reviens sur cette page et clique :</p>
       <div class="actions"><button class="fort" id="verifier3">C'est fait, vérifier</button></div>
     </div>
@@ -80,6 +81,13 @@
   var API = "https://script.googleapis.com/v1/";
   var DROITS = ["https://www.googleapis.com/auth/script.projects", "https://www.googleapis.com/auth/script.deployments"];
   var TITRE = "Origami - essai (à supprimer)";
+  // Essai 2 seulement : connaître l'adresse du compte choisi, pour dire à Google quel compte doit autoriser (authuser).
+  // Elle reste dans cette page : elle ne part que chez Google, dans le lien d'autorisation, et n'est pas mise au compte rendu.
+  var DROIT_ADRESSE = "https://www.googleapis.com/auth/userinfo.email", adresseCompte = "";
+  function lireAdresse() {
+    return fetch("https://www.googleapis.com/oauth2/v3/userinfo", { headers: { Authorization: "Bearer " + jeton } })
+      .then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return /^[^\s@]+@[^\s@]+$/.test(String(d.email || "")) ? String(d.email) : ""; }, function () { return ""; });
+  }
   var $ = function (id) { return document.getElementById(id); };
   var champ = $("client"), bouton = $("lancer"), bouton2 = $("lancer2"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
 
@@ -170,14 +178,16 @@
   }
   var appli3 = null;
   function essaiAutorisation() {
-    return installer("Mini-appli 3 (à autoriser)", CODE_C, ["https://www.googleapis.com/auth/script.external_request"])
+    return lireAdresse().then(function (adr) { adresseCompte = adr; rapport.push("Adresse du compte connue de la page : " + (adr ? "oui" : "non")); return installer("Mini-appli 3 (à autoriser)", CODE_C, ["https://www.googleapis.com/auth/script.external_request"]); })
       .then(function (c) {
         appli3 = c; rapport.push("Adresse 3 : " + c.adresse);
         etape("c5", "Mini-appli 3 : l'ouvrir avant l'autorisation");
         return lire(c.adresse).then(function (t) { return /appli autorisée/.test(t) ? "elle répond déjà, sans autorisation : « " + String(t).slice(0, 80) + " »" : "elle répond autre chose : « " + String(t).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 160) + " »"; }, function (e) { return "comme prévu, elle ne répond pas encore (" + String((e && e.message) || e).slice(0, 160) + ")"; })
           .then(function (vu) {
             finir("c5", true, vu);
-            var l = $("lienAutoriser"); l.href = "https://script.google.com/macros/d/" + encodeURIComponent(c.id) + "/authorize"; rapport.push("Lien d'autorisation : " + l.href);
+            var base = "https://script.google.com/macros/d/" + encodeURIComponent(c.id) + "/authorize", l = $("lienAutoriser"), l2 = $("lienSimple");
+            l.href = base + (adresseCompte ? "?authuser=" + encodeURIComponent(adresseCompte) : ""); l2.href = base;
+            rapport.push("Lien d'autorisation : " + base + (adresseCompte ? "?authuser=(adresse du compte)" : ""));
             $("suite2").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false;
           });
       });
@@ -213,7 +223,7 @@
     function refus(texte) { if (rendu) return; rendu = true; finir("c", false, texte); bilan(false, "La connexion à Google n'a pas abouti."); }
     try {
       google.accounts.oauth2.initTokenClient({
-        client_id: client, scope: DROITS.join(" "), prompt: "select_account",
+        client_id: client, scope: DROITS.concat(quoi === essaiAutorisation ? [DROIT_ADRESSE] : []).join(" "), prompt: "select_account",
         callback: function (r) {
           if (rendu) return;
           if (!r || !r.access_token) { refus("Google a répondu : " + String((r && (r.error_description || r.error)) || "pas de jeton")); return; }
