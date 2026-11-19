@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.39">
+<meta name="origami-version" content="2026-11-19.40">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -90,6 +90,8 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .rang-mac .actions, .zone-mac { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .rang-mac.eteinte { opacity: 0.55; }
 .zone-mac .bouton { min-width: 96px; justify-content: center; }
+.etapes-compta { padding-left: 1.3em; margin: 10px 0 14px; }
+.etapes-compta li { margin: 6px 0; line-height: 1.45; }
 .progression { display: inline-flex; flex-direction: column; gap: 3px; min-width: 150px; font-size: 12px; color: var(--doux); }
 .progression progress { width: 150px; height: 6px; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
 .progression progress::-webkit-progress-bar { background: rgba(0, 0, 0, 0.1); border-radius: 3px; }
@@ -471,8 +473,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.39"></script>
-<script src="repertoire.js?v=2026-11-18.39"></script>
+<script src="agenda.js?v=2026-11-19.40"></script>
+<script src="repertoire.js?v=2026-11-19.40"></script>
 <script>
 (function () {
   "use strict";
@@ -589,9 +591,12 @@ button.tuile:hover { border-color: var(--ligne); }
   function empreinte(t) { var h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (var i = 0, ch; i < t.length; i++) { ch = t.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36); }
   function comptaDe(id) {
     if (id === "compagnie") return ADRESSES.compta;
+    var c = comptaMoteur(id);   // moteur v7 : Compta installée depuis Origami
+    if (c && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(c.adresse || "")) return c.adresse;
     var m = typeof moteurs !== "undefined" && moteurs[id], d = m && /\/macros\/s\/([\w-]+)\/exec$/.exec(m.u);
     return (d && COMPTAS_DES_MOTEURS[empreinte(d[1])]) || "";
   }
+  function comptaMoteur(id) { var m = typeof memoires !== "undefined" && typeof moteurs !== "undefined" && moteurs[id] && memoires[id]; return (m && m.etat && m.etat.compta && typeof m.etat.compta === "object") ? m.etat.compta : null; }
   function cleCadre(c, vue) { return vue === "compta" && c && c.id !== "compagnie" ? "compta@" + c.id : vue; }
   function cleJetonCompta(id) { return id === "compagnie" ? "origami_jeton" : "origami_jeton@" + id; }
   if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
@@ -1079,7 +1084,9 @@ button.tuile:hover { border-color: var(--ligne); }
       return fetch(m.u, envoi).then(function (r) { return r.json(); }).catch(function () { return null; }).then(function (o) {
         clearTimeout(minuterie);
         if (o && o.ok === true) { if (o.c && memoires[id] === me && appliquer(id, o.c)) rafraichir(id); return o; }
-        throw new Error(o && typeof o.erreur === "string" ? o.erreur.slice(0, 200) : "Le moteur du compte ne répond pas.");
+        var er = new Error(o && typeof o.erreur === "string" ? o.erreur.slice(0, 200) : "Le moteur du compte ne répond pas.");
+        if (o && typeof o.code === "string") er.code = o.code.slice(0, 30);   // moteur v7 : « api-eteinte », « droits »…
+        throw er;
       });
     });
   }
@@ -2465,6 +2472,49 @@ button.tuile:hover { border-color: var(--ligne); }
   var ORDRE_APPLIS = ["spectacle", "prospection", "agenda", "compta", "tickets", "frais", "boite"];
   var TEXTES_APPLIS = { spectacle: "Tes spectacles, leurs étapes et leurs dates.", prospection: "Lieux, contacts, relances et candidatures.", agenda: "Tes agendas Google et tes dates.", compta: "Devis, factures, salaires, journal.", tickets: "Justificatifs envoyés par mail, suivi des paiements.", frais: "Notes de frais et défraiements.", boite: "Les mails de tous tes comptes, dans une appli du Mac." };
   function logoAppli(id) { return '<span class="logo-appli' + (id === "boite" ? " sans-fond" : "") + '" aria-hidden="true">' + (LOGOS[id] ? '<img src="' + LOGOS[id] + '" alt="">' : '<svg viewBox="0 0 24 24" style="--c:' + (TEINTES[id] || "#fff") + '">' + ICONES[id] + "</svg>") + "</span>"; }
+  // ---- Compta installée depuis Origami (moteur v7, 19.11) : le moteur du compte crée la Compta, la personne l'autorise ----
+  var comptaEnCours = {};
+  var REGLAGES_API = "https://script.google.com/home/usersettings";
+  function nomCompte(id) { var c = compte(id); return c ? c.nom : "ce compte"; }
+  function comptaInstaller(id, deja) {
+    if (comptaEnCours[id]) return;
+    comptaEnCours[id] = deja ? "Reprise de l'installation…" : "Installation de la Compta… (une minute environ)";
+    montrer();
+    moteurAppel(id, "compta.installer", null, { lent: true }).then(function (r) {
+      delete comptaEnCours[id];
+      return Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {}).then(function () { montrer(); if (r && r.adresse) comptaPremiereFois(id, r.adresse, r.premiere !== false); });
+    }, function (e) { delete comptaEnCours[id]; montrer(); comptaSouci(id, e); });
+  }
+  // Dernière étape, une seule fois : Google demande au propriétaire d'autoriser sa Compta, dans une vraie fenêtre du navigateur.
+  function comptaPremiereFois(id, adresse, premiere) {
+    if (!premiere) { avis("La Compta de " + nomCompte(id) + " est déjà installée."); return; }
+    ouvrirVoile("<h2>Ta Compta est installée</h2><p>Dernière étape, une seule fois : ouvre-la pour l'autoriser.</p><ol class=\"etapes-compta\"><li>Google s'ouvre dans ton navigateur. Choisis le compte <strong>" + texte(nomCompte(id)) + "</strong>.</li><li>S'il dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Origami - Compta ». C'est ta propre appli, dans ton compte.</li><li>Clique sur « Autoriser ». La Compta se prépare seule (une minute environ), puis te demande le nom de ta structure, ta banque et ton code PIN.</li></ol>" +
+      '<div class="actions"><a class="bouton fort" href="' + texte(adresse) + '" target="_blank" rel="noopener" data-compta-autoriser="' + id + '">Ouvrir pour autoriser</a><button class="bouton" data-compta-fini="' + id + '">C\'est fait</button></div>');
+  }
+  function comptaSouci(id, e) {
+    var code = e && e.code, m = String((e && e.message) || e || "");
+    if (code === "api-eteinte") {
+      ouvrirVoile("<h2>Un interrupteur à allumer, une seule fois</h2><p>Pour qu'Origami puisse installer la Compta dans <strong>" + texte(nomCompte(id)) + "</strong>, Google demande d'allumer un interrupteur de ce compte.</p><ol class=\"etapes-compta\"><li>Ouvre la page ci-dessous. Vérifie en haut à droite que c'est bien le compte <strong>" + texte(nomCompte(id)) + "</strong>.</li><li>Allume « API Google Apps Script ».</li><li>Reviens ici et clique sur « Continuer ».</li></ol>" +
+        '<div class="actions"><a class="bouton" href="' + REGLAGES_API + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-compta-installer="' + id + '" data-reprise="1">Continuer</button></div>');
+      return;
+    }
+    if (code === "droits") {
+      var mt = moteurs[id] && moteurs[id].u;
+      ouvrirVoile("<h2>Le moteur du compte doit être autorisé à nouveau</h2><p>Il vient de recevoir de quoi installer la Compta. Google demande au propriétaire de <strong>" + texte(nomCompte(id)) + "</strong> de l'autoriser, une seule fois.</p>" +
+        '<div class="actions">' + (mt ? '<a class="bouton" href="' + texte(mt) + '" target="_blank" rel="noopener">Autoriser le moteur</a>' : "") + '<button class="bouton fort" data-compta-installer="' + id + '" data-reprise="1">Continuer</button></div>');
+      return;
+    }
+    demander("La Compta ne s'est pas installée", m + " Ce qui est déjà fait est gardé : tu peux reprendre.", [{ nom: "Plus tard" }, { nom: "Reprendre", fort: true, action: function () { comptaInstaller(id, true); } }]);
+  }
+  function comptaMettreAJour(id) {
+    if (comptaEnCours[id]) return;
+    comptaEnCours[id] = "Mise à jour de la Compta…";
+    montrer();
+    moteurAppel(id, "compta.mettreAJour", null, { lent: true }).then(function () {
+      delete comptaEnCours[id]; avis("Compta de " + nomCompte(id) + " à jour. Si Google redemande une autorisation, accepte-la une fois.");
+      return Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {}).then(montrer);
+    }, function (e) { delete comptaEnCours[id]; montrer(); if (e && e.code) comptaSouci(id, e); else avis(String((e && e.message) || e), true); });
+  }
   function tuileAppli(c, id) {
     var relie = !!(c && (c.id === "compagnie" || moteurs[c.id])), mac = !FENETRE && boitePossible(), etatT = "", ok = false, act = "", eteinte = false;
     function b(attrs, texte, fort) { return '<button class="bouton' + (fort ? " fort" : "") + '" ' + attrs + ">" + texte + "</button>"; }
@@ -2472,8 +2522,15 @@ button.tuile:hover { border-color: var(--ligne); }
     else if (id === "spectacle" || id === "prospection") { etatT = "En construction : bientôt ici, vierge."; eteinte = true; }
     else if (id === "agenda") { if (relie) { ok = true; etatT = "Prêt."; act = b('data-vue="agenda" data-de="' + c.id + '"', "Ouvrir", true); } else { etatT = "Arrive dès que le compte est relié."; eteinte = true; } }
     else if (id === "compta") {
-      if (c.id === "compagnie" || comptaDe(c.id)) { ok = true; etatT = "Installée."; act = b('data-vue="compta" data-de="' + c.id + '"', "Ouvrir", true); }
-      else { etatT = "Bientôt installable d'ici, en un clic."; eteinte = true; }
+      var cm = c.id === "compagnie" ? null : comptaMoteur(c.id);
+      if (comptaEnCours[c.id]) { etatT = "Ne ferme pas Origami."; act = '<span class="progression" role="status"><progress></progress><span>' + texte(comptaEnCours[c.id]) + "</span></span>"; }
+      else if (c.id === "compagnie" || comptaDe(c.id)) {
+        ok = true; etatT = cm && cm.miseAJour ? "Une nouvelle version est prête." : "Installée.";
+        act = (cm && cm.miseAJour ? b('data-compta-maj="' + c.id + '"', "Mettre à jour", true) + " " : "") + b('data-vue="compta" data-de="' + c.id + '"', "Ouvrir", !(cm && cm.miseAJour));
+      }
+      else if (cm && cm.possible) { etatT = cm.enCours ? "Installation commencée : reprends-la." : "Pas encore installée. Une minute environ."; act = b('data-compta-installer="' + c.id + '"', cm.enCours ? "Reprendre" : "Installer", true); }
+      else if (relie && etatMoteur(c.id)) { etatT = "Arrive avec la prochaine mise à jour du moteur de ce compte."; eteinte = true; }
+      else { etatT = relie ? "Arrive dès que le compte est relu." : "Relie d'abord ce compte."; eteinte = true; }
     } else if (id === "tickets") {
       if (installee(c.id, "tickets")) { ok = true; etatT = "Installé."; act = b('data-vue="tickets0" data-de="' + c.id + '"', "Ouvrir", true); }
       else if (offre(c.id, "tickets")) { etatT = "Pas encore installé."; act = b('data-vue="tickets0" data-de="' + c.id + '"', "Installer", true); }
@@ -3005,6 +3062,9 @@ button.tuile:hover { border-color: var(--ligne); }
       return;
     }
     if (d.macFermer) { fermerVoile(); return; }
+    if (d.comptaInstaller) { fermerVoile(); comptaInstaller(d.comptaInstaller, d.reprise === "1"); return; }
+    if (d.comptaMaj) { comptaMettreAJour(d.comptaMaj); return; }
+    if (d.comptaFini) { fermerVoile(); etat.compte = d.comptaFini; etat.vue = "compta"; montrer(); return; }
     if (d.vue) {
       if (d.vue === "ajouter") { guide.etape = 0; guide.pour = ""; }
       // La Boîte mail ne s'ouvre que sur un bouton « Ouvrir » ; le volet mène à sa page dans Origami (18.11, Sévane :
