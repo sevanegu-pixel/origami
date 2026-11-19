@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.50">
+<meta name="origami-version" content="2026-11-19.51">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -485,9 +485,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.50"></script>
-<script src="repertoire.js?v=2026-11-19.50"></script>
-<script src="google.js?v=2026-11-19.50"></script>
+<script src="agenda.js?v=2026-11-19.51"></script>
+<script src="repertoire.js?v=2026-11-19.51"></script>
+<script src="google.js?v=2026-11-19.51"></script>
 <script>
 (function () {
   "use strict";
@@ -638,12 +638,24 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     return ADRESSES[id];
   }
+  // Le fond du cadre se voit au bord droit de la fenêtre (une bande que l'appli ne couvre pas) : il doit avoir la couleur de l'appli.
+  // La Compta de la compagnie est sombre (réglage de Sévane) ; celle d'un autre compte démarre dans l'apparence par défaut de la Compta
+  // (claire, ou sombre si l'appareil l'est). 19.11 : bande noire à droite d'une Compta claire. La Compta peut aussi dire sa couleur
+  // (message « apparence », fond en #rrggbb), retenue par compte sur l'appareil.
+  var FORME_COULEUR = /^#[0-9a-f]{6}$/i;
+  function fondCadre(id, a) {
+    if (id.indexOf("compta@") !== 0) return a.fond || "";
+    var dit = lire("origami_compta_fond@" + id.slice(7));
+    if (FORME_COULEUR.test(dit)) return dit;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "#151113" : "#f5f2f4";
+  }
   function ouvrirCadre(id, discret) {
     if (cadres[id]) return cadres[id];
     var a = APPLIS[id.split("@")[0]], f = document.createElement("iframe");
     f.title = a.titre; f.setAttribute("allow", a.droits);
     if (a.sansCompte) f.setAttribute("credentialless", "");
-    if (a.fond) f.style.background = a.fond;
+    var fondF = fondCadre(id, a);
+    if (fondF) f.style.background = fondF;
     f.hidden = true;
     if (!discret) attente.hidden = false;
     f.addEventListener("load", function () { setTimeout(function () { attente.hidden = true; }, 1200); });
@@ -1018,6 +1030,8 @@ button.tuile:hover { border-color: var(--ligne); }
       // La Compta de la compagnie, ou celle d'un autre compte (« compta@<compte> ») : chacune son jeton et sa copie.
       var cid = id === "compta" ? "compagnie" : id.slice(7), autre = cid !== "compagnie";
       if (d.origami === "jeton") { garder(cleJetonCompta(cid), FORME_COMPTA.test(d.jeton || "") ? d.jeton : ""); if (!lire(cleJetonCompta(cid))) { ecrireCopieCompta("", cid); if (!autre) { garderResume(null); ecrireApercu(null); } } redessinerBord(); return; }
+      // La Compta dit la couleur de son fond (prévu côté Compta) : le cadre la prend, pour que le bord de la fenêtre ne tranche pas.
+      if (d.origami === "apparence") { if (FORME_COULEUR.test(d.fond || "")) { if (autre) garder("origami_compta_fond@" + cid, d.fond); if (cadres[id]) cadres[id].style.background = d.fond; } return; }
       // Tableau de bord : quelques totaux dits par la Compta (rien si elle redemande son code). Seulement la Compta de la compagnie pour l'instant.
       if (d.origami === "resume") { if (!autre) { garderResume(d.resume); redessinerBord(); } return; }
       // Comptes : la Compta affiche le nom du compte et propose d'en changer.
