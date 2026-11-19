@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.40">
+<meta name="origami-version" content="2026-11-19.41">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -91,6 +91,16 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .rang-mac.eteinte { opacity: 0.55; }
 .zone-mac .bouton { min-width: 96px; justify-content: center; }
 .etapes-compta { padding-left: 1.3em; margin: 10px 0 14px; }
+.guide-compta { list-style: none; margin: 6px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.guide-compta li { display: flex; gap: 10px; align-items: flex-start; }
+.guide-compta li > div { flex: 1; min-width: 0; }
+.guide-compta li p { margin: 4px 0 8px; line-height: 1.45; }
+.guide-compta .pastille { flex: none; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; background: rgba(0, 0, 0, 0.08); color: var(--doux); }
+.guide-compta li.actif .pastille { background: #1f5cff; color: #fff; }
+.guide-compta li.fait .pastille { background: #15803d; color: #fff; }
+.guide-compta li.attente strong { color: var(--doux); font-weight: 500; }
+.guide-compta li.fait strong { font-weight: 500; }
+.souci-guide { color: #b42318; margin: 4px 0; }
 .etapes-compta li { margin: 6px 0; line-height: 1.45; }
 .progression { display: inline-flex; flex-direction: column; gap: 3px; min-width: 150px; font-size: 12px; color: var(--doux); }
 .progression progress { width: 150px; height: 6px; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
@@ -473,8 +483,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.40"></script>
-<script src="repertoire.js?v=2026-11-19.40"></script>
+<script src="agenda.js?v=2026-11-19.41"></script>
+<script src="repertoire.js?v=2026-11-19.41"></script>
 <script>
 (function () {
   "use strict";
@@ -2506,6 +2516,62 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     demander("La Compta ne s'est pas installée", m + " Ce qui est déjà fait est gardé : tu peux reprendre.", [{ nom: "Plus tard" }, { nom: "Reprendre", fort: true, action: function () { comptaInstaller(id, true); } }]);
   }
+  // ---- Guide pas à pas (19.11, demande de Sévane) : les 4 étapes d'une Compta installée depuis Origami, chacune avec son
+  // bouton et sa coche. Il se rouvre où on en était : l'état vient du moteur du compte (et de cet appareil pour l'étape 4).
+  var guideC = { id: "", api: null, occupe: "", souci: "" };
+  function comptaAutorisee(id) { return lire("origami_compta_autorisee@" + id) === "1"; }
+  function moteurPret(id) { var m = memoires[id]; return !!(moteurs[id] && m && !m.panne && m.etat && m.etat.moteur && m.etat.moteur.version >= 7); }
+  function comptaGuide(id) {
+    guideC = { id: id, api: null, occupe: "Je regarde où en est ce compte…", souci: "" };
+    dessinerGuideCompta();
+    Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {}).then(function () {
+      if (!moteurPret(id) || (comptaMoteur(id) || {}).adresse) return;
+      return moteurAppel(id, "api.etat", null, { sans: true }).then(function (r) { guideC.api = !!(r && r.api); guideC.apiCode = (r && r.code) || ""; }, function () { guideC.api = null; });
+    }).then(function () { guideC.occupe = ""; dessinerGuideCompta(); });
+  }
+  function dessinerGuideCompta() {
+    var id = guideC.id;
+    if (!id) return;
+    if (!voile.hidden && !voile.querySelector("[data-guide-compta]")) return;   // une autre fenêtre est ouverte : on ne l'écrase pas
+    var m = memoires[id] || {}, cm = comptaMoteur(id) || {}, nom = texte(nomCompte(id));
+    var f1 = moteurPret(id), f3 = !!cm.adresse, f2 = f3 || (f1 && guideC.api === true), f4 = f3 && comptaAutorisee(id);
+    var faits = [f1, f2, f3, f4], actif = faits.indexOf(false);
+    function etape(i, titre, corps) {
+      var cl = faits[i] ? "fait" : i === actif ? "actif" : "attente";
+      return '<li class="' + cl + '"><span class="pastille" aria-hidden="true">' + (faits[i] ? "✓" : i + 1) + '</span><div><strong>' + titre + "</strong>" + (i === actif && !guideC.occupe ? corps : "") + "</div></li>";
+    }
+    var lienDonnees = m.etat && m.etat.rangement && (m.etat.rangement.origami || m.etat.rangement.donnees);
+    var e1 = m.panne ? "<p>Le moteur de ce compte a reçu de quoi installer la Compta. Google demande de l'autoriser, une seule fois : ouvre le classeur « Origami - Réglages du compte » de <strong>" + nom + "</strong>" + " (dans ton dossier Origami)" + ", menu Origami › « Installer ou réparer », puis accepte l'écran de Google.</p>" +
+        '<div class="actions">' + (lienDonnees ? '<a class="bouton" href="' + texte(lienDonnees) + '" target="_blank" rel="noopener">Ouvrir le dossier</a>' : "") + '<button class="bouton fort" data-guide-compta-verifier="1">C\'est fait, vérifier</button></div>'
+      : "<p>Le moteur de ce compte n'a pas encore la mise à jour qui installe la Compta. Elle arrive bientôt.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-verifier="1">Vérifier à nouveau</button></div>';
+    var e2 = "<p>Google demande d'allumer un interrupteur du compte, une seule fois. Sur la page qui s'ouvre, vérifie en haut à droite que c'est bien <strong>" + nom + "</strong>, puis allume « API Google Apps Script ».</p>" +
+      '<div class="actions"><a class="bouton" href="' + REGLAGES_API + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-guide-compta-verifier="1">C\'est allumé, vérifier</button></div>' +
+      (guideC.api === false && guideC.apiCode && guideC.apiCode !== "api-eteinte" ? '<p class="aide-fine">' + texte(guideC.apiCode === "droits" ? "Le moteur doit d'abord être autorisé à nouveau (étape 1)." : "Google n'a pas répondu, réessaie dans un instant.") + "</p>" : "");
+    var e3 = "<p>Origami crée ta Compta dans ton Drive (dossier Origami › Compta) et la publie. Une minute environ.</p>" + '<div class="actions"><button class="bouton fort" data-guide-compta-installer="1">' + ((comptaMoteur(id) || {}).enCours ? "Reprendre l'installation" : "Installer la Compta") + "</button></div>";
+    var e4 = "<p>Ouvre-la une première fois pour l'autoriser. Choisis le compte <strong>" + nom + "</strong>. Si Google dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Origami - Compta » (c'est ta propre appli, dans ton compte). Clique sur « Autoriser » : la Compta se prépare seule (une minute environ), puis demande le nom de ta structure, ta banque et ton code PIN.</p>" +
+      '<div class="actions">' + (cm.adresse ? '<a class="bouton" href="' + texte(cm.adresse) + '" target="_blank" rel="noopener">Ouvrir pour autoriser</a>' : "") + '<button class="bouton fort" data-guide-compta-fini="1">C\'est fait</button></div>';
+    var h = '<div data-guide-compta="1"><h2>Installer la Compta</h2><p class="aide-fine">Dans le compte ' + nom + ". Quatre étapes, une seule fois. Tu peux fermer et revenir : le guide reprend où tu en étais.</p>" +
+      '<ol class="guide-compta">' + etape(0, "Autoriser le moteur du compte", e1) + etape(1, "Allumer l'interrupteur de Google", e2) + etape(2, "Installer la Compta", e3) + etape(3, "Autoriser ta Compta", e4) + "</ol>" +
+      (guideC.occupe ? '<p class="progression" role="status"><progress></progress><span>' + texte(guideC.occupe) + "</span></p>" : "") +
+      (guideC.souci ? '<p class="souci-guide" role="alert">' + texte(guideC.souci) + "</p>" : "") +
+      '<div class="actions">' + (actif < 0 ? '<button class="bouton fort" data-guide-compta-ouvrir="1">Ouvrir ma Compta</button>' : '<button class="bouton" data-guide-compta-fermer="1">Fermer</button>') + "</div></div>";
+    ouvrirVoile(h);
+  }
+  function guideComptaInstaller() {
+    var id = guideC.id;
+    if (!id || comptaEnCours[id]) return;
+    comptaEnCours[id] = "Installation de la Compta… (une minute environ)";
+    guideC.occupe = comptaEnCours[id]; guideC.souci = ""; dessinerGuideCompta();
+    moteurAppel(id, "compta.installer", null, { lent: true }).then(function () {
+      delete comptaEnCours[id];
+      return Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {});
+    }, function (e) {
+      delete comptaEnCours[id];
+      if (e && e.code === "api-eteinte") guideC.api = false;
+      else if (e && e.code === "droits") { var mm = memoires[id]; if (mm) mm.panne = "droits"; }
+      else guideC.souci = String((e && e.message) || e) + " Ce qui est fait est gardé : tu peux reprendre.";
+    }).then(function () { guideC.occupe = ""; montrer(); dessinerGuideCompta(); });
+  }
   function comptaMettreAJour(id) {
     if (comptaEnCours[id]) return;
     comptaEnCours[id] = "Mise à jour de la Compta…";
@@ -2524,11 +2590,12 @@ button.tuile:hover { border-color: var(--ligne); }
     else if (id === "compta") {
       var cm = c.id === "compagnie" ? null : comptaMoteur(c.id);
       if (comptaEnCours[c.id]) { etatT = "Ne ferme pas Origami."; act = '<span class="progression" role="status"><progress></progress><span>' + texte(comptaEnCours[c.id]) + "</span></span>"; }
+      else if (cm && cm.adresse && !comptaAutorisee(c.id)) { etatT = "Installée. Dernière étape : l'autoriser."; act = b('data-compta-guide="' + c.id + '"', "Continuer", true); }
       else if (c.id === "compagnie" || comptaDe(c.id)) {
         ok = true; etatT = cm && cm.miseAJour ? "Une nouvelle version est prête." : "Installée.";
         act = (cm && cm.miseAJour ? b('data-compta-maj="' + c.id + '"', "Mettre à jour", true) + " " : "") + b('data-vue="compta" data-de="' + c.id + '"', "Ouvrir", !(cm && cm.miseAJour));
       }
-      else if (cm && cm.possible) { etatT = cm.enCours ? "Installation commencée : reprends-la." : "Pas encore installée. Une minute environ."; act = b('data-compta-installer="' + c.id + '"', cm.enCours ? "Reprendre" : "Installer", true); }
+      else if (cm && cm.possible) { etatT = cm.enCours ? "Installation commencée : reprends-la." : "Pas encore installée. Une minute environ."; act = b('data-compta-guide="' + c.id + '"', cm.enCours ? "Reprendre" : "Installer", true); }
       else if (relie && etatMoteur(c.id)) { etatT = "Arrive avec la prochaine mise à jour du moteur de ce compte."; eteinte = true; }
       else { etatT = relie ? "Arrive dès que le compte est relu." : "Relie d'abord ce compte."; eteinte = true; }
     } else if (id === "tickets") {
@@ -3063,6 +3130,12 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     if (d.macFermer) { fermerVoile(); return; }
     if (d.comptaInstaller) { fermerVoile(); comptaInstaller(d.comptaInstaller, d.reprise === "1"); return; }
+    if (d.comptaGuide) { comptaGuide(d.comptaGuide); return; }
+    if (d.guideComptaVerifier) { comptaGuide(guideC.id); return; }
+    if (d.guideComptaInstaller) { guideComptaInstaller(); return; }
+    if (d.guideComptaFini) { garder("origami_compta_autorisee@" + guideC.id, "1"); montrer(); dessinerGuideCompta(); return; }
+    if (d.guideComptaOuvrir) { var gi = guideC.id; fermerVoile(); guideC.id = ""; etat.compte = gi; etat.vue = "compta"; montrer(); return; }
+    if (d.guideComptaFermer) { fermerVoile(); guideC.id = ""; return; }
     if (d.comptaMaj) { comptaMettreAJour(d.comptaMaj); return; }
     if (d.comptaFini) { fermerVoile(); etat.compte = d.comptaFini; etat.vue = "compta"; montrer(); return; }
     if (d.vue) {
