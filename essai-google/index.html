@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Origami · Essai Google</title>
+<style>
+  :root { --fond: #f6f6f8; --carte: #fff; --texte: #16161a; --doux: #5d5d68; --trait: #dcdce3; --fort: #2552e0; --bon: #1c7a3d; --mal: #b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --fond: #131316; --carte: #1d1d22; --texte: #f1f1f4; --doux: #a5a5b2; --trait: #34343d; --fort: #7d9cff; --bon: #62c986; --mal: #ff8a80; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--fond); color: var(--texte); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 28px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  p { margin: 0 0 12px; }
+  .doux { color: var(--doux); font-size: 14px; }
+  .carte { background: var(--carte); border: 1px solid var(--trait); border-radius: 14px; padding: 16px; margin: 16px 0; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  input[type=text] { width: 100%; font: inherit; padding: 10px 12px; border: 1px solid var(--trait); border-radius: 10px; background: var(--fond); color: var(--texte); }
+  button { font: inherit; font-weight: 600; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--trait); background: var(--carte); color: var(--texte); cursor: pointer; }
+  button.fort { background: var(--fort); border-color: var(--fort); color: #fff; }
+  @media (prefers-color-scheme: dark) { button.fort { color: #10131f; } }
+  button:disabled { opacity: .5; cursor: default; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  ol { list-style: none; margin: 0; padding: 0; }
+  ol li { display: flex; gap: 10px; padding: 8px 0; border-top: 1px solid var(--trait); }
+  ol li:first-child { border-top: 0; }
+  .puce { flex: 0 0 22px; height: 22px; border-radius: 50%; border: 1px solid var(--trait); text-align: center; font-size: 13px; line-height: 20px; color: var(--doux); }
+  li.fait .puce { background: var(--bon); border-color: var(--bon); color: #fff; }
+  li.rate .puce { background: var(--mal); border-color: var(--mal); color: #fff; }
+  li.cours .puce { border-color: var(--fort); color: var(--fort); }
+  li .detail { color: var(--doux); font-size: 14px; overflow-wrap: anywhere; }
+  li.rate .detail { color: var(--mal); }
+  a { color: var(--fort); overflow-wrap: anywhere; }
+  .bilan { font-weight: 600; }
+  .bilan.bon { color: var(--bon); } .bilan.mal { color: var(--mal); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Essai : Origami se connecte à Google</h1>
+  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée deux mini-applis vides, nommées « Origami - essai (à supprimer) ». Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
+
+  <div class="carte">
+    <label for="client">ID client du projet Google de la compagnie</label>
+    <input type="text" id="client" autocomplete="off" spellcheck="false" placeholder="…apps.googleusercontent.com">
+    <p class="doux" style="margin-top:8px">À ouvrir dans Chrome ou Safari, pas dans l'appli Origami du Mac. Google va te demander de choisir un compte : prends celui où tu veux faire l'essai, et laisse cochés les deux droits demandés.</p>
+    <div class="actions">
+      <button class="fort" id="lancer">Se connecter à Google et lancer l'essai</button>
+    </div>
+  </div>
+
+  <div class="carte" id="suivi" hidden>
+    <ol id="etapes"></ol>
+    <p class="bilan" id="bilan" hidden></p>
+    <div id="suite" hidden>
+      <p><strong>Dernier geste, à la main.</strong> Ouvre la deuxième mini-appli, celle qui a besoin d'un droit, et regarde ce que Google affiche (une demande d'autorisation, un message d'erreur, ou directement « L'essai a marché ») :</p>
+      <p><a id="lienB" target="_blank" rel="noopener"></a></p>
+    </div>
+    <div class="actions">
+      <button id="copier" hidden>Copier le compte rendu</button>
+    </div>
+    <p class="doux" id="copie" hidden>Copié. Colle-le dans la conversation.</p>
+  </div>
+</main>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+(function () {
+  "use strict";
+  var API = "https://script.googleapis.com/v1/";
+  var DROITS = ["https://www.googleapis.com/auth/script.projects", "https://www.googleapis.com/auth/script.deployments"];
+  var TITRE = "Origami - essai (à supprimer)";
+  var $ = function (id) { return document.getElementById(id); };
+  var champ = $("client"), bouton = $("lancer"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
+
+  try { champ.value = localStorage.getItem("origami_essai_client") || ""; } catch (e) {}
+
+  function manifeste(droits) {
+    var m = { timeZone: "Europe/Zurich", exceptionLogging: "STACKDRIVER", runtimeVersion: "V8", webapp: { executeAs: "USER_DEPLOYING", access: "ANYONE_ANONYMOUS" } };
+    if (droits) m.oauthScopes = droits;
+    return JSON.stringify(m, null, 2);
+  }
+  function codeA(texte) { return "function doGet() {\n  return ContentService.createTextOutput(" + JSON.stringify(texte) + ");\n}\n"; }
+  var CODE_B = "function doGet() {\n  var lu = !!Session.getEffectiveUser().getEmail();\n  return ContentService.createTextOutput(\"L'essai a marché (avec un droit) : \" + (lu ? 'oui' : 'non'));\n}\n";
+  function fichiers(code, droits) { return { files: [{ name: "appsscript", type: "JSON", source: manifeste(droits) }, { name: "Code", type: "SERVER_JS", source: code }] }; }
+
+  function etape(cle, titre) {
+    var li = document.createElement("li"); li.className = "cours";
+    li.innerHTML = '<span class="puce" aria-hidden="true">…</span><div><div class="titre"></div><div class="detail"></div></div>';
+    li.querySelector(".titre").textContent = titre; liste.appendChild(li); lignes[cle] = { li: li, titre: titre };
+  }
+  function finir(cle, ok, detail) {
+    var l = lignes[cle]; if (!l) return;
+    l.li.className = ok ? "fait" : "rate"; l.li.querySelector(".puce").textContent = ok ? "✓" : "!";
+    l.li.querySelector(".detail").textContent = detail || "";
+    rapport.push((ok ? "OK   " : "RATÉ ") + l.titre + (detail ? " : " + detail : ""));
+  }
+
+  function api(methode, chemin, corps) {
+    var opt = { method: methode, headers: { Authorization: "Bearer " + jeton } };
+    if (corps !== undefined) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(corps); }
+    return fetch(API + chemin, opt).then(function (r) {
+      return r.text().then(function (t) {
+        var d = {}; try { d = JSON.parse(t || "{}"); } catch (e) { d = {}; }
+        if (r.ok) return d;
+        var err = new Error(r.status + " : " + String((d.error && d.error.message) || t).slice(0, 400)); err.statut = r.status; throw err;
+      });
+    });
+  }
+  function pas(cle, titre, f, dire) {
+    etape(cle, titre);
+    return f().then(function (r) { finir(cle, true, dire ? dire(r) : ""); return r; }, function (e) { finir(cle, false, String((e && e.message) || e)); throw e; });
+  }
+
+  // Crée un projet, y met le code, en fait une version et la met en ligne : rend { id, deploiement, adresse }.
+  function installer(nom, code, droits) {
+    var p = {};
+    return pas(nom + "1", nom + " : créer le projet", function () { return api("POST", "projects", { title: TITRE }); }, function (r) { return "projet créé"; })
+      .then(function (r) { p.id = r.scriptId; return pas(nom + "2", nom + " : y mettre le code", function () { return api("PUT", "projects/" + encodeURIComponent(p.id) + "/content", fichiers(code, droits)); }); })
+      .then(function () { return pas(nom + "3", nom + " : en faire une version", function () { return api("POST", "projects/" + encodeURIComponent(p.id) + "/versions", { description: "Essai Origami" }); }, function (r) { return "version " + r.versionNumber; }); })
+      .then(function (r) { p.version = r.versionNumber; return pas(nom + "4", nom + " : la mettre en ligne", function () { return api("POST", "projects/" + encodeURIComponent(p.id) + "/deployments", { versionNumber: p.version, manifestFileName: "appsscript", description: "Essai Origami" }); }, function (r) { return "en ligne"; }); })
+      .then(function (r) {
+        p.deploiement = r.deploymentId;
+        var w = (r.entryPoints || []).filter(function (x) { return x && x.webApp && x.webApp.url; })[0];
+        p.adresse = (w && w.webApp.url) || ("https://script.google.com/macros/s/" + p.deploiement + "/exec");
+        return p;
+      });
+  }
+  function lire(adresse) { return fetch(adresse, { redirect: "follow" }).then(function (r) { return r.text().then(function (t) { if (!r.ok) throw new Error(r.status + " : " + t.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 200)); return t; }); }); }
+
+  function essai() {
+    var a = null;
+    return installer("Mini-appli 1", codeA("L'essai a marché."), null)
+      .then(function (p) { a = p; return pas("a5", "Mini-appli 1 : l'ouvrir depuis cette page", function () { return lire(a.adresse); }, function (t) { return "elle répond « " + String(t).slice(0, 80) + " »"; }).catch(function () { return null; }); })
+      .then(function () { return pas("a6", "Mini-appli 1 : la mettre à jour", function () {
+        return api("PUT", "projects/" + encodeURIComponent(a.id) + "/content", fichiers(codeA("L'essai a marché, version 2."), null))
+          .then(function () { return api("POST", "projects/" + encodeURIComponent(a.id) + "/versions", { description: "Essai Origami 2" }); })
+          .then(function (v) { return api("PUT", "projects/" + encodeURIComponent(a.id) + "/deployments/" + encodeURIComponent(a.deploiement), { deploymentConfig: { versionNumber: v.versionNumber, manifestFileName: "appsscript", description: "Essai Origami 2" } }); });
+      }, function () { return "même adresse, nouvelle version"; }); })
+      .then(function () { return pas("a7", "Mini-appli 1 : vérifier la mise à jour", function () { return lire(a.adresse).then(function (t) { if (!/version 2/.test(t)) throw new Error("elle répond encore « " + String(t).slice(0, 80) + " »"); return t; }); }, function (t) { return "elle répond « " + String(t).slice(0, 80) + " »"; }).catch(function () { return null; }); })
+      .then(function () { return installer("Mini-appli 2 (avec un droit)", CODE_B, ["https://www.googleapis.com/auth/userinfo.email"]); })
+      .then(function (b) {
+        rapport.push("Adresse 1 : " + a.adresse); rapport.push("Adresse 2 : " + b.adresse);
+        var l = $("lienB"); l.href = b.adresse; l.textContent = "Ouvrir la mini-appli 2"; $("suite").hidden = false;
+        var rates = Object.keys(lignes).filter(function (k) { return lignes[k].li.className === "rate"; }).length;
+        bilan(rates === 0, rates === 0 ? "Tout a marché : Google laisse Origami créer, mettre en ligne et mettre à jour une appli dans ce compte." : "Les applis sont créées, mais une vérification a raté (voir ci-dessus).");
+      });
+  }
+  function bilan(ok, texte) { var b = $("bilan"); b.hidden = false; b.className = "bilan " + (ok ? "bon" : "mal"); b.textContent = texte; rapport.push((ok ? "BILAN OK : " : "BILAN : ") + texte); $("copier").hidden = false; bouton.disabled = false; }
+  function conseil(e) {
+    var m = String((e && e.message) || e);
+    if (/User has not enabled the Apps Script API|usersettings/i.test(m)) return "Dans ce compte, l'interrupteur « API Google Apps Script » est éteint (script.google.com/home/usersettings). Allume-le, attends une minute et relance.";
+    if (/has not been used in project|it is disabled|SERVICE_DISABLED/i.test(m)) return "L'API Apps Script n'est pas activée dans le projet Google de la compagnie (étape 2 de la marche à suivre).";
+    if (e && e.statut === 401) return "Google n'a pas accepté la connexion. Relance l'essai.";
+    if (e && e.statut === 403) return "Google refuse. Copie le compte rendu et colle-le dans la conversation.";
+    return "L'essai s'est arrêté. Copie le compte rendu et colle-le dans la conversation.";
+  }
+
+  bouton.addEventListener("click", function () {
+    var client = champ.value.trim();
+    if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(client)) { alerter("Colle d'abord l'ID client : une ligne qui finit par .apps.googleusercontent.com"); return; }
+    if (!(window.google && google.accounts && google.accounts.oauth2)) { alerter("La connexion à Google n'est pas encore chargée. Attends deux secondes et recommence. Si ça dure, un bloqueur de publicité l'empêche peut-être."); return; }
+    try { localStorage.setItem("origami_essai_client", client); } catch (e) {}
+    bouton.disabled = true; liste.innerHTML = ""; lignes = {}; rapport = ["Essai Origami / Google, " + new Date().toLocaleString("fr-CH")];
+    $("suivi").hidden = false; $("bilan").hidden = true; $("suite").hidden = true; $("copier").hidden = true; $("copie").hidden = true;
+    etape("c", "Se connecter à Google");
+    var rendu = false;
+    function refus(texte) { if (rendu) return; rendu = true; finir("c", false, texte); bilan(false, "La connexion à Google n'a pas abouti."); }
+    try {
+      google.accounts.oauth2.initTokenClient({
+        client_id: client, scope: DROITS.join(" "), prompt: "consent",
+        callback: function (r) {
+          if (rendu) return;
+          if (!r || !r.access_token) { refus("Google a répondu : " + String((r && (r.error_description || r.error)) || "pas de jeton")); return; }
+          if (!google.accounts.oauth2.hasGrantedAllScopes(r, DROITS[0], DROITS[1])) { refus("Il manque un des deux droits : à l'écran de Google, laisse les deux cases cochées."); return; }
+          rendu = true; jeton = r.access_token; finir("c", true, "connectée, les deux droits sont donnés");
+          essai().catch(function (e) { bilan(false, conseil(e)); }).then(function () { jeton = ""; });
+        },
+        error_callback: function (e) { refus(e && e.type === "popup_closed" ? "La fenêtre de Google a été fermée avant la fin." : e && e.type === "popup_failed_to_open" ? "Le navigateur a bloqué la fenêtre de Google : autorise les fenêtres surgissantes pour cette page." : "Google a répondu : " + String((e && (e.message || e.type)) || "erreur")); }
+      }).requestAccessToken();
+    } catch (e) { refus(String((e && e.message) || e)); }
+  });
+  function alerter(texte) { $("suivi").hidden = false; liste.innerHTML = ""; lignes = {}; var b = $("bilan"); b.hidden = false; b.className = "bilan mal"; b.textContent = texte; }
+
+  $("copier").addEventListener("click", function () {
+    var t = rapport.join("\n");
+    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).catch(function () {
+      var z = document.createElement("textarea"); z.value = t; document.body.appendChild(z); z.select(); try { document.execCommand("copy"); } catch (e) {} z.remove();
+    }).then(function () { $("copie").hidden = false; });
+  });
+})();
+</script>
+</body>
+</html>
