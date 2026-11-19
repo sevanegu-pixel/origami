@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.48">
+<meta name="origami-version" content="2026-11-19.49">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -483,9 +483,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.48"></script>
-<script src="repertoire.js?v=2026-11-19.48"></script>
-<script src="google.js?v=2026-11-19.48"></script>
+<script src="agenda.js?v=2026-11-19.49"></script>
+<script src="repertoire.js?v=2026-11-19.49"></script>
+<script src="google.js?v=2026-11-19.49"></script>
 <script>
 (function () {
   "use strict";
@@ -796,7 +796,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function dessinerSurCeMac() {
     if (!SUR_MAC || FENETRE) return "";
     if (MAC && !INSTALLEUR) return annonceInstalleur();
-    var h = '<section class="sur-ce-mac"><h2>Sur ce Mac</h2><p>Chaque appli a son icône dans le Dock et s\'ouvre seule. ' + (INSTALLEUR ? "Origami les installe et les met à jour d'ici." : "Dans l'appli Origami pour Mac, elles s'installent d'ici en un clic.") + '</p><div class="liste-mac">';
+    var h = '<section class="sur-ce-mac"><h2>' + (MAC ? "Sur ce Mac" : "Les applis pour ce Mac (facultatif)") + '</h2><p>Chaque appli a son icône dans le Dock et s\'ouvre seule. ' + (INSTALLEUR ? "Origami les installe et les met à jour d'ici." : "Ces fichiers posent l'appli sur l'ordinateur : ils n'installent rien dans tes comptes Google. Dans l'appli Origami pour Mac, elles s'installent d'ici en un clic.") + '</p><div class="liste-mac">';
     ORDRE_MAC.forEach(function (id) {
       h += '<div class="rang-mac" data-rang-mac="' + id + '">' + (id === "origami" ? '<span class="logo-appli" aria-hidden="true"><img src="' + LOGO_ORIGAMI + '" alt=""></span>' : logoAppli(id)) +
         '<div class="corps"><strong>' + nomMac(id) + '</strong><span class="etat-mac">' + etatMacTexte(id) + "</span></div>" + actionMac(id, true) + "</div>";
@@ -1205,6 +1205,8 @@ button.tuile:hover { border-color: var(--ligne); }
   function rafraichir(id) {
     if (etat.vue === "accueil") dessinerAccueil();
     else if (etat.vue === "reglages") dessinerReglages();
+    // 19.11 : l'écran Applis restait sur « Arrive dès que le compte est relu » après le relevé d'un compte tout juste relié.
+    else if (etat.vue === "applis") { var pg = document.getElementById("page"), d1 = pg ? pg.scrollTop : 0, d2 = window.scrollY; dessinerPage("applis"); try { if (pg) pg.scrollTop = d1; window.scrollTo(0, d2); } catch (e) {} }
     else if (etat.vue === "tickets0" && etat.compte === id) dessinerTickets();
     else if (etat.vue === "diffusion0" && etat.compte === id) dessinerDiffusion();
     else if (etat.vue === "agenda" && window.OrigamiAgenda) window.OrigamiAgenda.rafraichir();
@@ -2555,6 +2557,8 @@ button.tuile:hover { border-color: var(--ligne); }
     var e3 = "<p>Dernier geste : Google te demande d'autoriser ta Compta. Vérifie que c'est bien le compte <strong>" + nom + "</strong>, puis accepte. S'il dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Origami - Compta » (c'est ta propre appli, dans ton compte).</p>" +
       '<div class="actions">' + (lienA ? '<a class="bouton" href="' + texte(lienA) + '" target="_blank" rel="noopener">Autoriser ma Compta</a>' : "") + '<button class="bouton fort" data-guide-compta-ping="1">C\'est fait, vérifier</button></div>' +
       (guideC.code === "ping" ? '<div class="actions"><button class="bouton" data-guide-compta-fini="1">Je l\'ai autorisée, continuer sans vérifier</button></div>' : "") +
+      // 19.11, essai en vrai : dans un navigateur où plusieurs comptes Google sont connectés, la page d'autorisation de Google ne s'ouvre pas.
+      (lienA ? '<details class="aide-fine"><summary>Google affiche « Page introuvable » ou « Impossible d\'ouvrir le fichier » ?</summary><p>Cela arrive quand plusieurs comptes Google sont connectés dans ce navigateur. Copie le lien, puis ouvre-le là où seul <strong>' + nom + '</strong> est connecté : son propre navigateur, ou une fenêtre de navigation privée. Autorise, puis reviens ici et clique « C\'est fait, vérifier ».</p><div class="actions"><button class="bouton" data-guide-compta-copier="' + texte(lienA) + '">Copier le lien</button></div></details>' : "") +
       '<p class="aide-fine">À sa première ouverture, la Compta se prépare seule (une minute environ), puis demande le nom de ta structure, ta banque et ton code PIN.</p>';
     var h = '<div data-guide-compta="1"><h2>Installer la Compta</h2><p class="aide-fine">Dans le compte ' + nom + ". Trois étapes, une seule fois. Tu peux fermer et revenir : le guide reprend où tu en étais.</p>" +
       '<ol class="guide-compta">' + etape(0, "Connecter Origami à Google", e1) + etape(1, "Installer la Compta", e2) + etape(2, "Autoriser ta Compta", e3) + "</ol>" +
@@ -2680,14 +2684,16 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   function dessinerApplis() {
     var l = !comptes().length ? [null] : etat.compte === "tous" ? affiches() : [compte(etat.compte)];
-    var h = "<h1>Applis</h1><p>Installer, ouvrir et mettre à jour les applis d'Origami. Ce qu'elles contiennent est dans le tableau de bord.</p>" + dessinerSurCeMac() + '<section class="sur-ce-mac"><h2>' + (l.length === 1 && l[0] ? "Dans le compte " + texte(l[0].nom) : "Dans tes comptes") + "</h2>";
+    var h = "<h1>Applis</h1><p>Installer, ouvrir et mettre à jour les applis d'Origami. Ce qu'elles contiennent est dans le tableau de bord.</p>" + (MAC ? dessinerSurCeMac() : "") + '<section class="sur-ce-mac"><h2>' + (l.length === 1 && l[0] ? "Dans le compte " + texte(l[0].nom) : "Dans tes comptes") + "</h2>";
     l.forEach(function (c) {
       if (c && l.length > 1) h += '<h2 class="du-compte-applis"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</h2>";
       if (c && c.id !== "compagnie" && !moteurs[c.id]) h += '<p class="note">' + texte(c.nom) + ' n\'est pas encore relié sur cet appareil. <button class="lien" data-vue="relier" data-de="' + c.id + '">Le relier</button></p>';
       h += '<div class="liste-mac applis-grille">' + ORDRE_APPLIS.filter(function (id) { return !(id === "boite" && SUR_MAC && !FENETRE); }).map(function (id) { return tuileAppli(c, id); }).join("") + "</div>";
     });
     if (!comptes().length) h += '<p><button class="bouton fort" data-vue="ajouter">Ajouter un compte</button></p>';
-    return h + "</section>";
+    // Dans un navigateur, les applis des comptes d'abord : les fichiers « Télécharger pour Mac » passent en dessous
+    // (19.11, Sévane cherchait « Installer » de la Compta et tombait sur « Télécharger pour Mac »).
+    return h + "</section>" + (MAC ? "" : dessinerSurCeMac());
   }
   function bordAutre(c) {
     var h = {}, tk = installee(c.id, "tickets");
@@ -3138,7 +3144,11 @@ button.tuile:hover { border-color: var(--ligne); }
     else if (vue === "diffusion0") { dessinerDiffusion(); releverSiVieux(c0.id); releverDiffusionSiVieux(c0.id); }
     else if (vue === "agenda") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiAgenda) window.OrigamiAgenda.montrer(agendaZone, pontAgenda); else page.hidden = false, page.innerHTML = '<div class="info"><h1>Agenda</h1><p>L\'agenda n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (vue === "repertoire") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiRepertoire) window.OrigamiRepertoire.montrer(repertoireZone, pontRepertoire); else page.innerHTML = '<div class="info"><h1>Répertoire</h1><p>Le répertoire n\'a pas pu se charger. Recharge la page.</p></div>'; }
-    else if (!cadre) dessinerPage(vue);
+    else if (!cadre) {
+      dessinerPage(vue);
+      // Applis : le compte est relu ici aussi (19.11 : sans cela, un compte tout juste relié restait sur « Arrive dès que le compte est relu »).
+      if (vue === "applis") (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { if (c) releverSiVieux(c.id); });
+    }
     dessinerMenu();
     document.title = FENETRE === "tickets0" ? "Tickets" : APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : vue === "reglages" ? "Réglages · Origami" : "Origami";
     retenir();
@@ -3197,6 +3207,11 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.comptaInstaller) { comptaGuide(d.comptaInstaller); return; }
     if (d.guideComptaConnecter) { guideComptaConnecter(); return; }
     if (d.guideComptaPing) { guideComptaPing(); return; }
+    if (d.guideComptaCopier) {
+      var lc = d.guideComptaCopier, repliC = function () { try { var z = document.createElement("textarea"); z.value = lc; document.body.appendChild(z); z.select(); document.execCommand("copy"); z.remove(); avis("Lien copié."); } catch (e) { avis("La copie n'a pas marché : fais un clic droit sur « Autoriser ma Compta », puis « Copier l'adresse du lien ».", true); } };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(lc).then(function () { avis("Lien copié."); }, repliC); else repliC();
+      return;
+    }
     if (d.comptaMajGo) { comptaMajConnecter(d.comptaMajGo); return; }
     if (d.comptaGuide) { comptaGuide(d.comptaGuide); return; }
     if (d.guideComptaVerifier) { comptaGuide(guideC.id); return; }
