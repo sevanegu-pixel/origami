@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.49">
+<meta name="origami-version" content="2026-11-19.50">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -328,6 +328,8 @@ a.lien { color: var(--accent); }
 .bord { display: flex; flex-direction: column; gap: 12px; max-width: 1080px; margin: 0 auto; }
 .bord > .entete, .bord > .choix { max-width: none; width: 100%; margin: 0; }
 .bord .entete { align-items: center; }
+.entete-applis { align-items: center; margin: 0 0 6px; max-width: none; }
+.entete-applis h1 { margin: 0; }
 .jour { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 16px; background: var(--carte); box-shadow: 0 1px 2px rgba(17, 16, 20, 0.06); }
 .jour .phrase { font-size: 16px; line-height: 1.5; overflow-wrap: anywhere; }
 .jour .phrase strong { font-weight: 650; }
@@ -483,9 +485,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.49"></script>
-<script src="repertoire.js?v=2026-11-19.49"></script>
-<script src="google.js?v=2026-11-19.49"></script>
+<script src="agenda.js?v=2026-11-19.50"></script>
+<script src="repertoire.js?v=2026-11-19.50"></script>
+<script src="google.js?v=2026-11-19.50"></script>
 <script>
 (function () {
   "use strict";
@@ -1152,7 +1154,7 @@ button.tuile:hover { border-color: var(--ligne); }
         if (moteurs[id] && memoires[id] === m) garderMemoire(id);
       }, function (e) { m.panne = String((e && e.message) || e); });
     }).then(function () {
-      delete releves[id]; dessinerMenu(); rafraichir(id);
+      delete releves[id]; dessinerMenu(); rafraichir(id); comptaVerifierSeule(id);
       if ((etat.vue === "accueil" || etat.vue === "reglages") && grosse(id, "diffusion")) releverDiffusionSiVieux(id, 600000);   // Diffusion vient d'apparaître : ses chiffres
     });
     return releves[id];
@@ -2519,6 +2521,19 @@ button.tuile:hover { border-color: var(--ligne); }
   var ETAPES_GOOGLE = { recette: "Je regarde où en est ce compte…", code: "Lecture du code de la Compta dans ton moteur…", classeur: "Création du dossier et du classeur…", projet: "Création de l'appli dans ton compte…", contenu: "Envoi du code de la Compta…", version: "Enregistrement de la version…", ligne: "Mise en ligne…" };
   function nomCompte(id) { var c = compte(id); return c ? c.nom : "ce compte"; }
   function comptaAutorisee(id) { return lire("origami_compta_autorisee@" + id) === "1"; }
+  // Compta installée et autorisée depuis un autre appareil (19.11 : faite dans Chrome, l'appli du Mac disait encore « l'autoriser ») :
+  // dès que le moteur donne son adresse, cet appareil vérifie seul qu'elle répond, sans repasser par le guide.
+  var comptaPings = {};
+  function comptaVerifierSeule(id) {
+    var cm = id !== "compagnie" && comptaMoteur(id), G = window.OrigamiGoogle;
+    if (!cm || !cm.adresse || comptaAutorisee(id) || !G || comptaPings[id] || comptaEnCours[id] || guideC.id === id) return;
+    comptaPings[id] = 1;
+    G.ping(cm.adresse).then(function (ok) {
+      delete comptaPings[id];
+      if (!ok || comptaAutorisee(id)) return;
+      garder("origami_compta_autorisee@" + id, "1"); dessinerMenu(); rafraichir(id);
+    });
+  }
   function moteurPret(id) { var m = memoires[id]; return !!(moteurs[id] && m && !m.panne && m.etat && m.etat.moteur && m.etat.moteur.version >= 9); }
   // L'adresse du compte Google choisi reste sur cet appareil : elle sert à dire à Google quel compte doit autoriser.
   function googleAdresse(id) { return lire("origami_google_adresse@" + id); }
@@ -2684,7 +2699,7 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   function dessinerApplis() {
     var l = !comptes().length ? [null] : etat.compte === "tous" ? affiches() : [compte(etat.compte)];
-    var h = "<h1>Applis</h1><p>Installer, ouvrir et mettre à jour les applis d'Origami. Ce qu'elles contiennent est dans le tableau de bord.</p>" + (MAC ? dessinerSurCeMac() : "") + '<section class="sur-ce-mac"><h2>' + (l.length === 1 && l[0] ? "Dans le compte " + texte(l[0].nom) : "Dans tes comptes") + "</h2>";
+    var h = '<div class="entete entete-applis"><h1>Applis</h1>' + (comptes().length ? '<div class="actions"><button class="bouton" data-applis-actualiser="1">Actualiser</button></div>' : "") + "</div><p>Installer, ouvrir et mettre à jour les applis d'Origami. Ce qu'elles contiennent est dans le tableau de bord.</p>" + (MAC ? dessinerSurCeMac() : "") + '<section class="sur-ce-mac"><h2>' + (l.length === 1 && l[0] ? "Dans le compte " + texte(l[0].nom) : "Dans tes comptes") + "</h2>";
     l.forEach(function (c) {
       if (c && l.length > 1) h += '<h2 class="du-compte-applis"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</h2>";
       if (c && c.id !== "compagnie" && !moteurs[c.id]) h += '<p class="note">' + texte(c.nom) + ' n\'est pas encore relié sur cet appareil. <button class="lien" data-vue="relier" data-de="' + c.id + '">Le relier</button></p>';
@@ -3207,6 +3222,17 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.comptaInstaller) { comptaGuide(d.comptaInstaller); return; }
     if (d.guideComptaConnecter) { guideComptaConnecter(); return; }
     if (d.guideComptaPing) { guideComptaPing(); return; }
+    // Écran Applis : « Actualiser » relit les comptes affichés (et les applis du Mac), sans passer par le tableau de bord (Sévane, 19.11).
+    if (d.applisActualiser) {
+      var aRelire = (etat.compte === "tous" ? affiches() : [compte(etat.compte)]).filter(function (c) { return c && moteurs[c.id]; });
+      b.disabled = true; avis("Je relis tes comptes…");
+      Promise.all(aRelire.map(function (c) { return relireCompte(c.id); }).concat(MAC && INSTALLEUR ? [relireMac()] : [])).catch(function () {}).then(function () {
+        var pannes = aRelire.filter(function (c) { return memoires[c.id] && memoires[c.id].panne; });
+        if (etat.vue === "applis") montrer();
+        avis(pannes.length ? "Pas de réponse de " + pannes.map(function (c) { return c.nom; }).join(", ") + ". Réessaie dans un instant." : "C'est à jour.", !!pannes.length);
+      });
+      return;
+    }
     if (d.guideComptaCopier) {
       var lc = d.guideComptaCopier, repliC = function () { try { var z = document.createElement("textarea"); z.value = lc; document.body.appendChild(z); z.select(); document.execCommand("copy"); z.remove(); avis("Lien copié."); } catch (e) { avis("La copie n'a pas marché : fais un clic droit sur « Autoriser ma Compta », puis « Copier l'adresse du lien ».", true); } };
       if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(lc).then(function () { avis("Lien copié."); }, repliC); else repliC();
