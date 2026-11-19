@@ -40,14 +40,15 @@
 <body>
 <main>
   <h1>Essai : Origami se connecte à Google</h1>
-  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée deux mini-applis vides, nommées « Origami - essai (à supprimer) ». Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
+  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée des mini-applis vides, nommées « Origami - essai (à supprimer) ». Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
 
   <div class="carte">
     <label for="client">ID client du projet Google de la compagnie</label>
     <input type="text" id="client" autocomplete="off" spellcheck="false" placeholder="…apps.googleusercontent.com">
     <p class="doux" style="margin-top:8px">À ouvrir dans Chrome ou Safari, pas dans l'appli Origami du Mac. Google va te demander de choisir un compte : prends celui où tu veux faire l'essai, et laisse cochés les deux droits demandés.</p>
     <div class="actions">
-      <button class="fort" id="lancer">Se connecter à Google et lancer l'essai</button>
+      <button class="fort" id="lancer2">Essai 2 : l'autorisation</button>
+      <button id="lancer">Essai 1 : créer et mettre à jour (déjà réussi)</button>
     </div>
   </div>
 
@@ -57,6 +58,13 @@
     <div id="suite" hidden>
       <p><strong>Dernier geste, à la main.</strong> Ouvre la deuxième mini-appli, celle qui a besoin d'un droit, et regarde ce que Google affiche (une demande d'autorisation, un message d'erreur, ou directement « L'essai a marché ») :</p>
       <p><a id="lienB" target="_blank" rel="noopener"></a></p>
+    </div>
+    <div id="suite2" hidden>
+      <p><strong>À toi, deux gestes.</strong> La mini-appli 3 est en ligne, mais Google ne l'a pas encore autorisée.</p>
+      <p>1. Clique ce lien : Google doit ouvrir son écran d'autorisation. Choisis le même compte et accepte. Si rien ne s'affiche ou si Google montre une erreur, fais une capture.</p>
+      <p><a id="lienAutoriser" target="_blank" rel="noopener">Autoriser la mini-appli 3</a></p>
+      <p>2. Reviens sur cette page et clique :</p>
+      <div class="actions"><button class="fort" id="verifier3">C'est fait, vérifier</button></div>
     </div>
     <div class="actions">
       <button id="copier" hidden>Copier le compte rendu</button>
@@ -73,7 +81,7 @@
   var DROITS = ["https://www.googleapis.com/auth/script.projects", "https://www.googleapis.com/auth/script.deployments"];
   var TITRE = "Origami - essai (à supprimer)";
   var $ = function (id) { return document.getElementById(id); };
-  var champ = $("client"), bouton = $("lancer"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
+  var champ = $("client"), bouton = $("lancer"), bouton2 = $("lancer2"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
 
   var CLIENT_COMPAGNIE = "964221481435-nv5bh3a8v6vlnbiaf1fgjfft6a7sb9kn.apps.googleusercontent.com";   // public par nature : il ne donne aucun accès à lui seul
   try { champ.value = localStorage.getItem("origami_essai_client") || CLIENT_COMPAGNIE; } catch (e) { champ.value = CLIENT_COMPAGNIE; }
@@ -85,6 +93,8 @@
   }
   function codeA(texte) { return "function doGet() {\n  return ContentService.createTextOutput(" + JSON.stringify(texte) + ");\n}\n"; }
   var CODE_B = "function doGet() {\n  var lu = !!Session.getEffectiveUser().getEmail();\n  return ContentService.createTextOutput(\"L'essai a marché (avec un droit) : \" + (lu ? 'oui' : 'non'));\n}\n";
+  // Mini-appli 3 : un droit que Google fait toujours valider (appeler un autre site), sans rien lire dans le compte ni rien envoyer.
+  var CODE_C = "function doGet() {\n  var d = UrlFetchApp.getRequest('https://example.com');\n  return ContentService.createTextOutput(\"L'essai a marché (appli autorisée) : \" + (d ? 'oui' : 'non'));\n}\n";
   function fichiers(code, droits) { return { files: [{ name: "appsscript", type: "JSON", source: manifeste(droits) }, { name: "Code", type: "SERVER_JS", source: code }] }; }
 
   function etape(cle, titre) {
@@ -158,7 +168,28 @@
         bilan(rates === 0, rates === 0 ? "Tout a marché : Google laisse Origami créer, mettre en ligne et mettre à jour une appli dans ce compte." : "Les applis sont créées, mais une vérification a raté (voir ci-dessus).");
       });
   }
-  function bilan(ok, texte) { var b = $("bilan"); b.hidden = false; b.className = "bilan " + (ok ? "bon" : "mal"); b.textContent = texte; rapport.push((ok ? "BILAN OK : " : "BILAN : ") + texte); $("copier").hidden = false; bouton.disabled = false; }
+  var appli3 = null;
+  function essaiAutorisation() {
+    return installer("Mini-appli 3 (à autoriser)", CODE_C, ["https://www.googleapis.com/auth/script.external_request"])
+      .then(function (c) {
+        appli3 = c; rapport.push("Adresse 3 : " + c.adresse);
+        etape("c5", "Mini-appli 3 : l'ouvrir avant l'autorisation");
+        return lire(c.adresse).then(function (t) { return /appli autorisée/.test(t) ? "elle répond déjà, sans autorisation : « " + String(t).slice(0, 80) + " »" : "elle répond autre chose : « " + String(t).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 160) + " »"; }, function (e) { return "comme prévu, elle ne répond pas encore (" + String((e && e.message) || e).slice(0, 160) + ")"; })
+          .then(function (vu) {
+            finir("c5", true, vu);
+            var l = $("lienAutoriser"); l.href = "https://script.google.com/macros/d/" + encodeURIComponent(c.id) + "/authorize"; rapport.push("Lien d'autorisation : " + l.href);
+            $("suite2").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false;
+          });
+      });
+  }
+  $("verifier3").addEventListener("click", function () {
+    if (!appli3) return;
+    var cle = "c6-" + Date.now(); $("verifier3").disabled = true;
+    pas(cle, "Mini-appli 3 : l'ouvrir après l'autorisation", function () { return lire(appli3.adresse).then(function (t) { if (!/appli autorisée/.test(t)) throw new Error("elle répond « " + String(t).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 160) + " »"); return t; }); }, function (t) { return "elle répond « " + String(t).slice(0, 80) + " »"; })
+      .then(function () { bilan(true, "L'autorisation depuis la page a marché : la mini-appli 3 répond."); }, function () { bilan(false, "La mini-appli 3 ne répond pas encore. Si tu viens d'autoriser, attends dix secondes et clique de nouveau « C'est fait, vérifier »."); })
+      .then(function () { $("verifier3").disabled = false; });
+  });
+  function bilan(ok, texte) { var b = $("bilan"); b.hidden = false; b.className = "bilan " + (ok ? "bon" : "mal"); b.textContent = texte; rapport.push((ok ? "BILAN OK : " : "BILAN : ") + texte); $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; }
   function conseil(e) {
     var m = String((e && e.message) || e);
     if (/User has not enabled the Apps Script API|usersettings/i.test(m)) return "Dans ce compte, l'interrupteur « API Google Apps Script » est éteint (script.google.com/home/usersettings). Allume-le, attends une minute et relance.";
@@ -168,30 +199,32 @@
     return "L'essai s'est arrêté. Copie le compte rendu et colle-le dans la conversation.";
   }
 
-  bouton.addEventListener("click", function () {
+  bouton.addEventListener("click", function () { lancer(essai); });
+  bouton2.addEventListener("click", function () { lancer(essaiAutorisation); });
+  function lancer(quoi) {
     var client = champ.value.trim();
     if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(client)) { alerter("Colle d'abord l'ID client : une ligne qui finit par .apps.googleusercontent.com"); return; }
     if (!(window.google && google.accounts && google.accounts.oauth2)) { alerter("La connexion à Google n'est pas encore chargée. Attends deux secondes et recommence. Si ça dure, un bloqueur de publicité l'empêche peut-être."); return; }
     try { localStorage.setItem("origami_essai_client", client); } catch (e) {}
-    bouton.disabled = true; liste.innerHTML = ""; lignes = {}; rapport = ["Essai Origami / Google, " + new Date().toLocaleString("fr-CH")];
+    bouton.disabled = true; bouton2.disabled = true; appli3 = null; $("suite2").hidden = true; liste.innerHTML = ""; lignes = {}; rapport = ["Essai Origami / Google, " + new Date().toLocaleString("fr-CH")];
     $("suivi").hidden = false; $("bilan").hidden = true; $("suite").hidden = true; $("copier").hidden = true; $("copie").hidden = true;
     etape("c", "Se connecter à Google");
     var rendu = false;
     function refus(texte) { if (rendu) return; rendu = true; finir("c", false, texte); bilan(false, "La connexion à Google n'a pas abouti."); }
     try {
       google.accounts.oauth2.initTokenClient({
-        client_id: client, scope: DROITS.join(" "), prompt: "consent",
+        client_id: client, scope: DROITS.join(" "), prompt: "select_account",
         callback: function (r) {
           if (rendu) return;
           if (!r || !r.access_token) { refus("Google a répondu : " + String((r && (r.error_description || r.error)) || "pas de jeton")); return; }
           if (!google.accounts.oauth2.hasGrantedAllScopes(r, DROITS[0], DROITS[1])) { refus("Il manque un des deux droits : à l'écran de Google, laisse les deux cases cochées."); return; }
           rendu = true; jeton = r.access_token; finir("c", true, "connectée, les deux droits sont donnés");
-          essai().catch(function (e) { bilan(false, conseil(e)); }).then(function () { jeton = ""; });
+          quoi().catch(function (e) { bilan(false, conseil(e)); }).then(function () { jeton = ""; });
         },
         error_callback: function (e) { refus(e && e.type === "popup_closed" ? "La fenêtre de Google a été fermée avant la fin." : e && e.type === "popup_failed_to_open" ? "Le navigateur a bloqué la fenêtre de Google : autorise les fenêtres surgissantes pour cette page." : "Google a répondu : " + String((e && (e.message || e.type)) || "erreur")); }
       }).requestAccessToken();
     } catch (e) { refus(String((e && e.message) || e)); }
-  });
+  }
   function alerter(texte) { $("suivi").hidden = false; liste.innerHTML = ""; lignes = {}; var b = $("bilan"); b.hidden = false; b.className = "bilan mal"; b.textContent = texte; }
 
   $("copier").addEventListener("click", function () {
