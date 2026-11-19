@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-18.38">
+<meta name="origami-version" content="2026-11-18.39">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -471,8 +471,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-18.38"></script>
-<script src="repertoire.js?v=2026-11-18.38"></script>
+<script src="agenda.js?v=2026-11-18.39"></script>
+<script src="repertoire.js?v=2026-11-18.39"></script>
 <script>
 (function () {
   "use strict";
@@ -796,6 +796,11 @@ button.tuile:hover { border-color: var(--ligne); }
       else avis(nomMac(id) + " est installée sur ce Mac.");
     }, function (e) { MAC_INSTALL[id] = { appli: id, etape: "erreur", message: String(e && e.message || e || "") }; majMac(); });
   }
+  // Menus « … » : un seul ouvert à la fois ; un clic ailleurs ou Échap le ferme (19.11, Sévane : ils s'empilaient).
+  function fermerMenusMac(sauf) { document.querySelectorAll("details.plus-mac[open]").forEach(function (x) { if (x !== sauf) x.open = false; }); }
+  document.addEventListener("toggle", function (e) { var t = e.target; if (t && t.classList && t.classList.contains("plus-mac") && t.open) fermerMenusMac(t); }, true);
+  document.addEventListener("click", function (e) { var dans = e.target && e.target.closest ? e.target.closest("details.plus-mac") : null; fermerMenusMac(dans); }, true);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && document.querySelector("details.plus-mac[open]")) { var o = document.querySelector("details.plus-mac[open]"); fermerMenusMac(null); var s = o.querySelector("summary"); if (s) try { s.focus(); } catch (x) {} } });
   function macOuvrir(id) { invoquer("ouvrir_appli", { appli: id }).catch(function (e) { avis(String(e && e.message || e || (nomMac(id) + " ne s'est pas ouverte.")), true); relireMac(); }); }
   function annonceInstalleur() {
     if (!MAC || INSTALLEUR || FENETRE) return "";
