@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.41">
+<meta name="origami-version" content="2026-11-19.42">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -483,8 +483,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.41"></script>
-<script src="repertoire.js?v=2026-11-19.41"></script>
+<script src="agenda.js?v=2026-11-19.42"></script>
+<script src="repertoire.js?v=2026-11-19.42"></script>
 <script>
 (function () {
   "use strict";
@@ -604,7 +604,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var c = comptaMoteur(id);   // moteur v7 : Compta installée depuis Origami
     if (c && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(c.adresse || "")) return c.adresse;
     var m = typeof moteurs !== "undefined" && moteurs[id], d = m && /\/macros\/s\/([\w-]+)\/exec$/.exec(m.u);
-    return (d && COMPTAS_DES_MOTEURS[empreinte(d[1])]) || "";
+    return (d && COMPTAS_DES_MOTEURS[empreinte(d[1])]) || (typeof COMPTAS_RECUES !== "undefined" && COMPTAS_RECUES[id]) || "";
   }
   function comptaMoteur(id) { var m = typeof memoires !== "undefined" && typeof moteurs !== "undefined" && moteurs[id] && memoires[id]; return (m && m.etat && m.etat.compta && typeof m.etat.compta === "object") ? m.etat.compta : null; }
   function cleCadre(c, vue) { return vue === "compta" && c && c.id !== "compagnie" ? "compta@" + c.id : vue; }
@@ -816,7 +816,15 @@ button.tuile:hover { border-color: var(--ligne); }
   document.addEventListener("toggle", function (e) { var t = e.target; if (t && t.classList && t.classList.contains("plus-mac") && t.open) fermerMenusMac(t); }, true);
   document.addEventListener("click", function (e) { var dans = e.target && e.target.closest ? e.target.closest("details.plus-mac") : null; fermerMenusMac(dans); }, true);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && document.querySelector("details.plus-mac[open]")) { var o = document.querySelector("details.plus-mac[open]"); fermerMenusMac(null); var s = o.querySelector("summary"); if (s) try { s.focus(); } catch (x) {} } });
-  function macOuvrir(id) { invoquer("ouvrir_appli", { appli: id }).catch(function (e) { avis(String(e && e.message || e || (nomMac(id) + " ne s'est pas ouverte.")), true); relireMac(); }); }
+  // L'appli Compta du Mac a sa propre mémoire : en l'ouvrant, Origami lui transmet les comptes qui ont une Compta (nom, couleur,
+  // adresse de la Compta ; jamais de code, de PIN ni de jeton) et celui à montrer (le compte choisi ici, s'il a une Compta).
+  function lienComptaMac() {
+    var l = etat.ajoutes.filter(function (c) { return /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(comptaDe(c.id)); }).map(function (c) { return { id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, u: comptaDe(c.id) }; });
+    var ch = etat.compte && etat.compte !== "tous" && (etat.compte === "compagnie" || l.some(function (x) { return x.id === etat.compte; })) ? etat.compte : "";
+    var j = JSON.stringify({ c: ch, l: l.slice(0, 12) }), b = btoa(unescape(encodeURIComponent(j))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return b.length > 3800 ? null : "https://sevanegu-pixel.github.io/origami/accueil/?fenetre=compta#comptas=" + b;
+  }
+  function macOuvrir(id) { var lien = id === "compta" ? lienComptaMac() : null; invoquer("ouvrir_appli", lien ? { appli: id, lien: lien } : { appli: id }).catch(function (e) { avis(String(e && e.message || e || (nomMac(id) + " ne s'est pas ouverte.")), true); relireMac(); }); }
   function annonceInstalleur() {
     if (!MAC || INSTALLEUR || FENETRE) return "";
     return '<div class="annonce-mac"><p><strong>Nouveau : Origami installe lui-même les applis sur ce Mac.</strong> Pour cela, installe une dernière fois Origami à la main : ensuite, elle se met à jour toute seule.</p><ol><li>Télécharge la nouvelle version.</li><li>Ouvre le fichier et glisse Origami dans Applications (elle remplace l\'ancienne).</li><li>Quitte Origami et rouvre-la.</li></ol><div class="actions"><a class="bouton fort" href="' + DMG.origami + '" target="_blank" rel="noopener">Télécharger la nouvelle version d\'Origami</a></div></div>';
@@ -840,7 +848,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function ouvrirFenetre(id) {
     var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
     if (!W || FENETRE || !FENETRES_MAC[id]) return false;
-    var label = "appli-" + id, url = new URL("?fenetre=" + id, location.href.split("#")[0].split("?")[0]).href;
+    var label = "appli-" + id, url = new URL("?fenetre=" + id + (id === "compta" ? "&dans=origami" : ""), location.href.split("#")[0].split("?")[0]).href;
     function creer() { try { new W(label, { url: url, title: APPLIS[id].nom, width: 1200, height: 860, minWidth: 380, minHeight: 520 }); } catch (e) {} }
     try {
       var p = typeof W.getByLabel === "function" ? W.getByLabel(label) : null;
@@ -1000,7 +1008,7 @@ button.tuile:hover { border-color: var(--ligne); }
         var cc = compte(String(d.id || ""));
         if (!cc || cc.id === cid) return;
         if (!comptaDe(cc.id)) { avis("La Compta n'est pas encore installée dans le compte « " + cc.nom + " »."); return; }
-        etat.compte = cc.id; etat.vue = "compta"; montrer(); return;
+        etat.compte = cc.id; etat.vue = "compta"; if (COMPTA_SEULE) garder("origami_compta_choisi", cc.id); montrer(); return;
       }
       if (d.origami === "repertoire") { recevoirRepertoire(d, "Compta", ev.source, ev.origin, cid); return; }
       if (d.origami === "cache-lire") { lireCopieCompta(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }, cid); return; }
@@ -3210,6 +3218,50 @@ button.tuile:hover { border-color: var(--ligne); }
     etat.sansCompagnie = true; etat.compte = compteParDefaut(); etat.vue = comptes().length ? "reglages" : "accueil";
     avis("Compte retiré de cette appli."); montrer();
   }
+  // ---- Appli Compta du Mac, installée seule (19.11) ----
+  // Elle a sa propre mémoire et ne connaissait que la Compta de la compagnie. Origami lui transmet, en l'ouvrant, les comptes qui
+  // ont une Compta (#comptas=…) ; elle les garde, montre celui demandé, puis se souvient du dernier compte choisi dans son menu.
+  // La fenêtre Compta qu'Origami ouvre lui-même (&dans=origami) et les fenêtres détachées montrent toujours la compagnie.
+  var COMPTA_SEULE = FENETRE === "compta" && !OUVRIR && !/[?&]dans=origami(&|$)/.test(location.search), COMPTAS_RECUES = {};
+  function lireComptasTransmises(b) {
+    try {
+      var o = JSON.parse(decodeURIComponent(escape(atob(String(b).replace(/-/g, "+").replace(/_/g, "/")))));
+      var l = (Array.isArray(o && o.l) ? o.l : []).filter(function (r) { return r && /^c[0-9a-z]{4,12}$/.test(r.id) && typeof r.nom === "string" && r.nom.trim() && COULEURS.indexOf(r.couleur) >= 0 && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(r.u); }).slice(0, 12).map(function (r) { return { id: r.id, nom: r.nom.slice(0, 40), couleur: r.couleur, u: r.u }; });
+      var c = typeof o.c === "string" && (o.c === "compagnie" || l.some(function (r) { return r.id === o.c; })) ? o.c : "";
+      return { l: l, c: c };
+    } catch (e) { return null; }
+  }
+  function prendreComptas() {
+    var l = []; try { l = JSON.parse(lire("origami_comptas_recues") || "[]"); } catch (e) { l = []; }
+    (Array.isArray(l) ? l : []).forEach(function (r) {
+      if (!r || !/^c[0-9a-z]{4,12}$/.test(r.id) || !/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(r.u)) return;
+      COMPTAS_RECUES[r.id] = r.u;
+      var c = compte(r.id);
+      if (!c && COULEURS.indexOf(r.couleur) >= 0) etat.ajoutes.push({ id: r.id, nom: String(r.nom || "").slice(0, 40), couleur: r.couleur, applis: ["boite"] });
+      else if (c && c.id !== "compagnie") { c.nom = String(r.nom || c.nom).slice(0, 40); if (COULEURS.indexOf(r.couleur) >= 0) c.couleur = r.couleur; }
+    });
+  }
+  // Rend vrai si un paquet a été reçu (l'ancre est effacée tout de suite, comme pour « Relier »).
+  function recevoirComptas(a) {
+    var m = /^comptas=([A-Za-z0-9_-]{4,3800})$/.exec(String(a || "")), p = m && lireComptasTransmises(m[1]);
+    if (m) { try { history.replaceState(null, "", location.href.split("#")[0]); } catch (e) {} ancre = ""; }
+    if (p && COMPTA_SEULE) { garder("origami_comptas_recues", JSON.stringify(p.l)); if (p.c) garder("origami_compta_choisi", p.c); }
+    if (COMPTA_SEULE) prendreComptas();
+    return !!(p && COMPTA_SEULE);
+  }
+  // Appli déjà ouverte quand Origami la rappelle : le paquet attend dans le Mac ; on le lit en revenant sur la fenêtre.
+  if (COMPTA_SEULE && MAC && MAC.core && MAC.core.invoke) {
+    var relireComptas = function () {
+      if (document.hidden) return;
+      MAC.core.invoke("lire_liaison").then(function (l) {
+        var h = /#(comptas=[A-Za-z0-9_-]{4,3800})$/.exec(String(l || ""));
+        if (!h || !recevoirComptas(h[1])) return;
+        var chx = lire("origami_compta_choisi"); etat.compte = chx && compte(chx) ? chx : "compagnie"; etat.vue = "compta"; montrer(); direComptes();
+      }, function () {});
+    };
+    window.addEventListener("focus", relireComptas);
+    document.addEventListener("visibilitychange", relireComptas);
+  }
   // Adresse avec une ancre (…/accueil/#tickets) : ouvre directement cette appli du compte de la compagnie.
   var ancre = (location.hash || "").slice(1);
   // Lien « Relier un autre appareil » (#relier=compte.code) : le code ne quitte pas l'appareil, l'ancre est effacée tout de suite.
@@ -3229,7 +3281,8 @@ button.tuile:hover { border-color: var(--ligne); }
   if (!FENETRE && etat.ouverture === "bord") etat.vue = "accueil";   // réglage « Toujours ouvrir le tableau de bord »
   if (ancre === "reglages") etat.vue = "reglages";
   if (APPLIS[ancre] && compte("compagnie") && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
-  if (FENETRE) { etat.compte = "compagnie"; etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE; }
+  if (FENETRE === "compta") recevoirComptas(ancre);
+  if (FENETRE) { etat.compte = "compagnie"; if (COMPTA_SEULE) { var chx = lire("origami_compta_choisi"); if (chx && compte(chx)) etat.compte = chx; } etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE; }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (versFrais) location.replace(APPLIS.frais.lien);   // fenêtre Frais avec un lien déjà connu : la page Frais prend la place
