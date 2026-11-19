@@ -40,7 +40,7 @@
 <body>
 <main>
   <h1>Essai : Origami se connecte à Google</h1>
-  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée des mini-applis vides, nommées « Origami - essai (à supprimer) ». L'essai 3 crée en plus un classeur vide du même nom et, si tu colles l'identifiant du moteur, compte les fichiers qu'il porte sans rien en garder. L'essai 4 fait créer ce classeur par la page elle-même et compte les fichiers du modèle Origami, sans rien en garder. Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
+  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée des mini-applis vides, nommées « Origami - essai (à supprimer) ». L'essai 3 crée en plus un classeur vide du même nom et, si tu colles l'identifiant du moteur, compte les fichiers qu'il porte sans rien en garder. L'essai 4 fait créer ce classeur par la page elle-même, le range dans un dossier d'essai du même nom et compte les fichiers du modèle Origami, sans rien en garder. Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
 
   <div class="carte">
     <label for="client">ID client du projet Google de la compagnie</label>
@@ -300,7 +300,8 @@
       "        p.setProperty('PREMIER', String(Date.now())); p.setProperty('PROPRIETAIRE', String(d.adresse || '').toLowerCase());\n        r = { ok: true, classeur: c.getName() };\n      }\n" +
       "    } else if (d.geste === 'jeton') {\n      var rep = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(String(d.jeton || '')), { muteHttpExceptions: true });\n" +
       "      var i = {}; try { i = JSON.parse(rep.getContentText()); } catch (x) {}\n      var bonClient = i.aud === CLIENT || i.azp === CLIENT, bonCompte = !!i.email && String(i.email).toLowerCase() === p.getProperty('PROPRIETAIRE');\n" +
-      "      r = { ok: rep.getResponseCode() === 200 && bonClient && bonCompte, client: bonClient, compte: bonCompte };\n    } else r = { ok: false, raison: 'geste' };\n" +
+      "      r = { ok: rep.getResponseCode() === 200 && bonClient && bonCompte, client: bonClient, compte: bonCompte };\n    } else if (d.geste === 'dossier') {\n      if (hacher_(String(d.secret || '')) !== EMPREINTE) r = { ok: false, raison: 'secret' };\n      else r = { ok: true, dossier: Drive.Files.create({ name: " + JSON.stringify(TITRE) + ", mimeType: 'application/vnd.google-apps.folder' }, null, { fields: 'id' }).id };\n" +
+      "    } else r = { ok: false, raison: 'geste' };\n" +
       "  } catch (x) { r = { ok: false, raison: 'erreur', detail: String((x && x.message) || x).slice(0, 200) }; }\n  return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);\n}\n";
   }
   function poster(adresse, corps) {
@@ -329,7 +330,7 @@
         }, function () { return "retrouvé"; });
       })
       .then(function () { return hacher(secret6); })
-      .then(function (h) { return installer("Mini-appli 6 (premier contact)", codeF(h, champ.value.trim()), ["https://www.googleapis.com/auth/spreadsheets.currentonly", "https://www.googleapis.com/auth/script.external_request"], { classeur: classeur6 }); })
+      .then(function (h) { return installer("Mini-appli 6 (premier contact)", codeF(h, champ.value.trim()), ["https://www.googleapis.com/auth/spreadsheets.currentonly", "https://www.googleapis.com/auth/script.external_request", DROIT_DRIVE], { classeur: classeur6, drive: true }); })
       .then(function (p6) {
         appli6 = p6;
         return pas("s4", "Drive : noter l'adresse de la mini-appli sur le classeur", function () {
@@ -359,9 +360,21 @@
         return pas(k + "2", "Premier contact : le secret à usage unique", function () { return poster(appli6.adresse, { geste: "premier", secret: secret6, adresse: adresseCompte }).then(function (r) { if (!r.ok) throw new Error("refusé (" + (r.raison || "?") + (r.detail ? " : " + r.detail : "") + ")"); return r; }); }, function (r) { return "accepté, la mini-appli a écrit dans « " + String(r.classeur).slice(0, 60) + " »"; })
           .then(function () { return pas(k + "3", "Premier contact : le même secret une deuxième fois", function () { return poster(appli6.adresse, { geste: "premier", secret: secret6, adresse: adresseCompte }).then(function (r) { if (r.ok || r.raison !== "deja") throw new Error("il aurait dû être refusé"); return r; }); }, function () { return "refusé, comme prévu"; }); })
           .then(function () { return pas(k + "4", "Nouvel appareil : se faire reconnaître par la connexion à Google", function () { return poster(appli6.adresse, { geste: "jeton", jeton: jeton }).then(function (r) { if (!r.ok) throw new Error("refusé (client " + (r.client ? "oui" : "non") + ", compte " + (r.compte ? "oui" : "non") + (r.detail ? ", " + r.detail : "") + ")"); return r; }); }, function () { return "reconnue : bon compte, bonne appli"; }); })
+          // Rangement : le dossier est créé par la mini-appli (comme le fera le moteur), le classeur par la page. La page a-t-elle le droit d'y ranger son classeur ?
           .then(function () {
+            return pas(k + "5", "Rangement : la mini-appli crée un dossier d'essai", function () { return poster(appli6.adresse, { geste: "dossier", secret: secret6 }).then(function (r) { if (!r.ok || !r.dossier) throw new Error("refusé (" + (r.raison || "?") + (r.detail ? " : " + r.detail : "") + ")"); return r; }); }, function () { return "dossier créé"; })
+              .then(function (r) {
+                return pas(k + "6", "Rangement : la page y range son classeur", function () {
+                  return drive("GET", "files/" + encodeURIComponent(classeur6) + "?fields=parents").then(function (f) {
+                    return drive("PATCH", "files/" + encodeURIComponent(classeur6) + "?addParents=" + encodeURIComponent(r.dossier) + "&removeParents=" + encodeURIComponent((f.parents || []).join(",")) + "&fields=id,parents", {});
+                  }).then(function (f) { if ((f.parents || []).indexOf(r.dossier) < 0) throw new Error("le classeur n'a pas bougé"); return f; });
+                }, function () { return "rangé"; });
+              }).then(function () { return true; }, function () { return false; });   // un rangement raté n'arrête pas l'essai
+          })
+          .then(function (range) {
             jeton = ""; $("suite4").hidden = true;
-            bilan(true, modeleLu ? "Tout a marché : Origami peut s'installer dans un compte sans classeur à copier ni code à coller." : "Presque tout a marché, sauf la lecture du modèle Origami (première ligne) : il faudra un autre moyen de donner le code au nouveau compte.");
+            var manque = (modeleLu ? [] : ["la lecture du modèle Origami (première ligne)"]).concat(range ? [] : ["le rangement du classeur dans son dossier"]);
+            bilan(true, !manque.length ? "Tout a marché : Origami peut s'installer dans un compte sans classeur à copier ni code à coller." : "Presque tout a marché, sauf " + manque.join(" et ") + " : il faudra passer autrement pour ce point.");
           }, function (e) { bilan(false, e && e.statut === 401 ? "La connexion à Google a expiré. Relance l'essai 4." : "Le premier contact s'est arrêté. Copie le compte rendu et colle-le dans la conversation."); });
       }, function () { bilan(false, "La mini-appli 6 ne répond pas encore. Si tu viens d'autoriser, attends dix secondes et clique de nouveau « C'est fait, vérifier »."); })
       .then(function () { $("verifier6").disabled = false; });
