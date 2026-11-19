@@ -1,0 +1,261 @@
+/*
+ * Origami se connecte à Google (19.11.2026, choix de Sévane).
+ *
+ * Google refuse à un moteur Apps Script d'en créer un autre. C'est donc cette page qui, avec la connexion de la personne
+ * (projet Google de la compagnie), crée le projet de la Compta dans SON compte, y met le code, en fait une version et la
+ * publie. Chaque geste a été essayé en vrai le 19.11 (page essai-google/).
+ *
+ * Le code de la Compta n'est pas ici : la page le relit dans le moteur du compte (fichiers « compta_… »), avec la connexion
+ * de la personne, et le pose tel quel dans son projet. Rien n'est gardé, rien ne part ailleurs que chez Google.
+ * La connexion (jeton) reste dans la mémoire de la page : elle disparaît quand on ferme ou recharge Origami.
+ */
+(function (racine) {
+  "use strict";
+  var CLIENT = "964221481435-nv5bh3a8v6vlnbiaf1fgjfft6a7sb9kn.apps.googleusercontent.com";   // public par nature : il ne donne aucun accès à lui seul
+  var API = "https://script.googleapis.com/v1/";
+  var DROITS = ["https://www.googleapis.com/auth/script.projects", "https://www.googleapis.com/auth/script.deployments"];
+  // L'adresse du compte choisi sert à dire à Google quel compte doit autoriser la Compta (plusieurs comptes connectés dans le navigateur).
+  var DROIT_ADRESSE = "https://www.googleapis.com/auth/userinfo.email";
+  var ATTENTES = [1500, 4000, 9000];
+  var sessions = {}, chargement = null;
+
+  function souci(message, code, statut, brut) { var e = new Error(message); e.code = code || ""; if (statut) e.statut = statut; if (brut) e.brut = brut; return e; }
+  function enc(x) { return encodeURIComponent(String(x)); }
+
+  // ---------- Ce qui ne dépend pas du navigateur (essayé aussi au banc du moteur) ----------
+  var DOGET = /function\s+doGet\s*\(\s*(\w*)\s*\)\s*\{/g;
+  var TYPES = { JSON: 1, SERVER_JS: 1, HTML: 1 };
+  function nbDoGet(t) { return (String(t).match(DOGET) || []).length; }
+
+  /** La recette rendue par le moteur, vérifiée dans sa forme. */
+  function verifierRecette(r) {
+    var ident = function (x) { return /^[\w-]{6,120}$/.test(String(x || "")); };
+    if (!r || !ident(r.moteur) || typeof r.prefixe !== "string" || !/^[a-z_]{2,20}$/.test(r.prefixe) || !Array.isArray(r.fichiers) || !r.fichiers.length || typeof r.appel !== "string" || !/^[0-9a-f]{16,64}$/.test(String(r.empreinte || "")))
+      throw souci("Le moteur de ce compte n'a pas répondu comme prévu. Recharge Origami et réessaie.", "recette");
+    r.fichiers.forEach(function (f) { if (!f || !/^\w{1,60}$/.test(String(f.nom || "")) || !TYPES[f.type]) throw souci("Le moteur de ce compte n'a pas répondu comme prévu. Recharge Origami et réessaie.", "recette"); });
+    ["classeur", "projet", "deploiement"].forEach(function (k) { if (r[k] && !ident(r[k])) throw souci("Le moteur de ce compte n'a pas répondu comme prévu. Recharge Origami et réessaie.", "recette"); });
+    if (r.adresse && !/^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/.test(r.adresse)) throw souci("Le moteur de ce compte n'a pas répondu comme prévu. Recharge Origami et réessaie.", "recette");
+    return { moteur: r.moteur, titre: String(r.titre || "Origami - Compta").slice(0, 80), prefixe: r.prefixe, fichiers: r.fichiers.map(function (f) { return { nom: f.nom, type: f.type }; }), appel: r.appel,
+      empreinte: r.empreinte, installee: String(r.installee || ""), classeur: r.classeur || "", projet: r.projet || "", version: Number(r.version) || 0, deploiement: r.deploiement || "", adresse: r.adresse || "", reglages: String(r.reglages || "") };
+  }
+
+  /** Le code de la Compta porté par le moteur : { Code: "…", … }, lu dans le contenu de son projet. */
+  function codePorte(contenu, r) {
+    var porte = {};
+    ((contenu && contenu.files) || []).forEach(function (f) {
+      if (f && f.type === "HTML" && String(f.name).indexOf(r.prefixe) === 0) porte[String(f.name).slice(r.prefixe.length)] = String(f.source || "");
+    });
+    var manque = r.fichiers.filter(function (f) { return !porte[f.nom]; }).map(function (f) { return f.nom; });
+    if (manque.length) throw souci("Le code de la Compta manque dans le moteur de ce compte (" + manque.join(", ") + ").", "code");
+    if (!porte.Code || !/function appCompte_\s*\(/.test(porte.Code)) throw souci("La Compta portée par le moteur de ce compte ne connaît pas encore les autres comptes.", "code");
+    var doget = 0;
+    r.fichiers.forEach(function (f) { if (f.type === "SERVER_JS") doget += nbDoGet(porte[f.nom]); });
+    if (doget !== 1 || nbDoGet(porte.Code) !== 1) throw souci("La Compta portée par le moteur de ce compte a changé de forme : son installation doit être adaptée.", "code");
+    if (!/function comptaPreparerSiBesoin_\s*\(/.test(porte["10_Compte_installation"] || "")) throw souci("Le fichier d'installation de la Compta est trop ancien dans le moteur de ce compte.", "code");
+    try { JSON.parse(porte.appsscript); } catch (e) { throw souci("Le manifeste de la Compta portée par le moteur est illisible.", "code"); }
+    return porte;
+  }
+
+  /** Les fichiers du projet de la Compta de ce compte : code porté (doGet complété) + réglages de ce compte. */
+  function fichiersCompta(porte, r, reglages) {
+    if (!/^var APP_COMPTE_ = \{/.test(String(reglages || ""))) throw souci("Les réglages de la Compta de ce compte manquent.", "code");
+    var manifeste = JSON.parse(porte.appsscript);
+    manifeste.webapp = { access: "ANYONE_ANONYMOUS", executeAs: "USER_DEPLOYING" };
+    return r.fichiers.map(function (f) {
+      var source = porte[f.nom];
+      if (f.nom === "appsscript") source = JSON.stringify(manifeste, null, 2);
+      if (f.nom === "Code") source = source.replace(DOGET, function (m) { return m + r.appel; });
+      return { name: f.nom, type: f.type, source: source };
+    }).concat([{ name: "99_Compte", type: "SERVER_JS", source: String(reglages) }]);
+  }
+
+  function adresseDe(dep) {
+    var web = ((dep && dep.entryPoints) || []).filter(function (x) { return x && x.entryPointType === "WEB_APP" && x.webApp && x.webApp.url; })[0];
+    return (web && /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/.test(web.webApp.url)) ? web.webApp.url : "";
+  }
+
+  /** L'écran de Google qui fait autoriser une appli par son propriétaire ; « adresse » dit à Google quel compte prendre. */
+  function lienAutorisation(projet, adresse) {
+    if (!/^[\w-]{20,120}$/.test(String(projet || ""))) return "";
+    return "https://script.google.com/macros/d/" + enc(projet) + "/authorize" + (/^[^\s@]+@[^\s@]+$/.test(String(adresse || "")) ? "?authuser=" + enc(adresse) : "");
+  }
+
+  // ---------- Connexion à Google ----------
+  function pret() { return !!(racine.google && racine.google.accounts && racine.google.accounts.oauth2); }
+  /** Charge la connexion de Google (à appeler dès l'ouverture de l'écran : le clic « Se connecter » doit ouvrir la fenêtre tout de suite). */
+  function charger() {
+    if (pret()) return Promise.resolve();
+    if (chargement) return chargement;
+    chargement = new Promise(function (ok, non) {
+      var s = document.createElement("script"); s.src = "https://accounts.google.com/gsi/client"; s.async = true;
+      s.onload = function () { if (pret()) ok(); else { chargement = null; non(souci("La connexion à Google n'a pas pu se charger. Recharge Origami et réessaie.", "google-absent")); } };
+      s.onerror = function () { chargement = null; s.remove(); non(souci("La connexion à Google n'a pas pu se charger. Vérifie ta connexion à Internet ; un bloqueur de publicité l'empêche peut-être.", "google-absent")); };
+      document.head.appendChild(s);
+    });
+    return chargement;
+  }
+  function lireAdresse(jeton) {
+    return fetch("https://www.googleapis.com/oauth2/v3/userinfo", { headers: { Authorization: "Bearer " + jeton } })
+      .then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return /^[^\s@]+@[^\s@]+$/.test(String(d.email || "")) ? String(d.email) : ""; }, function () { return ""; });
+  }
+  /** Ouvre la fenêtre de Google (choix du compte, accord). Rend la session { jeton, adresse, fin }. À lancer depuis un clic. */
+  function connecter(cle) {
+    // Connexion déjà chargée : la fenêtre s'ouvre dans le clic même (sinon certains navigateurs la bloquent).
+    return pret() ? ouvrir(cle) : charger().then(function () { return ouvrir(cle); });
+  }
+  function ouvrir(cle) {
+    {
+      return new Promise(function (ok, non) {
+        var rendu = false;
+        function refus(m, c) { if (rendu) return; rendu = true; non(souci(m, c)); }
+        try {
+          racine.google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT, scope: DROITS.concat([DROIT_ADRESSE]).join(" "), prompt: "select_account",
+            callback: function (r) {
+              if (rendu) return;
+              if (!r || !r.access_token) { refus(r && r.error === "access_denied" ? "Tu as refusé à l'écran de Google. Rien n'a été fait." : "Google a répondu : " + String((r && (r.error_description || r.error)) || "pas de connexion"), "refus"); return; }
+              if (!racine.google.accounts.oauth2.hasGrantedAllScopes(r, DROITS[0], DROITS[1])) { refus("Il manque un droit : à l'écran de Google, laisse toutes les cases cochées.", "cases"); return; }
+              rendu = true;
+              var s = { jeton: r.access_token, adresse: "", fin: Date.now() + Math.max(60, (Number(r.expires_in) || 3000) - 120) * 1000 };
+              lireAdresse(s.jeton).then(function (a) { s.adresse = a; sessions[cle] = s; ok(s); });
+            },
+            error_callback: function (e) {
+              refus(e && e.type === "popup_closed" ? "La fenêtre de Google a été fermée avant la fin."
+                : e && e.type === "popup_failed_to_open" ? "Le navigateur a bloqué la fenêtre de Google : autorise les fenêtres surgissantes pour Origami, puis recommence."
+                : "Google a répondu : " + String((e && (e.message || e.type)) || "erreur"), e && e.type === "popup_failed_to_open" ? "bloque" : "ferme");
+            }
+          }).requestAccessToken();
+        } catch (e) { refus(String((e && e.message) || e), "refus"); }
+      });
+    }
+  }
+  function session(cle) { var s = sessions[cle]; if (s && s.fin <= Date.now()) { delete sessions[cle]; s = null; } return s || null; }
+  function oublier(cle) { delete sessions[cle]; }
+
+  /** Un appel à l'API Apps Script avec la connexion de la personne. Les refus connus portent un code pour l'écran. */
+  function api(s, methode, chemin, corps, tour) {
+    var opt = { method: methode, headers: { Authorization: "Bearer " + s.jeton } };
+    if (corps !== undefined) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(corps); }
+    return fetch(API + chemin, opt).then(function (r) {
+      return r.text().then(function (t) {
+        var d = {}; try { d = JSON.parse(t || "{}"); } catch (e) { d = {}; }
+        if (r.ok) return d;
+        // Google momentanément indisponible ou débordé (vu en vrai le 19.11) : on attend un peu et on recommence, trois fois au plus.
+        if ((r.status === 429 || r.status >= 500) && (tour || 0) < ATTENTES.length) {
+          return new Promise(function (ok) { setTimeout(ok, ATTENTES[tour || 0] * (racine.__sansAttente ? 0 : 1)); }).then(function () { return api(s, methode, chemin, corps, (tour || 0) + 1); });
+        }
+        var m = String((d.error && d.error.message) || t).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 300), brut = r.status + " : " + m;
+        if (/User has not enabled the Apps Script API|usersettings/i.test(m)) throw souci("L'interrupteur « API Google Apps Script » de ce compte est éteint.", "api-eteinte", r.status, brut);
+        if (/has not been used in project|it is disabled|SERVICE_DISABLED/i.test(m)) throw souci("Le projet Google de la compagnie n'a pas l'API Apps Script allumée.", "projet-compagnie", r.status, brut);
+        if (r.status === 401) { Object.keys(sessions).forEach(function (k) { if (sessions[k] === s) delete sessions[k]; }); throw souci("La connexion à Google a expiré.", "expire", 401, brut); }
+        if (r.status === 404) throw souci("Google ne trouve pas ce projet.", "introuvable", 404, brut);
+        if (r.status === 403) throw souci("Google refuse.", "refus-google", 403, brut);
+        if (r.status === 429 || r.status >= 500) throw souci("Google ne répond pas pour l'instant. Réessaie dans une minute.", "occupe", r.status, brut);
+        throw souci("Google a refusé (" + r.status + ") : " + m, "", r.status, brut);
+      });
+    }, function () { throw souci("Pas de réponse de Google. Vérifie ta connexion à Internet.", "reseau"); });
+  }
+
+  function lireMoteur(s, r) {
+    return api(s, "GET", "projects/" + enc(r.moteur) + "/content").then(function (c) { return codePorte(c, r); }, function (e) {
+      // Le moteur du compte n'est lisible que par son propriétaire : un refus ici veut dire qu'un autre compte Google a été choisi.
+      if (e.code === "introuvable" || e.code === "refus-google") throw souci("Ce n'est pas le bon compte Google.", "mauvais-compte", e.statut, e.brut);
+      throw e;
+    });
+  }
+
+  /**
+   * Installe (ou reprend) la Compta d'un compte. o = { cle, moteur(prise, args) → promesse, dire(etape) }.
+   * Étapes dites : recette, code, classeur, projet, contenu, version, ligne. Rend { adresse, projet, premiere }.
+   */
+  function installerCompta(o) {
+    var s = session(o.cle), dire = o.dire || function () {}, r = null, porte = null, notee = false;
+    if (!s) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
+    dire("recette");
+    return o.moteur("compta.recette").then(function (x) {
+      r = verifierRecette(x);
+      if (r.adresse) return { adresse: r.adresse, projet: r.projet, premiere: false };
+      dire("code");
+      return lireMoteur(s, r).then(function (p) { porte = p; dire("classeur"); return o.moteur("compta.preparer"); })
+        .then(function (x2) {
+          r = verifierRecette(x2);
+          if (!r.classeur || !r.reglages) throw souci("Le moteur de ce compte n'a pas préparé le classeur de la Compta. Réessaie.", "recette");
+          notee = !!r.adresse;
+          if (r.projet) return null;
+          dire("projet");
+          return api(s, "POST", "projects", { title: r.titre, parentId: r.classeur }).then(function (p) {
+            if (!/^[\w-]{6,120}$/.test(String(p.scriptId || ""))) throw souci("Google n'a pas rendu l'identifiant du projet. Réessaie.", "occupe");
+            r.projet = p.scriptId; return o.moteur("compta.noter", { projet: r.projet });
+          });
+        })
+        .then(function () {
+          if (r.version) return null;
+          dire("contenu");
+          return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiersCompta(porte, r, r.reglages) })
+            .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Compta installée depuis Origami" }); })
+            .then(function (v) { r.version = Number(v.versionNumber) || 0; if (!r.version) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe"); return o.moteur("compta.noter", { version: r.version, empreinte: r.empreinte }); });
+        })
+        .then(function () {
+          if (r.deploiement) return null;
+          dire("ligne");
+          return api(s, "POST", "projects/" + enc(r.projet) + "/deployments", { versionNumber: r.version, manifestFileName: "appsscript", description: "Compta de ce compte" }).then(function (d) {
+            if (!/^[\w-]{6,120}$/.test(String(d.deploymentId || ""))) throw souci("Google n'a pas rendu l'identifiant de la publication. Réessaie.", "occupe");
+            r.deploiement = d.deploymentId; r.adresse = adresseDe(d);
+            return o.moteur("compta.noter", { deploiement: r.deploiement });
+          });
+        })
+        .then(function () {
+          if (r.adresse) return null;   // réponse de Google sans l'adresse, ou reprise après un arrêt : la relire
+          dire("ligne");
+          return api(s, "GET", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement)).then(function (d) {
+            r.adresse = adresseDe(d);
+            if (!r.adresse) throw souci("La Compta a été créée mais pas encore publiée. Réessaie dans un instant.", "occupe");
+          });
+        })
+        .then(function () { return notee ? null : o.moteur("compta.noter", { adresse: r.adresse }); })
+        .then(function () { return { adresse: r.adresse, projet: r.projet, premiere: true }; })
+        .catch(function (e) {
+          // Projet noté puis supprimé à la main chez Google : on repart d'un projet neuf, une seule fois.
+          if (e && e.code === "introuvable" && !o.refait && r && !notee) return o.moteur("compta.noter", { refaire: true }).then(function () { return installerCompta({ cle: o.cle, moteur: o.moteur, dire: o.dire, refait: true }); });
+          throw e;
+        });
+    });
+  }
+
+  /** Met la Compta d'un compte au niveau de celle que porte son moteur (même adresse, réglages du compte gardés). */
+  function mettreAJourCompta(o) {
+    var s = session(o.cle), dire = o.dire || function () {}, r = null, porte = null;
+    if (!s) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
+    dire("recette");
+    return o.moteur("compta.recette").then(function (x) {
+      r = verifierRecette(x);
+      if (!r.adresse || !r.projet || !r.deploiement) throw souci("La Compta de ce compte n'est pas encore installée.", "");
+      if (r.installee === r.empreinte) return { aJour: true, version: r.version };
+      dire("code");
+      return lireMoteur(s, r).then(function (p) { porte = p; return api(s, "GET", "projects/" + enc(r.projet) + "/content"); })
+        .then(function (actuel) {
+          var reglages = "";
+          ((actuel && actuel.files) || []).forEach(function (f) { if (f && f.name === "99_Compte" && /^var APP_COMPTE_ = \{/.test(String(f.source || ""))) reglages = String(f.source); });
+          dire("contenu");
+          return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiersCompta(porte, r, reglages || r.reglages) });
+        })
+        .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Compta mise à jour depuis Origami" }); })
+        .then(function (v) {
+          r.version = Number(v.versionNumber) || 0; if (!r.version) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe");
+          dire("ligne");
+          return api(s, "PUT", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement), { deploymentConfig: { scriptId: r.projet, versionNumber: r.version, manifestFileName: "appsscript", description: "Compta de ce compte" } });
+        })
+        .then(function () { return o.moteur("compta.noter", { version: r.version, empreinte: r.empreinte }); })
+        .then(function () { return { aJour: true, version: r.version }; });
+    });
+  }
+
+  /** La Compta répond-elle ? Une appli pas encore autorisée par son propriétaire ne répond rien de lisible. */
+  function ping(adresse) {
+    return fetch(String(adresse) + "?origami=ping", { redirect: "follow" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { return String(t).trim() === "origami-compta:ok"; }, function () { return false; });
+  }
+
+  var sortie = { charger: charger, connecter: connecter, session: session, oublier: oublier, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
+    _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
+  if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;
+})(typeof window !== "undefined" ? window : this);

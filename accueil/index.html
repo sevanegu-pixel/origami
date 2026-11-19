@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.46">
+<meta name="origami-version" content="2026-11-19.47">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -483,8 +483,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.46"></script>
-<script src="repertoire.js?v=2026-11-19.46"></script>
+<script src="agenda.js?v=2026-11-19.47"></script>
+<script src="repertoire.js?v=2026-11-19.47"></script>
+<script src="google.js?v=2026-11-19.47"></script>
 <script>
 (function () {
   "use strict";
@@ -2488,7 +2489,7 @@ button.tuile:hover { border-color: var(--ligne); }
     return { h: h, le: D ? D.le : 0, diff: !!D };
   }
   // Les applis d'un compte relié, chacune avec son bouton (18.11, demande de Sévane : l'installation ne doit pas être cachée
-  // dans les Réglages). La Compta d'un compte neuf ne s'installe pas encore d'ici.
+  // dans les Réglages).
   function blocApplis(c, tk) {
     function rang(id, nom, detail, bouton) { return '<div class="rang-r"><span class="nom">' + nom + (detail ? "<small>" + detail + "</small>" : "") + "</span>" + (bouton || "") + "</div>"; }
     var h = '<article class="bloc" data-bloc="applis"><div class="tete"><h2>Applis du compte</h2></div>', mac = !FENETRE && boitePossible();
@@ -2497,7 +2498,8 @@ button.tuile:hover { border-color: var(--ligne); }
     if (SUR_MAC && !FENETRE) h += rang("boite", "Boîte mail", "L'appli des mails de tous tes comptes, sur le Mac.", actionMac("boite", false));
     h += rang("agenda", "Agenda", "Déjà là : tes agendas Google.", '<button class="bouton" data-vue="agenda" data-de="' + c.id + '">Ouvrir</button>');
     if (comptaDe(c.id)) h += rang("compta", "Compta", "Installée.", '<button class="bouton" data-vue="compta" data-de="' + c.id + '">Ouvrir</button>');
-    else h += rang("compta", "Compta", "Pas encore installable d'ici : demande-la à Claude pour l'instant.", "");
+    else if (moteurs[c.id]) h += rang("compta", "Compta", "Pas encore installée.", '<button class="bouton fort" data-compta-guide="' + c.id + '">Installer</button>');
+    else h += rang("compta", "Compta", "Relie d'abord ce compte.", "");
     h += rang("frais", "Frais", "Arrive avec la Compta.", "");
     return h + "</article>";
   }
@@ -2507,113 +2509,140 @@ button.tuile:hover { border-color: var(--ligne); }
   var ORDRE_APPLIS = ["spectacle", "prospection", "agenda", "compta", "tickets", "frais", "boite"];
   var TEXTES_APPLIS = { spectacle: "Tes spectacles, leurs étapes et leurs dates.", prospection: "Lieux, contacts, relances et candidatures.", agenda: "Tes agendas Google et tes dates.", compta: "Devis, factures, salaires, journal.", tickets: "Justificatifs envoyés par mail, suivi des paiements.", frais: "Notes de frais et défraiements.", boite: "Les mails de tous tes comptes, dans une appli du Mac." };
   function logoAppli(id) { return '<span class="logo-appli' + (id === "boite" ? " sans-fond" : "") + '" aria-hidden="true">' + (LOGOS[id] ? '<img src="' + LOGOS[id] + '" alt="">' : '<svg viewBox="0 0 24 24" style="--c:' + (TEINTES[id] || "#fff") + '">' + ICONES[id] + "</svg>") + "</span>"; }
-  // ---- Compta installée depuis Origami (moteur v7, 19.11) : le moteur du compte crée la Compta, la personne l'autorise ----
+  // ---- Compta installée depuis Origami (19.11, choix de Sévane : « Origami se connecte à Google ») ----
+  // Google refuse à un moteur d'en créer un autre. C'est donc cette page, connectée à Google par la personne, qui crée la Compta
+  // dans son compte (google.js : chaque geste essayé en vrai le 19.11). Le moteur du compte (v9) prépare le dossier et le
+  // classeur, porte le code de la Compta et retient où en est l'installation : un arrêt se reprend sans rien refaire.
   var comptaEnCours = {};
   var REGLAGES_API = "https://script.google.com/home/usersettings";
+  var ADRESSE_ORIGAMI = "https://sevanegu-pixel.github.io/origami/accueil/";
+  var ETAPES_GOOGLE = { recette: "Je regarde où en est ce compte…", code: "Lecture du code de la Compta dans ton moteur…", classeur: "Création du dossier et du classeur…", projet: "Création de l'appli dans ton compte…", contenu: "Envoi du code de la Compta…", version: "Enregistrement de la version…", ligne: "Mise en ligne…" };
   function nomCompte(id) { var c = compte(id); return c ? c.nom : "ce compte"; }
-  function comptaInstaller(id, deja) {
-    if (comptaEnCours[id]) return;
-    comptaEnCours[id] = deja ? "Reprise de l'installation…" : "Installation de la Compta… (une minute environ)";
-    montrer();
-    moteurAppel(id, "compta.installer", null, { lent: true }).then(function (r) {
-      delete comptaEnCours[id];
-      return Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {}).then(function () { montrer(); if (r && r.adresse) comptaPremiereFois(id, r.adresse, r.premiere !== false); });
-    }, function (e) { delete comptaEnCours[id]; montrer(); comptaSouci(id, e); });
-  }
-  // Dernière étape, une seule fois : Google demande au propriétaire d'autoriser sa Compta, dans une vraie fenêtre du navigateur.
-  function comptaPremiereFois(id, adresse, premiere) {
-    if (!premiere) { avis("La Compta de " + nomCompte(id) + " est déjà installée."); return; }
-    ouvrirVoile("<h2>Ta Compta est installée</h2><p>Dernière étape, une seule fois : ouvre-la pour l'autoriser.</p><ol class=\"etapes-compta\"><li>Google s'ouvre dans ton navigateur. Choisis le compte <strong>" + texte(nomCompte(id)) + "</strong>.</li><li>S'il dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Origami - Compta ». C'est ta propre appli, dans ton compte.</li><li>Clique sur « Autoriser ». La Compta se prépare seule (une minute environ), puis te demande le nom de ta structure, ta banque et ton code PIN.</li></ol>" +
-      '<div class="actions"><a class="bouton fort" href="' + texte(adresse) + '" target="_blank" rel="noopener" data-compta-autoriser="' + id + '">Ouvrir pour autoriser</a><button class="bouton" data-compta-fini="' + id + '">C\'est fait</button></div>');
-  }
-  function comptaSouci(id, e) {
-    var code = e && e.code, m = String((e && e.message) || e || "");
-    if (code === "api-eteinte") {
-      ouvrirVoile("<h2>Un interrupteur à allumer, une seule fois</h2><p>Pour qu'Origami puisse installer la Compta dans <strong>" + texte(nomCompte(id)) + "</strong>, Google demande d'allumer un interrupteur de ce compte.</p><ol class=\"etapes-compta\"><li>Ouvre la page ci-dessous. Vérifie en haut à droite que c'est bien le compte <strong>" + texte(nomCompte(id)) + "</strong>.</li><li>Allume « API Google Apps Script ».</li><li>Reviens ici et clique sur « Continuer ».</li></ol>" +
-        '<div class="actions"><a class="bouton" href="' + REGLAGES_API + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-compta-installer="' + id + '" data-reprise="1">Continuer</button></div>');
-      return;
-    }
-    if (code === "droits") {
-      var mt = moteurs[id] && moteurs[id].u;
-      ouvrirVoile("<h2>Le moteur du compte doit être autorisé à nouveau</h2><p>Il vient de recevoir de quoi installer la Compta. Google demande au propriétaire de <strong>" + texte(nomCompte(id)) + "</strong> de l'autoriser, une seule fois.</p>" +
-        '<div class="actions">' + (mt ? '<a class="bouton" href="' + texte(mt) + '" target="_blank" rel="noopener">Autoriser le moteur</a>' : "") + '<button class="bouton fort" data-compta-installer="' + id + '" data-reprise="1">Continuer</button></div>');
-      return;
-    }
-    demander("La Compta ne s'est pas installée", m + " Ce qui est déjà fait est gardé : tu peux reprendre.", [{ nom: "Plus tard" }, { nom: "Reprendre", fort: true, action: function () { comptaInstaller(id, true); } }]);
-  }
-  // ---- Guide pas à pas (19.11, demande de Sévane) : les 4 étapes d'une Compta installée depuis Origami, chacune avec son
-  // bouton et sa coche. Il se rouvre où on en était : l'état vient du moteur du compte (et de cet appareil pour l'étape 4).
-  var guideC = { id: "", api: null, occupe: "", souci: "" };
   function comptaAutorisee(id) { return lire("origami_compta_autorisee@" + id) === "1"; }
-  function moteurPret(id) { var m = memoires[id]; return !!(moteurs[id] && m && !m.panne && m.etat && m.etat.moteur && m.etat.moteur.version >= 7); }
+  function moteurPret(id) { var m = memoires[id]; return !!(moteurs[id] && m && !m.panne && m.etat && m.etat.moteur && m.etat.moteur.version >= 9); }
+  // L'adresse du compte Google choisi reste sur cet appareil : elle sert à dire à Google quel compte doit autoriser.
+  function googleAdresse(id) { return lire("origami_google_adresse@" + id); }
+  function appelMoteurCompta(id) { return function (prise, args) { return moteurAppel(id, prise, args || null, { lent: true }); }; }
+  function relireCompte(id) { return Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {}); }
+  // ---- Guide pas à pas : trois étapes, chacune avec son bouton et sa coche. Il se rouvre où on en était : l'état vient du
+  // moteur du compte (et de cet appareil pour la connexion à Google et pour la dernière étape).
+  var guideC = { id: "", occupe: "", souci: "", code: "", brut: "" };
   function comptaGuide(id) {
-    guideC = { id: id, api: null, occupe: "Je regarde où en est ce compte…", souci: "" };
+    guideC = { id: id, occupe: comptaEnCours[id] || "Je regarde où en est ce compte…", souci: "", code: "", brut: "" };
     dessinerGuideCompta();
-    Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {}).then(function () {
-      if (!moteurPret(id) || (comptaMoteur(id) || {}).adresse) return;
-      return moteurAppel(id, "api.etat", null, { sans: true }).then(function (r) { guideC.api = !!(r && r.api); guideC.apiCode = (r && r.code) || ""; guideC.droits = (r && r.droits) || null; guideC.brut = (r && !r.api && r.brut) ? String(r.brut).slice(0, 320) : ""; }, function () { guideC.api = null; guideC.brut = ""; });
-    }).then(function () { guideC.occupe = ""; dessinerGuideCompta(); });
+    if (window.OrigamiGoogle && !MAC) OrigamiGoogle.charger().catch(function () {});   // prêt avant le clic « Se connecter »
+    relireCompte(id).then(function () { if (guideC.id !== id) return; guideC.occupe = comptaEnCours[id] || ""; dessinerGuideCompta(); });
   }
   function dessinerGuideCompta() {
     var id = guideC.id;
     if (!id) return;
     if (!voile.hidden && !voile.querySelector("[data-guide-compta]")) return;   // une autre fenêtre est ouverte : on ne l'écrase pas
-    var m = memoires[id] || {}, cm = comptaMoteur(id) || {}, nom = texte(nomCompte(id));
-    // Droits du moteur : Google ne redemande plus seul ceux qu'une mise à jour ajoute. Le moteur (v8) dit s'il lui en manque et
-    // donne l'adresse de l'écran de Google ; un moteur v7 le montre seulement par le refus « droits » de l'API.
-    var dr = guideC.droits || (m.etat && m.etat.droits) || null, lienDroits = dr && dr.complets === false && /^https:\/\/(script|accounts)\.google\.com\//.test(dr.lien || "") ? dr.lien : "";
-    var sansDroits = moteurPret(id) && !cm.adresse && ((dr && dr.complets === false) || (guideC.api === false && guideC.apiCode === "droits"));
-    var brutGoogle = guideC.api === false && guideC.brut ? '<p class="aide-fine">Réponse de Google, telle quelle : « ' + texte(guideC.brut) + " »</p>" : "";
-    var f1 = moteurPret(id) && !sansDroits, f3 = !!cm.adresse, f2 = f3 || (f1 && guideC.api === true), f4 = f3 && comptaAutorisee(id);
-    var faits = [f1, f2, f3, f4], actif = faits.indexOf(false);
+    var m = memoires[id] || {}, cm = comptaMoteur(id) || {}, nom = texte(nomCompte(id)), G = window.OrigamiGoogle;
+    var pret = moteurPret(id), connecte = !!(G && G.session(id));
+    var f2 = !!cm.adresse, f1 = f2 || (pret && connecte), f3 = f2 && comptaAutorisee(id);
+    var faits = [f1, f2, f3], actif = faits.indexOf(false);
     function etape(i, titre, corps) {
       var cl = faits[i] ? "fait" : i === actif ? "actif" : "attente";
       return '<li class="' + cl + '"><span class="pastille" aria-hidden="true">' + (faits[i] ? "✓" : i + 1) + '</span><div><strong>' + titre + "</strong>" + (i === actif && !guideC.occupe ? corps : "") + "</div></li>";
     }
-    var lienDonnees = m.etat && m.etat.rangement && (m.etat.rangement.origami || m.etat.rangement.donnees);
-    var e1 = sansDroits ? "<p>Le moteur de ce compte a été mis à jour, et Google ne lui a pas encore donné ses deux nouveaux droits (ceux qui servent à installer la Compta). " +
-        (lienDroits ? "Ouvre l'écran de Google, choisis le compte <strong>" + nom + "</strong> et accepte. Si Google dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à… » (c'est ton propre moteur, dans ton compte)."
-          : "Ouvre le classeur « Origami - Réglages du compte » de <strong>" + nom + "</strong>, menu Origami › « Installer ou réparer », puis accepte l'écran de Google.") + "</p>" +
-        '<div class="actions">' + (lienDroits ? '<a class="bouton" href="' + texte(lienDroits) + '" target="_blank" rel="noopener">Ouvrir l\'écran de Google</a>' : lienDonnees ? '<a class="bouton" href="' + texte(lienDonnees) + '" target="_blank" rel="noopener">Ouvrir le dossier</a>' : "") + '<button class="bouton fort" data-guide-compta-verifier="1">C\'est fait, vérifier</button></div>' +
-        (lienDroits ? '<p class="aide-fine">Autre chemin : le classeur « Origami - Réglages du compte » de ce compte, menu Origami › « Installer ou réparer ».</p>' : "") + brutGoogle
-      : m.panne ? "<p>Le moteur de ce compte a reçu de quoi installer la Compta. Google demande de l'autoriser, une seule fois : ouvre le classeur « Origami - Réglages du compte » de <strong>" + nom + "</strong>" + " (dans ton dossier Origami)" + ", menu Origami › « Installer ou réparer », puis accepte l'écran de Google.</p>" +
-        '<div class="actions">' + (lienDonnees ? '<a class="bouton" href="' + texte(lienDonnees) + '" target="_blank" rel="noopener">Ouvrir le dossier</a>' : "") + '<button class="bouton fort" data-guide-compta-verifier="1">C\'est fait, vérifier</button></div>'
-      : "<p>Le moteur de ce compte n'a pas encore la mise à jour qui installe la Compta. Elle arrive bientôt.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-verifier="1">Vérifier à nouveau</button></div>';
-    var e2 = "<p>Google demande d'allumer un interrupteur du compte, une seule fois. Sur la page qui s'ouvre, vérifie en haut à droite que c'est bien <strong>" + nom + "</strong>, puis allume « API Google Apps Script ».</p>" +
-      '<div class="actions"><a class="bouton" href="' + REGLAGES_API + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-guide-compta-verifier="1">C\'est allumé, vérifier</button></div>' +
-      (guideC.api === false && guideC.apiCode && guideC.apiCode !== "api-eteinte" ? '<p class="aide-fine">' + texte(guideC.apiCode === "droits" ? "Le moteur doit d'abord être autorisé à nouveau (étape 1)." : guideC.apiCode === "projet-cloud" ? "L'interrupteur est bien allumé, mais Google refuse pour une autre raison : il ne laisse pas ce moteur créer une appli tant qu'il n'a pas son propre projet Google Cloud. Ce n'est pas de ton fait, et recommencer n'y change rien : l'installation depuis Origami doit passer par un autre chemin." : "Google n'a pas répondu, réessaie dans un instant.") + "</p>" : "") + brutGoogle;
-    var e3 = "<p>Origami crée ta Compta dans ton Drive (dossier Origami › Compta) et la publie. Une minute environ.</p>" + '<div class="actions"><button class="bouton fort" data-guide-compta-installer="1">' + ((comptaMoteur(id) || {}).enCours ? "Reprendre l'installation" : "Installer la Compta") + "</button></div>";
-    var e4 = "<p>Ouvre-la une première fois pour l'autoriser. Choisis le compte <strong>" + nom + "</strong>. Si Google dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Origami - Compta » (c'est ta propre appli, dans ton compte). Clique sur « Autoriser » : la Compta se prépare seule (une minute environ), puis demande le nom de ta structure, ta banque et ton code PIN.</p>" +
-      '<div class="actions">' + (cm.adresse ? '<a class="bouton" href="' + texte(cm.adresse) + '" target="_blank" rel="noopener">Ouvrir pour autoriser</a>' : "") + '<button class="bouton fort" data-guide-compta-fini="1">C\'est fait</button></div>';
-    var h = '<div data-guide-compta="1"><h2>Installer la Compta</h2><p class="aide-fine">Dans le compte ' + nom + ". Quatre étapes, une seule fois. Tu peux fermer et revenir : le guide reprend où tu en étais.</p>" +
-      '<ol class="guide-compta">' + etape(0, "Autoriser le moteur du compte", e1) + etape(1, "Allumer l'interrupteur de Google", e2) + etape(2, "Installer la Compta", e3) + etape(3, "Autoriser ta Compta", e4) + "</ol>" +
+    var brutGoogle = guideC.brut ? '<p class="aide-fine">Réponse de Google, telle quelle : « ' + texte(guideC.brut) + " »</p>" : "";
+    var e1 = !pret ? "<p>" + (m.panne ? "Le moteur de ce compte ne répond pas pour l'instant." : "Le moteur de ce compte n'a pas encore la mise à jour qui permet d'installer la Compta d'ici. Elle arrive bientôt.") + "</p>" + '<div class="actions"><button class="bouton" data-guide-compta-verifier="1">Vérifier à nouveau</button></div>'
+      : MAC ? "<p>La connexion à Google se fait dans ton navigateur (Chrome ou Safari) : Google la refuse dans la fenêtre de l'appli du Mac. Ouvre Origami dans ton navigateur, avec ce compte relié, et reviens sur cet écran. Une fois la Compta installée, elle s'ouvre ici comme les autres.</p>" + '<div class="actions"><a class="bouton fort" href="' + ADRESSE_ORIGAMI + '" target="_blank" rel="noopener">Ouvrir Origami dans le navigateur</a><button class="bouton" data-guide-compta-verifier="1">C\'est installé, vérifier</button></div>'
+      : !G ? "<p>La connexion à Google n'est pas chargée. Recharge Origami et reviens ici.</p>"
+      : "<p>Google ouvre une fenêtre. Choisis le compte <strong>" + nom + "</strong> et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami de la compagnie. Elle sert seulement à créer ta Compta dans ton propre compte.</p>" + '<div class="actions"><button class="bouton fort" data-guide-compta-connecter="1">Se connecter à Google</button></div>';
+    var e2 = guideC.code === "api-eteinte" ? "<p>Google demande d'allumer un interrupteur du compte, une seule fois. Sur la page qui s'ouvre, vérifie en haut à droite que c'est bien <strong>" + nom + "</strong>, puis allume « API Google Apps Script ».</p>" +
+        '<div class="actions"><a class="bouton" href="' + REGLAGES_API + (googleAdresse(id) ? "?authuser=" + encodeURIComponent(googleAdresse(id)) : "") + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-guide-compta-installer="1">C\'est allumé, continuer</button></div>' + brutGoogle
+      : "<p>Origami crée ta Compta dans ton Drive (dossier Origami › Compta) et la met en ligne. Une minute environ.</p>" + '<div class="actions"><button class="bouton fort" data-guide-compta-installer="1">' + (cm.enCours ? "Reprendre l'installation" : "Installer la Compta") + "</button></div>" + brutGoogle;
+    var lienA = (G && G.lienAutorisation(cm.projet, googleAdresse(id))) || cm.adresse || "";
+    var e3 = "<p>Dernier geste : Google te demande d'autoriser ta Compta. Vérifie que c'est bien le compte <strong>" + nom + "</strong>, puis accepte. S'il dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Origami - Compta » (c'est ta propre appli, dans ton compte).</p>" +
+      '<div class="actions">' + (lienA ? '<a class="bouton" href="' + texte(lienA) + '" target="_blank" rel="noopener">Autoriser ma Compta</a>' : "") + '<button class="bouton fort" data-guide-compta-ping="1">C\'est fait, vérifier</button></div>' +
+      (guideC.code === "ping" ? '<div class="actions"><button class="bouton" data-guide-compta-fini="1">Je l\'ai autorisée, continuer sans vérifier</button></div>' : "") +
+      '<p class="aide-fine">À sa première ouverture, la Compta se prépare seule (une minute environ), puis demande le nom de ta structure, ta banque et ton code PIN.</p>';
+    var h = '<div data-guide-compta="1"><h2>Installer la Compta</h2><p class="aide-fine">Dans le compte ' + nom + ". Trois étapes, une seule fois. Tu peux fermer et revenir : le guide reprend où tu en étais.</p>" +
+      '<ol class="guide-compta">' + etape(0, "Connecter Origami à Google", e1) + etape(1, "Installer la Compta", e2) + etape(2, "Autoriser ta Compta", e3) + "</ol>" +
       (guideC.occupe ? '<p class="progression" role="status"><progress></progress><span>' + texte(guideC.occupe) + "</span></p>" : "") +
       (guideC.souci ? '<p class="souci-guide" role="alert">' + texte(guideC.souci) + "</p>" : "") +
       '<div class="actions">' + (actif < 0 ? '<button class="bouton fort" data-guide-compta-ouvrir="1">Ouvrir ma Compta</button>' : '<button class="bouton" data-guide-compta-fermer="1">Fermer</button>') + "</div></div>";
     ouvrirVoile(h);
   }
+  function guideComptaConnecter() {
+    var id = guideC.id, G = window.OrigamiGoogle;
+    if (!id || !G || guideC.occupe) return;
+    var p = G.connecter(id);   // dans le clic même : la fenêtre de Google doit pouvoir s'ouvrir
+    guideC.souci = ""; guideC.code = ""; guideC.brut = ""; guideC.occupe = "La fenêtre de Google est ouverte : choisis le compte et accepte…"; dessinerGuideCompta();
+    p.then(function (s) {
+      if (s.adresse) garder("origami_google_adresse@" + id, s.adresse);
+      if (guideC.id !== id) return;
+      guideC.occupe = "";
+      if ((comptaMoteur(id) || {}).adresse) dessinerGuideCompta(); else guideComptaInstaller();   // connectée : l'installation part toute seule
+    }, function (e) { if (guideC.id !== id) return; guideC.occupe = ""; guideC.souci = String((e && e.message) || e); guideC.code = (e && e.code) || ""; dessinerGuideCompta(); });
+  }
   function guideComptaInstaller() {
-    var id = guideC.id;
-    if (!id || comptaEnCours[id]) return;
-    comptaEnCours[id] = "Installation de la Compta… (une minute environ)";
-    guideC.occupe = comptaEnCours[id]; guideC.souci = ""; dessinerGuideCompta();
-    moteurAppel(id, "compta.installer", null, { lent: true }).then(function () {
+    var id = guideC.id, G = window.OrigamiGoogle;
+    if (!id || !G || comptaEnCours[id]) return;
+    guideC.souci = ""; guideC.code = ""; guideC.brut = "";
+    if (!G.session(id)) { guideC.souci = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprendra où elle en était."; dessinerGuideCompta(); return; }
+    function dire(e) { comptaEnCours[id] = ETAPES_GOOGLE[e] || "Installation de la Compta…"; if (guideC.id === id) { guideC.occupe = comptaEnCours[id]; dessinerGuideCompta(); } }
+    dire("recette"); montrer();
+    G.installerCompta({ cle: id, moteur: appelMoteurCompta(id), dire: dire }).then(function () {
       delete comptaEnCours[id];
-      return Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {});
+      return relireCompte(id);
     }, function (e) {
       delete comptaEnCours[id];
-      if (e && (e.code === "api-eteinte" || e.code === "droits" || e.code === "projet-cloud")) { guideC.api = false; guideC.apiCode = e.code; }
-      else guideC.souci = String((e && e.message) || e) + " Ce qui est fait est gardé : tu peux reprendre.";
-    }).then(function () { guideC.occupe = ""; montrer(); dessinerGuideCompta(); });
+      var code = (e && e.code) || "", m = String((e && e.message) || e);
+      if (code === "mauvais-compte") { G.oublier(id); m = "Ce n'est pas le bon compte Google. Reconnecte-toi et, à la fenêtre de Google, choisis celui de « " + nomCompte(id) + " »."; }
+      else if (code === "expire" || code === "connexion") m = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprendra où elle en était.";
+      else if (code === "api-eteinte") m = "";
+      else if (code === "projet-compagnie") m = "Le projet Google de la compagnie refuse cette demande. Ce n'est pas de ton fait : préviens la personne qui s'occupe d'Origami.";
+      else m += " Ce qui est fait est gardé : tu peux reprendre.";
+      if (guideC.id !== id) { if (m) avis("Compta de " + nomCompte(id) + " : " + m, true); return; }
+      guideC.souci = m; guideC.code = code; guideC.brut = String((e && e.brut) || "").slice(0, 320);
+      return relireCompte(id);   // ce qui a été créé avant l'arrêt se voit (« Reprendre l'installation »)
+    }).then(function () { if (guideC.id === id) guideC.occupe = ""; montrer(); if (guideC.id === id) dessinerGuideCompta(); });
   }
+  // Dernière étape : la Compta autorisée répond à un petit appel ; pas encore autorisée, elle ne répond rien de lisible.
+  function guideComptaPing() {
+    var id = guideC.id, cm = comptaMoteur(id) || {}, G = window.OrigamiGoogle;
+    if (!id || !G || !cm.adresse || guideC.occupe) return;
+    guideC.occupe = "Je vérifie que ta Compta répond…"; guideC.souci = ""; guideC.code = ""; guideC.brut = ""; dessinerGuideCompta();
+    G.ping(cm.adresse).then(function (ok) {
+      if (ok) garder("origami_compta_autorisee@" + id, "1");
+      if (guideC.id !== id) return;
+      guideC.occupe = "";
+      if (ok) montrer(); else { guideC.code = "ping"; guideC.souci = "Ta Compta ne répond pas encore. Si tu viens d'accepter l'écran de Google, attends dix secondes et recommence."; }
+      dessinerGuideCompta();
+    });
+  }
+  // Mise à jour de la Compta d'un compte : même chemin (connexion à Google, puis nouveau code, nouvelle version, même adresse).
   function comptaMettreAJour(id) {
-    if (comptaEnCours[id]) return;
+    var G = window.OrigamiGoogle;
+    if (comptaEnCours[id] || !G) return;
+    if (G.session(id)) { comptaMajLancer(id); return; }
+    if (!MAC) G.charger().catch(function () {});
+    ouvrirVoile("<h2>Mettre à jour la Compta</h2>" + (MAC ? "<p>La connexion à Google se fait dans ton navigateur (Chrome ou Safari) : Google la refuse dans la fenêtre de l'appli du Mac. Ouvre Origami dans ton navigateur, avec ce compte relié, et lance la mise à jour de là.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Fermer</button><a class="bouton fort" href="' + ADRESSE_ORIGAMI + '" target="_blank" rel="noopener">Ouvrir Origami dans le navigateur</a></div>'
+      : "<p>Pour mettre à jour la Compta de <strong>" + texte(nomCompte(id)) + "</strong>, Origami se connecte à Google. Choisis ce compte à la fenêtre de Google et accepte. Tes données et tes réglages ne bougent pas.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Annuler</button><button class="bouton fort" data-compta-maj-go="' + texte(id) + '">Se connecter et mettre à jour</button></div>'));
+  }
+  function comptaMajConnecter(id) {
+    var G = window.OrigamiGoogle;
+    if (!G || comptaEnCours[id]) return;
+    G.connecter(id).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); fermerVoile(); comptaMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
+  }
+  function comptaMajLancer(id) {
+    var G = window.OrigamiGoogle;
     comptaEnCours[id] = "Mise à jour de la Compta…";
     montrer();
-    moteurAppel(id, "compta.mettreAJour", null, { lent: true }).then(function () {
+    G.mettreAJourCompta({ cle: id, moteur: appelMoteurCompta(id) }).then(function () {
       delete comptaEnCours[id]; avis("Compta de " + nomCompte(id) + " à jour. Si Google redemande une autorisation, accepte-la une fois.");
-      return Promise.resolve(releves[id]).catch(function () {}).then(function () { return relever(id); }).catch(function () {}).then(montrer);
-    }, function (e) { delete comptaEnCours[id]; montrer(); if (e && e.code) comptaSouci(id, e); else avis(String((e && e.message) || e), true); });
+      return relireCompte(id).then(montrer);
+    }, function (e) {
+      delete comptaEnCours[id]; montrer();
+      var code = (e && e.code) || "";
+      if (code === "mauvais-compte") G.oublier(id);
+      avis(code === "mauvais-compte" ? "Ce n'est pas le bon compte Google : relance la mise à jour et choisis celui de « " + nomCompte(id) + " »."
+        : code === "api-eteinte" ? "L'interrupteur « API Google Apps Script » de ce compte est éteint : allume-le sur script.google.com/home/usersettings, puis relance."
+        : code === "expire" || code === "connexion" ? "La connexion à Google a expiré : relance la mise à jour."
+        : String((e && e.message) || e), true);
+    });
   }
   function tuileAppli(c, id) {
     var relie = !!(c && (c.id === "compagnie" || moteurs[c.id])), mac = !FENETRE && boitePossible(), etatT = "", ok = false, act = "", eteinte = false;
@@ -3165,7 +3194,10 @@ button.tuile:hover { border-color: var(--ligne); }
       return;
     }
     if (d.macFermer) { fermerVoile(); return; }
-    if (d.comptaInstaller) { fermerVoile(); comptaInstaller(d.comptaInstaller, d.reprise === "1"); return; }
+    if (d.comptaInstaller) { comptaGuide(d.comptaInstaller); return; }
+    if (d.guideComptaConnecter) { guideComptaConnecter(); return; }
+    if (d.guideComptaPing) { guideComptaPing(); return; }
+    if (d.comptaMajGo) { comptaMajConnecter(d.comptaMajGo); return; }
     if (d.comptaGuide) { comptaGuide(d.comptaGuide); return; }
     if (d.guideComptaVerifier) { comptaGuide(guideC.id); return; }
     if (d.guideComptaInstaller) { guideComptaInstaller(); return; }
