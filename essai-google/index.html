@@ -75,7 +75,8 @@
   var $ = function (id) { return document.getElementById(id); };
   var champ = $("client"), bouton = $("lancer"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
 
-  try { champ.value = localStorage.getItem("origami_essai_client") || ""; } catch (e) {}
+  var CLIENT_COMPAGNIE = "964221481435-nv5bh3a8v6vlnbiaf1fgjfft6a7sb9kn.apps.googleusercontent.com";   // public par nature : il ne donne aucun accès à lui seul
+  try { champ.value = localStorage.getItem("origami_essai_client") || CLIENT_COMPAGNIE; } catch (e) { champ.value = CLIENT_COMPAGNIE; }
 
   function manifeste(droits) {
     var m = { timeZone: "Europe/Zurich", exceptionLogging: "STACKDRIVER", runtimeVersion: "V8", webapp: { executeAs: "USER_DEPLOYING", access: "ANYONE_ANONYMOUS" } };
@@ -98,20 +99,27 @@
     rapport.push((ok ? "OK   " : "RATÉ ") + l.titre + (detail ? " : " + detail : ""));
   }
 
-  function api(methode, chemin, corps) {
+  var essaisEnPlus = 0, ATTENTES = [1500, 4000, 9000];
+  function api(methode, chemin, corps, tour) {
     var opt = { method: methode, headers: { Authorization: "Bearer " + jeton } };
     if (corps !== undefined) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(corps); }
     return fetch(API + chemin, opt).then(function (r) {
       return r.text().then(function (t) {
         var d = {}; try { d = JSON.parse(t || "{}"); } catch (e) { d = {}; }
         if (r.ok) return d;
-        var err = new Error(r.status + " : " + String((d.error && d.error.message) || t).slice(0, 400)); err.statut = r.status; throw err;
+        // Google momentanément indisponible ou débordé : on attend un peu et on recommence, trois fois au plus.
+        if ((r.status === 429 || r.status >= 500) && (tour || 0) < ATTENTES.length) {
+          essaisEnPlus++;
+          return new Promise(function (ok) { setTimeout(ok, ATTENTES[tour || 0] * (window.__sansAttente ? 0 : 1)); }).then(function () { return api(methode, chemin, corps, (tour || 0) + 1); });
+        }
+        var err = new Error(r.status + " : " + String((d.error && d.error.message) || t).slice(0, 400) + ((tour || 0) ? " (après " + ((tour || 0) + 1) + " essais)" : "")); err.statut = r.status; throw err;
       });
     });
   }
   function pas(cle, titre, f, dire) {
     etape(cle, titre);
-    return f().then(function (r) { finir(cle, true, dire ? dire(r) : ""); return r; }, function (e) { finir(cle, false, String((e && e.message) || e)); throw e; });
+    var avant = essaisEnPlus;
+    return f().then(function (r) { var n = essaisEnPlus - avant, t = dire ? dire(r) : ""; finir(cle, true, t + (n ? (t ? ", " : "") + "au " + (n + 1) + "e essai" : "")); return r; }, function (e) { finir(cle, false, String((e && e.message) || e)); throw e; });
   }
 
   // Crée un projet, y met le code, en fait une version et la met en ligne : rend { id, deploiement, adresse }.
@@ -134,12 +142,14 @@
     var a = null;
     return installer("Mini-appli 1", codeA("L'essai a marché."), null)
       .then(function (p) { a = p; return pas("a5", "Mini-appli 1 : l'ouvrir depuis cette page", function () { return lire(a.adresse); }, function (t) { return "elle répond « " + String(t).slice(0, 80) + " »"; }).catch(function () { return null; }); })
-      .then(function () { return pas("a6", "Mini-appli 1 : la mettre à jour", function () {
-        return api("PUT", "projects/" + encodeURIComponent(a.id) + "/content", fichiers(codeA("L'essai a marché, version 2."), null))
-          .then(function () { return api("POST", "projects/" + encodeURIComponent(a.id) + "/versions", { description: "Essai Origami 2" }); })
-          .then(function (v) { return api("PUT", "projects/" + encodeURIComponent(a.id) + "/deployments/" + encodeURIComponent(a.deploiement), { deploymentConfig: { versionNumber: v.versionNumber, manifestFileName: "appsscript", description: "Essai Origami 2" } }); });
-      }, function () { return "même adresse, nouvelle version"; }); })
-      .then(function () { return pas("a7", "Mini-appli 1 : vérifier la mise à jour", function () { return lire(a.adresse).then(function (t) { if (!/version 2/.test(t)) throw new Error("elle répond encore « " + String(t).slice(0, 80) + " »"); return t; }); }, function (t) { return "elle répond « " + String(t).slice(0, 80) + " »"; }).catch(function () { return null; }); })
+      .then(function () {
+        var v2 = 0;
+        return pas("a6", "Mini-appli 1 : y mettre un nouveau code", function () { return api("PUT", "projects/" + encodeURIComponent(a.id) + "/content", fichiers(codeA("L'essai a marché, version 2."), null)); })
+          .then(function () { return pas("a7", "Mini-appli 1 : en faire une deuxième version", function () { return api("POST", "projects/" + encodeURIComponent(a.id) + "/versions", { description: "Essai Origami 2" }); }, function (r) { return "version " + r.versionNumber; }); })
+          .then(function (v) { v2 = v.versionNumber; return pas("a8", "Mini-appli 1 : passer l'adresse sur cette version", function () { return api("PUT", "projects/" + encodeURIComponent(a.id) + "/deployments/" + encodeURIComponent(a.deploiement), { deploymentConfig: { versionNumber: v2, manifestFileName: "appsscript", description: "Essai Origami 2" } }); }, function () { return "même adresse, nouvelle version"; }); })
+          .then(function () { return pas("a9", "Mini-appli 1 : vérifier la mise à jour", function () { return lire(a.adresse).then(function (t) { if (!/version 2/.test(t)) throw new Error("elle répond encore « " + String(t).slice(0, 80) + " »"); return t; }); }, function (t) { return "elle répond « " + String(t).slice(0, 80) + " »"; }); })
+          .catch(function () { return null; });   // une mise à jour ratée n'arrête pas l'essai : la mini-appli 2 se fait quand même
+      })
       .then(function () { return installer("Mini-appli 2 (avec un droit)", CODE_B, ["https://www.googleapis.com/auth/userinfo.email"]); })
       .then(function (b) {
         rapport.push("Adresse 1 : " + a.adresse); rapport.push("Adresse 2 : " + b.adresse);
