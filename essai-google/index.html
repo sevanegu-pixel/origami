@@ -40,14 +40,17 @@
 <body>
 <main>
   <h1>Essai : Origami se connecte à Google</h1>
-  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée des mini-applis vides, nommées « Origami - essai (à supprimer) ». Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
+  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée des mini-applis vides, nommées « Origami - essai (à supprimer) ». L'essai 3 crée en plus un classeur vide du même nom et, si tu colles l'identifiant du moteur, compte les fichiers qu'il porte sans rien en garder. Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
 
   <div class="carte">
     <label for="client">ID client du projet Google de la compagnie</label>
     <input type="text" id="client" autocomplete="off" spellcheck="false" placeholder="…apps.googleusercontent.com">
     <p class="doux" style="margin-top:8px">À ouvrir dans Chrome ou Safari, pas dans l'appli Origami du Mac. Google va te demander de choisir un compte : prends celui où tu veux faire l'essai, et laisse cochés les deux droits demandés.</p>
+    <label for="moteur" style="margin-top:12px">Identifiant du moteur de ce compte (facultatif, pour l'essai 3)</label>
+    <input type="text" id="moteur" autocomplete="off" spellcheck="false" placeholder="donné dans la conversation">
     <div class="actions">
-      <button class="fort" id="lancer2">Essai 2 : l'autorisation</button>
+      <button class="fort" id="lancer3">Essai 3 : attacher à un classeur</button>
+      <button id="lancer2">Essai 2 : l'autorisation (déjà réussi)</button>
       <button id="lancer">Essai 1 : créer et mettre à jour (déjà réussi)</button>
     </div>
   </div>
@@ -67,6 +70,20 @@
       <p>2. Reviens sur cette page et clique :</p>
       <div class="actions"><button class="fort" id="verifier3">C'est fait, vérifier</button></div>
     </div>
+    <div id="suite3a" hidden>
+      <p><strong>À toi, deux gestes.</strong> La mini-appli 4 doit créer un classeur vide, « Origami - essai (à supprimer) », comme le moteur le fera pour la Compta. Google ne l'a pas encore autorisée.</p>
+      <p>1. Clique ce lien, choisis le même compte et accepte :</p>
+      <p><a id="lienAutoriser4" target="_blank" rel="noopener">Autoriser la mini-appli 4</a></p>
+      <p>2. Reviens sur cette page et clique :</p>
+      <div class="actions"><button class="fort" id="continuer3">C'est fait, continuer</button></div>
+    </div>
+    <div id="suite3b" hidden>
+      <p><strong>Encore deux gestes.</strong> La mini-appli 5 est attachée au classeur d'essai et en ligne. Il reste à l'autoriser.</p>
+      <p>1. Clique ce lien, choisis le même compte et accepte :</p>
+      <p><a id="lienAutoriser5" target="_blank" rel="noopener">Autoriser la mini-appli 5</a></p>
+      <p>2. Reviens sur cette page et clique :</p>
+      <div class="actions"><button class="fort" id="verifier5">C'est fait, vérifier</button></div>
+    </div>
     <div class="actions">
       <button id="copier" hidden>Copier le compte rendu</button>
     </div>
@@ -81,7 +98,7 @@
   var API = "https://script.googleapis.com/v1/";
   var DROITS = ["https://www.googleapis.com/auth/script.projects", "https://www.googleapis.com/auth/script.deployments"];
   var TITRE = "Origami - essai (à supprimer)";
-  // Essai 2 seulement : connaître l'adresse du compte choisi, pour dire à Google quel compte doit autoriser (authuser).
+  // Essais 2 et 3 seulement : connaître l'adresse du compte choisi, pour dire à Google quel compte doit autoriser (authuser).
   // Elle reste dans cette page : elle ne part que chez Google, dans le lien d'autorisation, et n'est pas mise au compte rendu.
   var DROIT_ADRESSE = "https://www.googleapis.com/auth/userinfo.email", adresseCompte = "";
   function lireAdresse() {
@@ -89,21 +106,26 @@
       .then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return /^[^\s@]+@[^\s@]+$/.test(String(d.email || "")) ? String(d.email) : ""; }, function () { return ""; });
   }
   var $ = function (id) { return document.getElementById(id); };
-  var champ = $("client"), bouton = $("lancer"), bouton2 = $("lancer2"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
+  var champ = $("client"), bouton = $("lancer"), bouton2 = $("lancer2"), bouton3 = $("lancer3"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
 
   var CLIENT_COMPAGNIE = "964221481435-nv5bh3a8v6vlnbiaf1fgjfft6a7sb9kn.apps.googleusercontent.com";   // public par nature : il ne donne aucun accès à lui seul
   try { champ.value = localStorage.getItem("origami_essai_client") || CLIENT_COMPAGNIE; } catch (e) { champ.value = CLIENT_COMPAGNIE; }
 
-  function manifeste(droits) {
+  function manifeste(droits, drive) {
     var m = { timeZone: "Europe/Zurich", exceptionLogging: "STACKDRIVER", runtimeVersion: "V8", webapp: { executeAs: "USER_DEPLOYING", access: "ANYONE_ANONYMOUS" } };
     if (droits) m.oauthScopes = droits;
+    if (drive) m.dependencies = { enabledAdvancedServices: [{ userSymbol: "Drive", serviceId: "drive", version: "v3" }] };
     return JSON.stringify(m, null, 2);
   }
   function codeA(texte) { return "function doGet() {\n  return ContentService.createTextOutput(" + JSON.stringify(texte) + ");\n}\n"; }
   var CODE_B = "function doGet() {\n  var lu = !!Session.getEffectiveUser().getEmail();\n  return ContentService.createTextOutput(\"L'essai a marché (avec un droit) : \" + (lu ? 'oui' : 'non'));\n}\n";
   // Mini-appli 3 : un droit que Google fait toujours valider (appeler un autre site), sans rien lire dans le compte ni rien envoyer.
   var CODE_C = "function doGet() {\n  var d = UrlFetchApp.getRequest('https://example.com');\n  return ContentService.createTextOutput(\"L'essai a marché (appli autorisée) : \" + (d ? 'oui' : 'non'));\n}\n";
-  function fichiers(code, droits) { return { files: [{ name: "appsscript", type: "JSON", source: manifeste(droits) }, { name: "Code", type: "SERVER_JS", source: code }] }; }
+  // Mini-appli 4 : crée UN classeur vide, de la même façon que le moteur d'Origami (service Drive, droit « fichiers créés par cette appli »).
+  var CODE_D = "function doGet() {\n  try {\n    var p = PropertiesService.getScriptProperties(), id = p.getProperty('CLASSEUR');\n    if (!id) {\n      id = Drive.Files.create({ name: 'Origami - essai (à supprimer)', mimeType: 'application/vnd.google-apps.spreadsheet' }, null, { fields: 'id' }).id;\n      p.setProperty('CLASSEUR', id);\n    }\n    return ContentService.createTextOutput('CLASSEUR:' + id);\n  } catch (e) {\n    return ContentService.createTextOutput('ERREUR:' + String((e && e.message) || e).slice(0, 200));\n  }\n}\n";
+  // Mini-appli 5 : attachée au classeur ; elle dit seulement si elle voit « son » classeur.
+  var CODE_E = "function doGet() {\n  var c = null, err = '';\n  try { c = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { err = String((e && e.message) || e).slice(0, 160); }\n  return ContentService.createTextOutput(\"L'essai a marché (appli attachée au classeur) : \" + (c ? 'oui' : 'non' + (err ? ', ' + err : '')));\n}\n";
+  function fichiers(code, droits, drive) { return { files: [{ name: "appsscript", type: "JSON", source: manifeste(droits, drive) }, { name: "Code", type: "SERVER_JS", source: code }] }; }
 
   function etape(cle, titre) {
     var li = document.createElement("li"); li.className = "cours";
@@ -141,10 +163,12 @@
   }
 
   // Crée un projet, y met le code, en fait une version et la met en ligne : rend { id, deploiement, adresse }.
-  function installer(nom, code, droits) {
-    var p = {};
-    return pas(nom + "1", nom + " : créer le projet", function () { return api("POST", "projects", { title: TITRE }); }, function (r) { return "projet créé"; })
-      .then(function (r) { p.id = r.scriptId; return pas(nom + "2", nom + " : y mettre le code", function () { return api("PUT", "projects/" + encodeURIComponent(p.id) + "/content", fichiers(code, droits)); }); })
+  function installer(nom, code, droits, plus) {
+    var p = {}, projet = { title: TITRE };
+    plus = plus || {};
+    if (plus.classeur) projet.parentId = plus.classeur;
+    return pas(nom + "1", nom + " : créer le projet" + (plus.classeur ? ", attaché au classeur" : ""), function () { return api("POST", "projects", projet); }, function (r) { return plus.classeur ? (r.parentId === plus.classeur ? "projet créé, attaché au classeur" : "projet créé, mais Google ne dit pas qu'il est attaché") : "projet créé"; })
+      .then(function (r) { p.id = r.scriptId; return pas(nom + "2", nom + " : y mettre le code", function () { return api("PUT", "projects/" + encodeURIComponent(p.id) + "/content", fichiers(code, droits, plus.drive)); }); })
       .then(function () { return pas(nom + "3", nom + " : en faire une version", function () { return api("POST", "projects/" + encodeURIComponent(p.id) + "/versions", { description: "Essai Origami" }); }, function (r) { return "version " + r.versionNumber; }); })
       .then(function (r) { p.version = r.versionNumber; return pas(nom + "4", nom + " : la mettre en ligne", function () { return api("POST", "projects/" + encodeURIComponent(p.id) + "/deployments", { versionNumber: p.version, manifestFileName: "appsscript", description: "Essai Origami" }); }, function (r) { return "en ligne"; }); })
       .then(function (r) {
@@ -188,7 +212,7 @@
             var base = "https://script.google.com/macros/d/" + encodeURIComponent(c.id) + "/authorize", l = $("lienAutoriser"), l2 = $("lienSimple");
             l.href = base + (adresseCompte ? "?authuser=" + encodeURIComponent(adresseCompte) : ""); l2.href = base;
             rapport.push("Lien d'autorisation : " + base + (adresseCompte ? "?authuser=(adresse du compte)" : ""));
-            $("suite2").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false;
+            $("suite2").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false;
           });
       });
   }
@@ -199,7 +223,53 @@
       .then(function () { bilan(true, "L'autorisation depuis la page a marché : la mini-appli 3 répond."); }, function () { bilan(false, "La mini-appli 3 ne répond pas encore. Si tu viens d'autoriser, attends dix secondes et clique de nouveau « C'est fait, vérifier »."); })
       .then(function () { $("verifier3").disabled = false; });
   });
-  function bilan(ok, texte) { var b = $("bilan"); b.hidden = false; b.className = "bilan " + (ok ? "bon" : "mal"); b.textContent = texte; rapport.push((ok ? "BILAN OK : " : "BILAN : ") + texte); $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; }
+  // Essai 3 : ce que fera l'installation de la Compta. Lire le code porté par le moteur du compte, puis attacher une appli
+  // à un classeur créé par un AUTRE script (ici la mini-appli 4, dans Origami le moteur).
+  var appli4 = null, appli5 = null;
+  function lienAutorisation(id) { return "https://script.google.com/macros/d/" + encodeURIComponent(id) + "/authorize" + (adresseCompte ? "?authuser=" + encodeURIComponent(adresseCompte) : ""); }
+  function propre(t) { return String(t).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 160); }
+  function lireMoteur() {
+    var id = $("moteur").value.trim();
+    if (!id) { rapport.push("Moteur : pas d'identifiant donné, lecture non essayée"); return Promise.resolve(); }
+    if (!/^[\w-]{20,80}$/.test(id)) { rapport.push("Moteur : l'identifiant collé n'a pas la bonne forme, lecture non essayée"); return Promise.resolve(); }
+    return pas("m", "Moteur du compte : lire le code qu'il porte", function () { return api("GET", "projects/" + encodeURIComponent(id) + "/content"); }, function (r) {
+      var f = r.files || [], c = f.filter(function (x) { return x && String(x.name).indexOf("compta_") === 0; }), poids = 0;
+      c.forEach(function (x) { poids += String(x.source || "").length; });
+      return f.length + " fichiers lus, dont " + c.length + " de la Compta (" + Math.round(poids / 1024) + " Ko)";
+    }).catch(function () { return null; });   // une lecture ratée n'arrête pas l'essai
+  }
+  function essaiClasseur() {
+    return lireAdresse().then(function (adr) { adresseCompte = adr; rapport.push("Adresse du compte connue de la page : " + (adr ? "oui" : "non")); return lireMoteur(); })
+      .then(function () { return installer("Mini-appli 4 (crée un classeur)", CODE_D, ["https://www.googleapis.com/auth/drive.file"], { drive: true }); })
+      .then(function (d) {
+        appli4 = d; rapport.push("Adresse 4 : " + d.adresse);
+        $("lienAutoriser4").href = lienAutorisation(d.id);
+        $("suite3a").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false;
+      });
+  }
+  $("continuer3").addEventListener("click", function () {
+    if (!appli4 || appli5) return;
+    var cle = "d5-" + Date.now(), classeur = ""; $("continuer3").disabled = true;
+    pas(cle, "Mini-appli 4 : lui faire créer le classeur d'essai", function () {
+      return lire(appli4.adresse).then(function (t) { var m = /^CLASSEUR:([\w-]{20,80})\s*$/.exec(String(t)); if (!m) throw new Error("elle répond « " + propre(t) + " »"); classeur = m[1]; return t; });
+    }, function () { return "classeur créé"; })
+      .then(function () {
+        return installer("Mini-appli 5 (attachée au classeur)", CODE_E, ["https://www.googleapis.com/auth/spreadsheets.currentonly"], { classeur: classeur }).then(function (e) {
+          appli5 = e; rapport.push("Adresse 5 : " + e.adresse);
+          $("lienAutoriser5").href = lienAutorisation(e.id);
+          $("suite3a").hidden = true; $("suite3b").hidden = false; $("bilan").hidden = true;
+        }, function (e) { if (e && e.statut === 401) jeton = ""; bilan(false, e && e.statut === 401 ? "La connexion à Google a expiré. Relance l'essai 3." : "Google n'a pas voulu attacher l'appli au classeur. Copie le compte rendu et colle-le dans la conversation."); });
+      }, function () { bilan(false, "La mini-appli 4 ne répond pas encore. Si tu viens d'autoriser, attends dix secondes et clique de nouveau « C'est fait, continuer »."); })
+      .then(function () { $("continuer3").disabled = false; });
+  });
+  $("verifier5").addEventListener("click", function () {
+    if (!appli5) return;
+    var cle = "e5-" + Date.now(); $("verifier5").disabled = true;
+    pas(cle, "Mini-appli 5 : l'ouvrir après l'autorisation", function () { return lire(appli5.adresse).then(function (t) { if (!/attachée au classeur\) : oui/.test(t)) throw new Error("elle répond « " + propre(t) + " »"); return t; }); }, function (t) { return "elle répond « " + String(t).slice(0, 80) + " »"; })
+      .then(function () { jeton = ""; bilan(true, "Tout a marché : Origami peut attacher une appli à un classeur créé par le moteur, et la faire autoriser."); }, function () { bilan(false, "La mini-appli 5 ne répond pas encore comme prévu. Si tu viens d'autoriser, attends dix secondes et clique de nouveau « C'est fait, vérifier »."); })
+      .then(function () { $("verifier5").disabled = false; });
+  });
+  function bilan(ok, texte) { var b = $("bilan"); b.hidden = false; b.className = "bilan " + (ok ? "bon" : "mal"); b.textContent = texte; rapport.push((ok ? "BILAN OK : " : "BILAN : ") + texte); $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; }
   function conseil(e) {
     var m = String((e && e.message) || e);
     if (/User has not enabled the Apps Script API|usersettings/i.test(m)) return "Dans ce compte, l'interrupteur « API Google Apps Script » est éteint (script.google.com/home/usersettings). Allume-le, attends une minute et relance.";
@@ -211,25 +281,26 @@
 
   bouton.addEventListener("click", function () { lancer(essai); });
   bouton2.addEventListener("click", function () { lancer(essaiAutorisation); });
+  bouton3.addEventListener("click", function () { lancer(essaiClasseur); });
   function lancer(quoi) {
     var client = champ.value.trim();
     if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(client)) { alerter("Colle d'abord l'ID client : une ligne qui finit par .apps.googleusercontent.com"); return; }
     if (!(window.google && google.accounts && google.accounts.oauth2)) { alerter("La connexion à Google n'est pas encore chargée. Attends deux secondes et recommence. Si ça dure, un bloqueur de publicité l'empêche peut-être."); return; }
     try { localStorage.setItem("origami_essai_client", client); } catch (e) {}
-    bouton.disabled = true; bouton2.disabled = true; appli3 = null; $("suite2").hidden = true; liste.innerHTML = ""; lignes = {}; rapport = ["Essai Origami / Google, " + new Date().toLocaleString("fr-CH")];
+    bouton.disabled = true; bouton2.disabled = true; bouton3.disabled = true; appli3 = null; appli4 = null; appli5 = null; jeton = ""; $("suite2").hidden = true; $("suite3a").hidden = true; $("suite3b").hidden = true; liste.innerHTML = ""; lignes = {}; rapport = ["Essai Origami / Google, " + new Date().toLocaleString("fr-CH")];
     $("suivi").hidden = false; $("bilan").hidden = true; $("suite").hidden = true; $("copier").hidden = true; $("copie").hidden = true;
     etape("c", "Se connecter à Google");
     var rendu = false;
     function refus(texte) { if (rendu) return; rendu = true; finir("c", false, texte); bilan(false, "La connexion à Google n'a pas abouti."); }
     try {
       google.accounts.oauth2.initTokenClient({
-        client_id: client, scope: DROITS.concat(quoi === essaiAutorisation ? [DROIT_ADRESSE] : []).join(" "), prompt: "select_account",
+        client_id: client, scope: DROITS.concat(quoi !== essai ? [DROIT_ADRESSE] : []).join(" "), prompt: "select_account",
         callback: function (r) {
           if (rendu) return;
           if (!r || !r.access_token) { refus("Google a répondu : " + String((r && (r.error_description || r.error)) || "pas de jeton")); return; }
           if (!google.accounts.oauth2.hasGrantedAllScopes(r, DROITS[0], DROITS[1])) { refus("Il manque un des deux droits : à l'écran de Google, laisse les deux cases cochées."); return; }
           rendu = true; jeton = r.access_token; finir("c", true, "connectée, les deux droits sont donnés");
-          quoi().catch(function (e) { bilan(false, conseil(e)); }).then(function () { jeton = ""; });
+          quoi().then(function () { if (quoi !== essaiClasseur) jeton = ""; }, function (e) { jeton = ""; bilan(false, conseil(e)); });
         },
         error_callback: function (e) { refus(e && e.type === "popup_closed" ? "La fenêtre de Google a été fermée avant la fin." : e && e.type === "popup_failed_to_open" ? "Le navigateur a bloqué la fenêtre de Google : autorise les fenêtres surgissantes pour cette page." : "Google a répondu : " + String((e && (e.message || e.type)) || "erreur")); }
       }).requestAccessToken();
