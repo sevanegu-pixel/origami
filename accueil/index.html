@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.45">
+<meta name="origami-version" content="2026-11-19.46">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -483,8 +483,8 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.45"></script>
-<script src="repertoire.js?v=2026-11-19.45"></script>
+<script src="agenda.js?v=2026-11-19.46"></script>
+<script src="repertoire.js?v=2026-11-19.46"></script>
 <script>
 (function () {
   "use strict";
@@ -597,7 +597,9 @@ button.tuile:hover { border-color: var(--ligne); }
   // Compta d'un autre compte Google (18.11) : reconnue à l'empreinte de l'adresse du moteur relié sur cet appareil
   // (l'adresse du moteur reste dans la mémoire de l'appareil, elle n'est pas écrite ici).
   var COMPTAS_DES_MOTEURS = {
-    "11tf8zldagk": "https://script.google.com/macros/s/AKfycbz4_RviJ_TWUCv9wB7f_kz4WC5G29YZEYIsSdWfiOAFfcGAlxYVh1_fvXFGTwRI5XBE/exec"
+    "11tf8zldagk": "https://script.google.com/macros/s/AKfycbz4_RviJ_TWUCv9wB7f_kz4WC5G29YZEYIsSdWfiOAFfcGAlxYVh1_fvXFGTwRI5XBE/exec",
+    // 19.11 : même Compta (installée depuis le Mac le 18.11), retrouvée aussi par le moteur que ce compte utilise maintenant.
+    "xuy461dh3y": "https://script.google.com/macros/s/AKfycbz4_RviJ_TWUCv9wB7f_kz4WC5G29YZEYIsSdWfiOAFfcGAlxYVh1_fvXFGTwRI5XBE/exec"
   };
   function empreinte(t) { var h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (var i = 0, ch; i < t.length; i++) { ch = t.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507); h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507); h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36); }
   function comptaDe(id) {
