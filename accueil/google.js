@@ -16,6 +16,12 @@
   var DROITS = ["https://www.googleapis.com/auth/script.projects", "https://www.googleapis.com/auth/script.deployments"];
   // L'adresse du compte choisi sert à dire à Google quel compte doit autoriser la Compta (plusieurs comptes connectés dans le navigateur).
   var DROIT_ADRESSE = "https://www.googleapis.com/auth/userinfo.email";
+  // Installer Origami lui-même (v10) : la page crée le classeur du compte. Ce droit ne couvre QUE les fichiers créés par Origami.
+  var DROIT_DRIVE = "https://www.googleapis.com/auth/drive.file";
+  var API_DRIVE = "https://www.googleapis.com/drive/v3/";
+  var MODELE_SCRIPT = "18Ri1dh1bJyiheHS5F0FEhGaUL5Lbq_HDKvlw7NalC7X5SehS7wiZdF0q";   // le moteur modèle (identifiant, pas de code) : la page le lit avec la connexion de la personne
+  var NOM_CLASSEUR = "Origami - Réglages du compte", MARQUE = "reglages";
+  var ADRESSE_EXEC = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
   var ATTENTES = [1500, 4000, 9000];
   var sessions = {}, chargement = null;
 
@@ -99,24 +105,26 @@
       .then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return /^[^\s@]+@[^\s@]+$/.test(String(d.email || "")) ? String(d.email) : ""; }, function () { return ""; });
   }
   /** Ouvre la fenêtre de Google (choix du compte, accord). Rend la session { jeton, adresse, fin }. À lancer depuis un clic. */
-  function connecter(cle) {
+  function connecter(cle, plus) {
     // Connexion déjà chargée : la fenêtre s'ouvre dans le clic même (sinon certains navigateurs la bloquent).
-    return pret() ? ouvrir(cle) : charger().then(function () { return ouvrir(cle); });
+    return pret() ? ouvrir(cle, plus) : charger().then(function () { return ouvrir(cle, plus); });
   }
-  function ouvrir(cle) {
+  function ouvrir(cle, plus) {
+    var drive = !!(plus && plus.drive);
     {
       return new Promise(function (ok, non) {
         var rendu = false;
         function refus(m, c) { if (rendu) return; rendu = true; non(souci(m, c)); }
         try {
           racine.google.accounts.oauth2.initTokenClient({
-            client_id: CLIENT, scope: DROITS.concat([DROIT_ADRESSE]).join(" "), prompt: "select_account",
+            client_id: CLIENT, scope: DROITS.concat([DROIT_ADRESSE], drive ? [DROIT_DRIVE] : []).join(" "), prompt: "select_account",
             callback: function (r) {
               if (rendu) return;
               if (!r || !r.access_token) { refus(r && r.error === "access_denied" ? "Tu as refusé à l'écran de Google. Rien n'a été fait." : "Google a répondu : " + String((r && (r.error_description || r.error)) || "pas de connexion"), "refus"); return; }
               if (!racine.google.accounts.oauth2.hasGrantedAllScopes(r, DROITS[0], DROITS[1])) { refus("Il manque un droit : à l'écran de Google, laisse toutes les cases cochées.", "cases"); return; }
+              if (drive && !racine.google.accounts.oauth2.hasGrantedAllScopes(r, DROIT_DRIVE)) { refus("Il manque un droit : à l'écran de Google, laisse toutes les cases cochées.", "cases"); return; }
               rendu = true;
-              var s = { jeton: r.access_token, adresse: "", fin: Date.now() + Math.max(60, (Number(r.expires_in) || 3000) - 120) * 1000 };
+              var s = { jeton: r.access_token, adresse: "", drive: drive, fin: Date.now() + Math.max(60, (Number(r.expires_in) || 3000) - 120) * 1000 };
               lireAdresse(s.jeton).then(function (a) { s.adresse = a; sessions[cle] = s; ok(s); });
             },
             error_callback: function (e) {
@@ -131,24 +139,28 @@
   }
   function session(cle) { var s = sessions[cle]; if (s && s.fin <= Date.now()) { delete sessions[cle]; s = null; } return s || null; }
   function oublier(cle) { delete sessions[cle]; }
+  /** La connexion faite pour « ajouter un compte » devient celle du compte, une fois qu'il existe dans l'appli. */
+  function adopter(de, vers) { var s = session(de); delete sessions[de]; if (s) sessions[vers] = s; return s; }
 
   /** Un appel à l'API Apps Script avec la connexion de la personne. Les refus connus portent un code pour l'écran. */
-  function api(s, methode, chemin, corps, tour) {
+  function api(s, methode, chemin, corps, tour) { return appel(API, s, methode, chemin, corps, tour); }
+  function drive(s, methode, chemin, corps) { return appel(API_DRIVE, s, methode, chemin, corps); }
+  function appel(base, s, methode, chemin, corps, tour) {
     var opt = { method: methode, headers: { Authorization: "Bearer " + s.jeton } };
     if (corps !== undefined) { opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(corps); }
-    return fetch(API + chemin, opt).then(function (r) {
+    return fetch(base + chemin, opt).then(function (r) {
       return r.text().then(function (t) {
         var d = {}; try { d = JSON.parse(t || "{}"); } catch (e) { d = {}; }
         if (r.ok) return d;
         // Google momentanément indisponible ou débordé (vu en vrai le 19.11) : on attend un peu et on recommence, trois fois au plus.
         if ((r.status === 429 || r.status >= 500) && (tour || 0) < ATTENTES.length) {
-          return new Promise(function (ok) { setTimeout(ok, ATTENTES[tour || 0] * (racine.__sansAttente ? 0 : 1)); }).then(function () { return api(s, methode, chemin, corps, (tour || 0) + 1); });
+          return new Promise(function (ok) { setTimeout(ok, ATTENTES[tour || 0] * (racine.__sansAttente ? 0 : 1)); }).then(function () { return appel(base, s, methode, chemin, corps, (tour || 0) + 1); });
         }
         var m = String((d.error && d.error.message) || t).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").slice(0, 300), brut = r.status + " : " + m;
         if (/User has not enabled the Apps Script API|usersettings/i.test(m)) throw souci("L'interrupteur « API Google Apps Script » de ce compte est éteint.", "api-eteinte", r.status, brut);
-        if (/has not been used in project|it is disabled|SERVICE_DISABLED/i.test(m)) throw souci("Le projet Google de la compagnie n'a pas l'API Apps Script allumée.", "projet-compagnie", r.status, brut);
+        if (/has not been used in project|it is disabled|SERVICE_DISABLED/i.test(m)) throw souci(base === API_DRIVE ? "Le projet Google de la compagnie n'a pas « Google Drive API » allumée." : "Le projet Google de la compagnie n'a pas l'API Apps Script allumée.", "projet-compagnie", r.status, brut);
         if (r.status === 401) { Object.keys(sessions).forEach(function (k) { if (sessions[k] === s) delete sessions[k]; }); throw souci("La connexion à Google a expiré.", "expire", 401, brut); }
-        if (r.status === 404) throw souci("Google ne trouve pas ce projet.", "introuvable", 404, brut);
+        if (r.status === 404) throw souci(base === API_DRIVE ? "Google ne trouve pas ce fichier." : "Google ne trouve pas ce projet.", "introuvable", 404, brut);
         if (r.status === 403) throw souci("Google refuse.", "refus-google", 403, brut);
         if (r.status === 429 || r.status >= 500) throw souci("Google ne répond pas pour l'instant. Réessaie dans une minute.", "occupe", r.status, brut);
         throw souci("Google a refusé (" + r.status + ") : " + m, "", r.status, brut);
@@ -250,12 +262,149 @@
     });
   }
 
+  // ---------- Installer Origami dans un compte, sans classeur à copier ni code à coller (v10) ----------
+  function hasard(n) { var o = new Uint8Array(n); racine.crypto.getRandomValues(o); return Array.prototype.map.call(o, function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }
+  function hacher(t) { return racine.crypto.subtle.digest("SHA-256", new TextEncoder().encode(t)).then(function (h) { return Array.prototype.map.call(new Uint8Array(h), function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }); }
+  function adresseDeploiement(id) { return /^[\w-]{20,120}$/.test(String(id || "")) ? "https://script.google.com/macros/s/" + id + "/exec" : ""; }
+
+  /** Demande au moteur d'un compte, sans clé d'appareil (premier contact, connexion à Google) ou avec. */
+  function demander(adresse, corps) {
+    if (!ADRESSE_EXEC.test(String(adresse || ""))) return Promise.reject(souci("L'adresse du moteur n'a pas la bonne forme.", "adresse"));
+    return fetch(adresse, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(corps), redirect: "follow" })
+      .then(function (r) { return r.text().then(function (t) { var d = null; try { d = JSON.parse(t); } catch (e) { d = null; } if (!r.ok || !d || typeof d !== "object") throw souci("Le moteur de ce compte ne répond pas encore.", "muet"); return d; }); },
+        function () { throw souci("Le moteur de ce compte ne répond pas encore.", "muet"); })
+      .then(function (d) { if (!d.ok) throw souci(String(d.erreur || "Le moteur a refusé."), String(d.code || "refus-moteur")); return d.r; });
+  }
+
+  /** Le moteur du compte répond-il ? Tant que son propriétaire ne l'a pas autorisé, il ne répond rien de lisible. */
+  function pingMoteur(adresse) {
+    if (!ADRESSE_EXEC.test(String(adresse || ""))) return Promise.resolve(false);
+    return fetch(String(adresse), { redirect: "follow" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { return /^Moteur Origami/.test(String(t).trim()); }, function () { return false; });
+  }
+
+  /** Le code du moteur modèle, lu avec la connexion de la personne. Les fichiers propres à un compte (99_…) n'en font pas partie. */
+  function lireModele(s) {
+    return api(s, "GET", "projects/" + enc(MODELE_SCRIPT) + "/content").then(function (c) {
+      var f = ((c && c.files) || []).filter(function (x) { return x && TYPES[x.type] && /^[\w .-]{1,80}$/.test(String(x.name || "")) && typeof x.source === "string" && !/^99_/.test(x.name); })
+        .map(function (x) { return { name: x.name, type: x.type, source: x.source }; });
+      var noms = f.map(function (x) { return x.name; });
+      if (noms.indexOf("appsscript") < 0 || noms.indexOf("00_Socle") < 0 || noms.indexOf("30_Porte") < 0) throw souci("Le modèle d'Origami est incomplet.", "modele");
+      var v = /version:\s*(\d+)/.exec(f[noms.indexOf("00_Socle")].source);
+      return { fichiers: f, version: v ? Number(v[1]) : 0 };
+    }, function (e) {
+      if (e.code === "introuvable" || e.code === "refus-google") throw souci("Origami n'arrive pas à lire son modèle avec ce compte.", "modele", e.statut, e.brut);
+      throw e;
+    });
+  }
+
+  /** L'Origami de ce compte Google, s'il a été installé par cette voie : { classeur, projet, deploiement, adresse } ou null. */
+  function chercherOrigami(s) {
+    return drive(s, "GET", "files?pageSize=20&orderBy=createdTime&fields=" + enc("files(id,name,appProperties)") + "&q=" + enc("appProperties has { key='origami' and value='" + MARQUE + "' } and trashed=false")).then(function (l) {
+      var f = ((l && l.files) || []).filter(function (x) { return x && /^[\w-]{20,120}$/.test(String(x.id || "")); }).map(function (x) {
+        var a = x.appProperties || {}, dep = /^[\w-]{20,120}$/.test(String(a.origamiMoteur || "")) ? a.origamiMoteur : "";
+        return { classeur: x.id, projet: /^[\w-]{20,120}$/.test(String(a.origamiProjet || "")) ? a.origamiProjet : "", deploiement: dep, adresse: adresseDeploiement(dep) };
+      });
+      // Le plus ancien d'abord ; un Origami fini passe avant une installation interrompue.
+      return f.filter(function (x) { return x.deploiement; })[0] || f[0] || null;
+    });
+  }
+  function noter(s, classeur, quoi) { return drive(s, "PATCH", "files/" + enc(classeur) + "?fields=id", { appProperties: quoi }); }
+
+  /**
+   * Installe (ou reprend) Origami dans le compte connecté. o = { cle, dire(etape) }.
+   * Étapes dites : chercher, code, classeur, projet, contenu, version, ligne. Chaque étape faite est notée sur le classeur :
+   * une installation interrompue reprend où elle en était. Rend { classeur, projet, deploiement, adresse, secret, version }.
+   * Le secret sert au premier contact : le moteur n'en porte que l'empreinte, et ne l'accepte qu'une fois.
+   */
+  function installerOrigami(o) {
+    var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, secret = hasard(32);
+    if (!s || !s.drive) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
+    dire("chercher");
+    return chercherOrigami(s).then(function (x) {
+      r = x || { classeur: "", projet: "", deploiement: "", adresse: "" };
+      dire("code");
+      return lireModele(s);
+    }).then(function (m) {
+      modele = m;
+      // Un modèle plus ancien ne connaît pas le premier contact : on s'arrête avant de créer quoi que ce soit.
+      if (!(modele.version >= 10)) throw souci("Le modèle d'Origami n'est pas encore à jour.", "modele-ancien");
+      if (r.classeur) return null;
+      dire("classeur");
+      return drive(s, "POST", "files?fields=id", { name: NOM_CLASSEUR, mimeType: "application/vnd.google-apps.spreadsheet", appProperties: { origami: MARQUE } }).then(function (f) {
+        if (!/^[\w-]{20,120}$/.test(String(f.id || ""))) throw souci("Google n'a pas rendu l'identifiant du classeur. Réessaie.", "occupe");
+        r.classeur = f.id;
+      });
+    }).then(function () {
+      if (r.projet) return null;
+      dire("projet");
+      return api(s, "POST", "projects", { title: "Origami", parentId: r.classeur }).then(function (p) {
+        if (!/^[\w-]{20,120}$/.test(String(p.scriptId || ""))) throw souci("Google n'a pas rendu l'identifiant du projet. Réessaie.", "occupe");
+        r.projet = p.scriptId; return noter(s, r.classeur, { origamiProjet: r.projet });
+      });
+    }).then(function () { return hacher("premier-contact:" + secret); })
+      .then(function (empreinte) {
+        dire("contenu");
+        var fichiers = modele.fichiers.concat([{ name: "99_Installation", type: "SERVER_JS", source: "// Posé par l'appli Origami à l'installation : l'empreinte du secret du premier contact (le secret, lui, n'est écrit nulle part ici).\nvar INSTALLATION_ = { empreinte: " + JSON.stringify(empreinte) + " };\n" }]);
+        return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiers });
+      })
+      .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Origami installé depuis l'appli" }); })
+      .then(function (v) {
+        var version = Number(v.versionNumber) || 0; if (!version) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe");
+        dire("ligne");
+        var config = { versionNumber: version, manifestFileName: "appsscript", description: "Origami de ce compte" };
+        if (r.deploiement) return api(s, "PUT", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement), { deploymentConfig: { scriptId: r.projet, versionNumber: version, manifestFileName: "appsscript", description: config.description } });
+        return api(s, "POST", "projects/" + enc(r.projet) + "/deployments", config).then(function (d) {
+          if (!/^[\w-]{20,120}$/.test(String(d.deploymentId || ""))) throw souci("Google n'a pas rendu l'identifiant de la publication. Réessaie.", "occupe");
+          r.deploiement = d.deploymentId; r.adresse = adresseDe(d) || adresseDeploiement(d.deploymentId);
+          return noter(s, r.classeur, { origamiMoteur: r.deploiement });
+        });
+      })
+      .then(function () { return { classeur: r.classeur, projet: r.projet, deploiement: r.deploiement, adresse: r.adresse, secret: secret, version: modele.version }; })
+      .catch(function (e) {
+        // Le projet noté a été supprimé à la main chez Google : on l'oublie et on repart d'un projet neuf, une seule fois.
+        if (e && e.code === "introuvable" && !o.refait && r && r.classeur && r.projet) return noter(s, r.classeur, { origamiProjet: null, origamiMoteur: null }).then(function () { return installerOrigami({ cle: o.cle, dire: o.dire, refait: true }); });
+        throw e;
+      });
+  }
+
+  /**
+   * Premier contact avec le moteur tout juste autorisé : il installe le compte et rend la clé de cet appareil.
+   * o = { cle, adresse, secret, nom }. Rend { u, c, nom, couleur, range } (range : le classeur est dans son dossier).
+   */
+  function premierContact(o) {
+    var s = session(o.cle);
+    if (!s) return Promise.reject(souci("La connexion à Google a expiré.", "expire"));
+    return demander(o.adresse, { fn: "installer.premier", args: { secret: o.secret, jeton: s.jeton, adresse: o.adresse, nom: o.nom || "" } }).then(function (p) { return finirLiaison(s, o.adresse, p); });
+  }
+
+  /** Un appareil de plus pour un compte déjà installé : le moteur reconnaît le compte Google. o = { cle, adresse, nom }. */
+  function relierParGoogle(o) {
+    var s = session(o.cle);
+    if (!s) return Promise.reject(souci("La connexion à Google a expiré.", "expire"));
+    return demander(o.adresse, { fn: "appareil.parGoogle", args: { jeton: s.jeton, nom: o.nom || "" } }).then(function (p) { return finirLiaison(s, o.adresse, p); });
+  }
+
+  function finirLiaison(s, adresse, p) {
+    if (!p || !/^[a-f0-9]{64}$/.test(String(p.cle || ""))) throw souci("Le moteur n'a pas rendu la clé de cet appareil.", "refus-moteur");
+    var lie = { u: adresse, c: p.cle, nom: String(p.nom || "").trim().slice(0, 40), couleur: String(p.couleur || ""), range: !p.ranger };
+    var g = p.ranger;
+    if (!g || !s.drive || !/^[\w-]{6,120}$/.test(String(g.classeur || "")) || !/^[\w-]{6,120}$/.test(String(g.dossier || ""))) return lie;
+    // Le classeur a été créé par la page : elle seule a le droit de le ranger dans le dossier que le moteur vient de créer.
+    // Si Google refuse, rien ne casse : le classeur reste à la racine du Drive.
+    return drive(s, "GET", "files/" + enc(g.classeur) + "?fields=parents")
+      .then(function (f) { return drive(s, "PATCH", "files/" + enc(g.classeur) + "?addParents=" + enc(g.dossier) + "&removeParents=" + enc(((f && f.parents) || []).join(",")) + "&fields=id,parents", {}); })
+      .then(function (f) { if (((f && f.parents) || []).indexOf(g.dossier) < 0) throw souci("Le classeur n'a pas bougé.", "rangement"); return demander(adresse, { prise: 1, cle: p.cle, fn: "compte.range", args: { dossier: g.dossier } }); })
+      .then(function () { lie.range = true; return lie; }, function () { return lie; });
+  }
+
   /** La Compta répond-elle ? Une appli pas encore autorisée par son propriétaire ne répond rien de lisible. */
   function ping(adresse) {
     return fetch(String(adresse) + "?origami=ping", { redirect: "follow" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { return String(t).trim() === "origami-compta:ok"; }, function () { return false; });
   }
 
-  var sortie = { charger: charger, connecter: connecter, session: session, oublier: oublier, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
+  var sortie = { charger: charger, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
+    chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
+    installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
   if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;
 })(typeof window !== "undefined" ? window : this);
