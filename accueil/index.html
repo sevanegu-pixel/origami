@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-19.51">
+<meta name="origami-version" content="2026-11-20.52">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -494,9 +494,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-19.51"></script>
-<script src="repertoire.js?v=2026-11-19.51"></script>
-<script src="google.js?v=2026-11-19.51"></script>
+<script src="agenda.js?v=2026-11-20.52"></script>
+<script src="repertoire.js?v=2026-11-20.52"></script>
+<script src="google.js?v=2026-11-20.52"></script>
 <script>
 (function () {
   "use strict";
@@ -3015,7 +3015,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // Un seul parcours, une étape à l'écran à la fois : se connecter, laisser Origami s'installer (ou se retrouver s'il est déjà
   // dans ce compte), autoriser, c'est prêt. Plus de classeur à copier ni de code à coller. google.js fait les gestes ;
   // le moteur v10 (55_Connexion.js) reconnaît le premier contact, puis les autres appareils par la connexion à Google.
-  var PARCOURS_GOOGLE = false || /[?&]parcours=google\b/.test(location.search);   // éteint tant que l'essai en vrai n'est pas fait
+  var PARCOURS_GOOGLE = !/[?&]parcours=non\b/.test(location.search);   // allumé le 20.11 (essai 4 réussi en vrai, moteur v10) ; « ?parcours=non » montre l'ancien écran
   var ETAPES_PARCOURS = { chercher: "Je regarde si Origami est déjà dans ce compte…", code: "Lecture du code d'Origami…", classeur: "Création du classeur des réglages…", projet: "Création d'Origami dans ton compte…", contenu: "Envoi du code…", version: "Enregistrement…", ligne: "Mise en ligne…" };
   var parcours = { phase: "" };
   function parcoursAttente() { try { var o = JSON.parse(lire("origami_installation") || "null"); return o && ADRESSE_MOTEUR.test(o.adresse) && /^[a-f0-9]{64}$/.test(o.secret) ? o : null; } catch (e) { return null; } }
