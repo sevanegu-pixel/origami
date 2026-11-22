@@ -40,6 +40,7 @@
     "allow-montrer-dans-finder",
     "allow-desinstaller-appli",
     "allow-pont-google",
-    "allow-pont-annuler"
+    "allow-pont-annuler",
+    "allow-fenetre-privee"
   ]
 }

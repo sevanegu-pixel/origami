@@ -13,6 +13,7 @@ fn main() {
         "demarrage_auto",
         "pont_google",
         "pont_annuler",
+        "fenetre_privee",
     ])))
     .expect("préparation de l'appli");
 }
