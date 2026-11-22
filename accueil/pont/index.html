@@ -42,7 +42,7 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   <button id="continuer" type="button">Continuer avec Google</button>
   <p id="aide" class="doux" style="margin-top:14px">Google ouvre une petite fenêtre. Laisse les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami.</p>
 </main>
-<script src="../google.js?v=2026-11-22.55"></script>
+<script src="../google.js?v=2026-11-22.56"></script>
 <script>
 // Page « pont » (22.11.2026) : ouverte par l'appli Origami du Mac dans le navigateur, le temps d'une connexion à Google.
 // L'adresse porte, après le #, le port de la passerelle de l'appli (sur ce Mac seulement) et le secret tiré pour cette
@@ -75,7 +75,8 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
       location.replace("http://127.0.0.1:" + port + "/#s=" + m[2] + "&j=" + encodeURIComponent(s.jeton) + "&e=" + reste + "&d=" + (s.drive ? "1" : "0"));
     }, function (e) {
       bouton.disabled = false; bouton.textContent = "Continuer avec Google";
-      souci.textContent = String((e && e.message) || e); souci.hidden = false;
+      // Google refuse un compte qui n'est pas inscrit parmi les testeurs (22.11, vu en vrai) : sa fenêtre le dit, mais pas quoi faire.
+      souci.textContent = String((e && e.message) || e) + (e && e.code === "ferme" ? " Si elle affichait « Accès bloqué » : ce compte Google n\'est pas encore inscrit parmi les testeurs d\'Origami, il faut d\'abord l\'y ajouter." : ""); souci.hidden = false;
     });
   });
 })();
