@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.56">
+<meta name="origami-version" content="2026-11-22.57">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -106,6 +106,29 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .progression progress { width: 150px; height: 6px; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
 .progression progress::-webkit-progress-bar { background: rgba(0, 0, 0, 0.1); border-radius: 3px; }
 .progression progress::-webkit-progress-value { background: #1f5cff; border-radius: 3px; transition: width 0.2s; }
+/* Chargements animés (22.11) : une barre qui glisse, une roue qui tourne. Un écran qui travaille doit bouger. */
+@keyframes glisse { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+@keyframes tourne { to { transform: rotate(360deg); } }
+@keyframes pouls { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.barre-vive { display: block; position: relative; width: 150px; max-width: 100%; height: 6px; border-radius: 3px; background: rgba(127, 127, 127, 0.25); overflow: hidden; }
+.barre-vive i { position: absolute; left: 0; top: 0; bottom: 0; width: 40%; border-radius: 3px; background: #1f5cff; animation: glisse 1.4s ease-in-out infinite; }
+p.progression { display: flex; margin: 8px 0; font-size: 13px; }
+p.progression .barre-vive { width: 220px; }
+.roue { flex: none; display: inline-block; box-sizing: border-box; width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(31, 92, 255, 0.25); border-top-color: #1f5cff; animation: tourne 0.9s linear infinite; }
+.guide-compta .pastille .roue { border-color: rgba(255, 255, 255, 0.35); border-top-color: #fff; }
+#attente .roue { width: 11px; height: 11px; margin-right: 6px; vertical-align: -1px; border-color: rgba(127, 127, 127, 0.45); border-top-color: var(--fond); }
+.etat-appli .roue, .attend .roue { width: 12px; height: 12px; margin-right: 6px; vertical-align: -2px; }
+.sous-etapes { list-style: none; margin: 6px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.guide-compta .sous-etapes li, .sous-etapes li { display: flex; gap: 8px; align-items: center; }
+.sous-etapes li.attente { color: var(--doux); }
+.sous-etapes li.fait { color: var(--doux); }
+.sous-etapes li.actif { font-weight: 600; }
+.sous-etapes .coche { flex: none; width: 14px; text-align: center; color: #15803d; font-weight: 700; }
+.sous-etapes .rond { flex: none; box-sizing: border-box; width: 8px; height: 8px; margin: 0 3px; border-radius: 50%; border: 1.5px solid var(--doux); opacity: 0.6; }
+@media (prefers-reduced-motion: reduce) {
+  .barre-vive i { width: 100%; animation: pouls 1.8s ease-in-out infinite; }
+  .roue { animation: pouls 1.8s ease-in-out infinite; border-color: #1f5cff; }
+}
 .plus-mac, .info details.plus-mac { position: relative; border: 0; padding: 0; margin: 0; background: none; box-shadow: none; }
 .logo-appli.sans-fond { background: none; }
 .plus-mac summary { list-style: none; cursor: pointer; width: 30px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--doux); border: 1px solid var(--trait, rgba(0, 0, 0, 0.12)); }
@@ -453,7 +476,7 @@ button.tuile:hover { border-color: var(--ligne); }
 <div id="origami">
   <nav id="menu" aria-label="Comptes et applis"></nav>
   <main id="scene">
-    <div id="attente" role="status" hidden>Ouverture…</div>
+    <div id="attente" role="status" hidden><span class="roue" aria-hidden="true"></span>Ouverture…</div>
     <section id="accueil"></section>
     <section id="reglages" hidden></section>
     <section id="page" hidden></section>
@@ -503,9 +526,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.56"></script>
-<script src="repertoire.js?v=2026-11-22.56"></script>
-<script src="google.js?v=2026-11-22.56"></script>
+<script src="agenda.js?v=2026-11-22.57"></script>
+<script src="repertoire.js?v=2026-11-22.57"></script>
+<script src="google.js?v=2026-11-22.57"></script>
 <script>
 (function () {
   "use strict";
@@ -821,9 +844,9 @@ button.tuile:hover { border-color: var(--ligne); }
     var h = "";
     if (INSTALLEUR) {
       var a = MAC_APPLIS && MAC_APPLIS[id], p = MAC_INSTALL[id], present = !!(a && a.presente);
-      if (p && (p.etape === "telechargement" || p.etape === "installation")) h = '<span class="progression" role="status"><progress max="100" value="' + (p.etape === "installation" ? 100 : (p.pct || 0)) + '"></progress><span>' + (p.etape === "installation" ? "Installation…" : "Téléchargement " + (p.pct || 0) + " %") + "</span></span>";
+      if (p && (p.etape === "telechargement" || p.etape === "installation")) h = p.etape === "installation" ? occupeHtml("Installation…") : '<span class="progression" role="status"><progress max="100" value="' + (p.pct || 0) + '"></progress><span>Téléchargement ' + (p.pct || 0) + " %</span></span>";
       else if (p && p.etape === "attente") h = '<span class="progression" role="status"><span>En attente' + (MAC_EN_COURS && MAC_EN_COURS !== id ? " : après " + texte(nomMac(MAC_EN_COURS)) : "…") + '</span></span><button class="bouton" data-mac-attente="' + id + '">Annuler</button>';
-      else if (!MAC_APPLIS) h = '<span class="etat-appli">Un instant…</span>';
+      else if (!MAC_APPLIS) h = '<span class="etat-appli">' + roue() + "Un instant…</span>";
       else {
         if (aMettreAJour(id)) h = '<button class="bouton fort" data-mac-installer="' + id + '">Mettre à jour</button>';
         else if (id === "origami") h = '<span class="etat-appli ok">À jour</span>';
@@ -1415,7 +1438,7 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     if (!em) {   // appareil pas encore relié au moteur du compte (souvent le téléphone), ou moteur pas encore lu
       var hr = '<div class="appli" data-cadre="' + c.id + '|relier' + (moteurs[c.id] ? "1" : "0") + '"><div class="entete"><div><h1>' + titreTk + "</h1><p>" + nomCompteTk + '</p></div></div><div class="carte">';
-      if (moteurs[c.id]) hr += '<p>Lecture du compte en cours…</p><div class="actions"><button class="bouton" data-relever="' + c.id + '">Actualiser</button></div>';
+      if (moteurs[c.id]) hr += '<p class="attend">' + roue() + 'Lecture du compte en cours…</p><div class="actions"><button class="bouton" data-relever="' + c.id + '">Actualiser</button></div>';
       else {
         hr += "<p>Sur cet appareil, Origami n'est pas encore relié à ton compte Google. C'est la liaison d'Origami lui-même : elle se fait une seule fois par appareil et sert ensuite à tout Origami (Tickets, Agenda, Répertoire…).</p>";
         hr += "<p>Le plus simple : sur un appareil où Origami est déjà relié, va dans Réglages, « Relier un autre appareil », et ouvre ici le lien obtenu. Sinon : classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil », et colle le code ici.</p>";
@@ -2605,6 +2628,23 @@ button.tuile:hover { border-color: var(--ligne); }
   // dans son compte (google.js : chaque geste essayé en vrai le 19.11). Le moteur du compte (v9) prépare le dossier et le
   // classeur, porte le code de la Compta et retient où en est l'installation : un arrêt se reprend sans rien refaire.
   var comptaEnCours = {};
+  // ---- Chargements animés (22.11, demande de Sévane : « est-ce qu'il peut y avoir des animations quand ça charge ») ----
+  // Les écrans se redessinent à chaque étape : le retard négatif cale l'animation sur l'horloge, elle ne repart pas de zéro.
+  function calage(ms) { return ' style="animation-delay:-' + (Date.now() % ms) + 'ms"'; }
+  function barreVive() { return '<span class="barre-vive" aria-hidden="true"><i' + calage(1400) + "></i></span>"; }
+  function roue() { return '<span class="roue" aria-hidden="true"' + calage(900) + "></span>"; }
+  function occupeHtml(t, bloc, attrs) { var b = bloc ? "p" : "span"; return "<" + b + ' class="progression" role="status"' + (attrs || "") + ">" + barreVive() + "<span>" + texte(t) + "</span></" + b + ">"; }
+  // Les sous-étapes d'une installation, dans l'ordre : faites (coche), en cours (roue), à venir (rond).
+  function sousEtapes(ordre, noms, cle) {
+    var k = ordre.indexOf(cle);
+    if (k < 0) return "";
+    return '<ul class="sous-etapes">' + ordre.map(function (e, i) { return '<li class="' + (i < k ? "fait" : i === k ? "actif" : "attente") + '">' + (i < k ? '<span class="coche" aria-hidden="true">✓</span>' : i === k ? roue() : '<span class="rond" aria-hidden="true"></span>') + "<span>" + texte(noms[e]) + (i === k ? "…" : "") + "</span></li>"; }).join("") + "</ul>";
+  }
+  var ORDRE_COMPTA = ["recette", "code", "classeur", "projet", "contenu", "version", "ligne"];
+  var SOUS_COMPTA = { recette: "Vérification du compte", code: "Lecture du code de la Compta", classeur: "Dossier et classeur dans ton Drive", projet: "Création de l'appli dans ton compte", contenu: "Envoi du code", version: "Enregistrement de la version", ligne: "Mise en ligne" };
+  var comptaSous = {};   // la sous-étape en cours, par compte
+  // La tuile derrière le guide suit l'installation sans tout redessiner.
+  function comptaDireTuile(id) { try { [].forEach.call(document.querySelectorAll('[data-compta-cours="' + id + '"] > span:last-child'), function (z) { z.textContent = comptaEnCours[id] || ""; }); } catch (e) {} }
   var REGLAGES_API = "https://script.google.com/home/usersettings";
   var ADRESSE_ORIGAMI = "https://sevanegu-pixel.github.io/origami/accueil/";
   var ETAPES_GOOGLE = { recette: "Je regarde où en est ce compte…", code: "Lecture du code de la Compta dans ton moteur…", classeur: "Création du dossier et du classeur…", projet: "Création de l'appli dans ton compte…", contenu: "Envoi du code de la Compta…", version: "Enregistrement de la version…", ligne: "Mise en ligne…" };
@@ -2647,8 +2687,12 @@ button.tuile:hover { border-color: var(--ligne); }
     var faits = [f1, f2, f3], actif = faits.indexOf(false);
     function etape(i, titre, corps) {
       var cl = faits[i] ? "fait" : i === actif ? "actif" : "attente";
-      return '<li class="' + cl + '"><span class="pastille" aria-hidden="true">' + (faits[i] ? "✓" : i + 1) + '</span><div><strong>' + titre + "</strong>" + (i === actif && !guideC.occupe ? corps : "") + "</div></li>";
+      var travaille = i === actif && !!guideC.occupe;
+      return '<li class="' + cl + '"><span class="pastille" aria-hidden="true">' + (faits[i] ? "✓" : travaille ? roue() : i + 1) + '</span><div><strong>' + titre + "</strong>" + (travaille ? travail : i === actif ? corps : "") + "</div></li>";
     }
+    // Pendant qu'Origami travaille, l'étape en cours le montre elle-même : roue dans sa pastille, sous-étapes, barre qui bouge.
+    var installe = !!comptaEnCours[id], sous = installe ? sousEtapes(ORDRE_COMPTA, SOUS_COMPTA, comptaSous[id]) : "";
+    var travail = !guideC.occupe ? "" : sous ? sous + '<p class="progression" role="status">' + barreVive() + "<span>Une minute environ. Tu peux fermer cette fenêtre, l'installation continue. Ne quitte pas Origami.</span></p>" : occupeHtml(guideC.occupe, true);
     var brutGoogle = guideC.brut ? '<p class="aide-fine">Réponse de Google, telle quelle : « ' + texte(guideC.brut) + " »</p>" : "";
     var e1 = !pret ? "<p>" + (m.panne ? "Le moteur de ce compte ne répond pas pour l'instant." : "Le moteur de ce compte n'a pas encore la mise à jour qui permet d'installer la Compta d'ici. Elle arrive bientôt.") + "</p>" + '<div class="actions"><button class="bouton" data-guide-compta-verifier="1">Vérifier à nouveau</button></div>'
       : macSansGoogle() ? noteMacAncien() + '<div class="actions"><button class="bouton" data-guide-compta-verifier="1">C\'est installé, vérifier</button></div>'
@@ -2666,7 +2710,7 @@ button.tuile:hover { border-color: var(--ligne); }
       '<p class="aide-fine">À sa première ouverture, la Compta se prépare seule (une minute environ), puis demande le nom de ta structure, ta banque et ton code PIN.</p>';
     var h = '<div data-guide-compta="1"><h2>Installer la Compta</h2><p class="aide-fine">Dans le compte ' + nom + ". Trois étapes, une seule fois. Tu peux fermer et revenir : le guide reprend où tu en étais.</p>" +
       '<ol class="guide-compta">' + etape(0, "Connecter Origami à Google", e1) + etape(1, "Installer la Compta", e2) + etape(2, "Autoriser ta Compta", e3) + "</ol>" +
-      (guideC.occupe ? '<p class="progression" role="status"><progress></progress><span>' + texte(guideC.occupe) + "</span></p>" : "") +
+      (guideC.occupe && actif < 0 ? occupeHtml(guideC.occupe, true) : "") +
       (guideC.souci ? '<p class="souci-guide" role="alert">' + texte(guideC.souci) + "</p>" : "") +
       '<div class="actions">' + (actif < 0 ? '<button class="bouton fort" data-guide-compta-ouvrir="1">Ouvrir ma Compta</button>' : '<button class="bouton" data-guide-compta-fermer="1">Fermer</button>') + "</div></div>";
     ouvrirVoile(h);
@@ -2688,15 +2732,15 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!id || !G || comptaEnCours[id]) return;
     guideC.souci = ""; guideC.code = ""; guideC.brut = "";
     if (!G.session(id)) { guideC.souci = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprendra où elle en était."; dessinerGuideCompta(); return; }
-    function dire(e) { comptaEnCours[id] = ETAPES_GOOGLE[e] || "Installation de la Compta…"; if (guideC.id === id) { guideC.occupe = comptaEnCours[id]; dessinerGuideCompta(); } }
+    function dire(e) { comptaEnCours[id] = ETAPES_GOOGLE[e] || "Installation de la Compta…"; comptaSous[id] = e; comptaDireTuile(id); if (guideC.id === id) { guideC.occupe = comptaEnCours[id]; dessinerGuideCompta(); } }
     dire("recette"); montrer();
     G.installerCompta({ cle: id, moteur: appelMoteurCompta(id), dire: dire }).then(function (r) {
-      delete comptaEnCours[id];
+      delete comptaEnCours[id]; delete comptaSous[id];
       // Compta neuve : ce que cet appareil gardait d'une ancienne Compta de ce compte (clé d'entrée, copie hors ligne) ne vaut plus.
       if (r && r.premiere) oublierCompta(id);
       return relireCompte(id);
     }, function (e) {
-      delete comptaEnCours[id];
+      delete comptaEnCours[id]; delete comptaSous[id];
       var code = (e && e.code) || "", m = String((e && e.message) || e);
       if (code === "mauvais-compte") { G.oublier(id); m = "Ce n'est pas le bon compte Google. Reconnecte-toi et, à la fenêtre de Google, choisis celui de « " + nomCompte(id) + " »."; }
       else if (code === "expire" || code === "connexion") m = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprendra où elle en était.";
@@ -2739,7 +2783,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var G = window.OrigamiGoogle;
     comptaEnCours[id] = "Mise à jour de la Compta…";
     montrer();
-    G.mettreAJourCompta({ cle: id, moteur: appelMoteurCompta(id) }).then(function () {
+    G.mettreAJourCompta({ cle: id, moteur: appelMoteurCompta(id), dire: function (e) { comptaEnCours[id] = "Mise à jour : " + String(SOUS_COMPTA[e] || "en cours").toLowerCase() + "…"; comptaDireTuile(id); } }).then(function () {
       delete comptaEnCours[id]; avis("Compta de " + nomCompte(id) + " à jour. Si Google redemande une autorisation, accepte-la une fois.");
       return relireCompte(id).then(montrer);
     }, function (e) {
@@ -2760,7 +2804,7 @@ button.tuile:hover { border-color: var(--ligne); }
     else if (id === "agenda") { if (relie) { ok = true; etatT = "Prêt."; act = b('data-vue="agenda" data-de="' + c.id + '"', "Ouvrir", true); } else { etatT = "Arrive dès que le compte est relié."; eteinte = true; } }
     else if (id === "compta") {
       var cm = c.id === "compagnie" ? null : comptaMoteur(c.id);
-      if (comptaEnCours[c.id]) { etatT = "Ne ferme pas Origami."; act = '<span class="progression" role="status"><progress></progress><span>' + texte(comptaEnCours[c.id]) + "</span></span>"; }
+      if (comptaEnCours[c.id]) { etatT = roue() + "En cours. Ne ferme pas Origami."; act = occupeHtml(comptaEnCours[c.id], false, ' data-compta-cours="' + texte(c.id) + '"'); }
       else if (cm && cm.adresse && !comptaAutorisee(c.id)) { etatT = "Installée. Dernière étape : l'autoriser."; act = b('data-compta-guide="' + c.id + '"', "Continuer", true); }
       else if (c.id === "compagnie" || comptaDe(c.id)) {
         ok = true; etatT = cm && cm.miseAJour ? "Une nouvelle version est prête." : "Installée.";
@@ -2972,7 +3016,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (souci) h += '<p class="souci">' + texte(souci) + "</p>";
     if (l && !l.length) h += "<p>Aucun appareil relié.</p>";
     if (l && l.length) { h += '<div class="rangs">'; l.forEach(function (a) { h += '<div class="rang-r"><span class="nom">' + texte(a.nom || "Appareil") + "<small>Relié le " + dateCourte(a.cree) + (a.vu ? ", vu le " + dateCourte(a.vu) : ", jamais vu") + '</small></span><button class="bouton" data-app-retirer="' + texte(a.id) + '" data-de="' + id + '">Retirer</button></div>'; }); h += "</div>"; }
-    if (!l && !souci) h += "<p>Chargement…</p>";
+    if (!l && !souci) h += occupeHtml("Chargement…", true);
     ouvrirVoile(h + '<div class="actions"><button class="bouton" data-fermer-voile="1">Fermer</button></div>');
   }
   function chargerAppareils(id) {
@@ -3157,7 +3201,7 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   function desinstDessiner() {
     var D = desinst, nom = "<strong>" + texte(D.nom || "") + "</strong>", h = '<div data-parcours-vue="desinst-' + texte(D.phase) + '">';
-    var occupe = D.occupe ? '<p class="progression" role="status"><progress></progress><span>' + texte(D.occupe) + "</span></p>" : "";
+    var occupe = D.occupe ? occupeHtml(D.occupe, true) : "";
     var souci = D.souci ? '<p class="souci-guide" role="alert">' + texte(D.souci) + "</p>" : "";
     if (D.phase === "liste" && D.inv) {
       var inv = D.inv, racines = inv.elements.filter(function (x) { return x && x.racine && x.etat === "la"; }), applis = (Array.isArray(inv.applis) ? inv.applis : []).map(function (a) { return String(a).slice(0, 30); }), n = Number(inv.appareils) || 0;
@@ -3216,8 +3260,10 @@ button.tuile:hover { border-color: var(--ligne); }
     return quoi + (nav ? " (" + nav + ")" : "");
   }
   function parcoursMontrer() { if (etat.vue === "ajouter") { dessinerPage("ajouter"); try { var z = page.querySelector("[data-parcours-vue]"); if (z && parcours.haut) { page.scrollTop = 0; window.scrollTo(0, 0); parcours.haut = false; } } catch (e) {} } }
-  function parcoursPhase(phase, plus) { clearInterval(parcours.minuteur); parcours.minuteur = 0; parcours.phase = phase; parcours.occupe = ""; parcours.souci = ""; parcours.code = ""; parcours.brut = ""; parcours.haut = true; if (plus) for (var k in plus) parcours[k] = plus[k]; parcoursMontrer(); }
-  function parcoursDire(t) { parcours.occupe = t; parcoursMontrer(); }
+  function parcoursPhase(phase, plus) { clearInterval(parcours.minuteur); parcours.minuteur = 0; parcours.phase = phase; parcours.occupe = ""; parcours.sous = ""; parcours.souci = ""; parcours.code = ""; parcours.brut = ""; parcours.haut = true; if (plus) for (var k in plus) parcours[k] = plus[k]; parcoursMontrer(); }
+  function parcoursDire(t, sous) { parcours.occupe = t; parcours.sous = sous || ""; parcoursMontrer(); }
+  var ORDRE_PARCOURS = ["chercher", "code", "classeur", "projet", "contenu", "version", "ligne"];
+  var SOUS_PARCOURS = { chercher: "Vérification du compte", code: "Lecture du code d'Origami", classeur: "Classeur des réglages dans ton Drive", projet: "Création d'Origami dans ton compte", contenu: "Envoi du code", version: "Enregistrement", ligne: "Mise en ligne" };
   function parcoursQuitter() { clearInterval(parcours.minuteur); parcours = { phase: "" }; }
   function parcoursBarre(n) {
     var h = '<p class="etape-num">Étape ' + n + ' sur 4</p><div class="etapes-barre" aria-hidden="true">';
@@ -3228,7 +3274,10 @@ button.tuile:hover { border-color: var(--ligne); }
     var P = parcours, G = window.OrigamiGoogle, adr = P.google ? "<strong>" + texte(P.google) + "</strong>" : "ton compte", h = '<div data-parcours-vue="' + P.phase + '">';
     var brut = P.brut ? '<p class="aide-fine">Réponse de Google, telle quelle : « ' + texte(P.brut) + " »</p>" : "";
     var souci = P.souci ? '<p class="souci-guide" role="alert">' + texte(P.souci) + "</p>" : "";
-    var occupe = P.occupe ? '<p class="progression" role="status"><progress></progress><span>' + texte(P.occupe) + "</span></p>" : "";
+    var occupe = P.occupe ? occupeHtml(P.occupe, true) : "";
+    // Origami s'installe : les sous-étapes, cochées une à une.
+    var sousP = P.phase === "travail" && P.installe && P.occupe ? sousEtapes(ORDRE_PARCOURS, SOUS_PARCOURS, P.sous) : "";
+    if (sousP) occupe = sousP + '<p class="progression" role="status">' + barreVive() + "</p>";
     if (P.phase === "travail") {
       h += parcoursBarre(P.installe ? 2 : 1) + "<h1>" + (P.installe ? "Origami s'installe" : "Connexion à Google") + "</h1>";
       h += P.installe ? "<p>Dans le compte " + adr + ". Une minute environ : garde cette page ouverte.</p>" : "<p>" + ouvreGoogle() + " Choisis le compte à ajouter et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami.</p>";
@@ -3330,7 +3379,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (!vivant()) return;
       // L'interrupteur vient d'être allumé : l'installation est repartie, on quitte l'écran de l'interrupteur.
       if (P.phase === "interrupteur" && e !== "chercher" && e !== "code") parcoursPhase("travail", { installe: true });
-      if (P.phase === "travail") parcoursDire(ETAPES_PARCOURS[e] || "Installation d'Origami…");
+      if (P.phase === "travail") parcoursDire(ETAPES_PARCOURS[e] || "Installation d'Origami…", e);
     } }).then(function (r) {
       P.installant = false;
       if (!vivant()) return;
