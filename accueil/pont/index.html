@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Origami · connexion à Google</title>
+<link rel="icon" href="../icone.svg">
+<style>
+:root { --fond: #f3f1ed; --carte: #ffffff; --texte: #15131a; --doux: #67626e; --ligne: #e4e0e6; --accent: #1f5cff; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--fond); color: var(--texte); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 16px; }
+main { width: 100%; max-width: 460px; padding: 28px 24px; border: 1px solid var(--ligne); border-radius: 16px; background: var(--carte); }
+.marque { font-size: 12px; font-weight: 700; letter-spacing: .22em; color: var(--doux); margin-bottom: 14px; }
+h1 { margin: 0 0 10px; font-size: 22px; line-height: 1.25; }
+p { margin: 0 0 12px; }
+.doux { color: var(--doux); font-size: 14px; }
+button { font: inherit; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 46px; padding: 0 16px; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; }
+button:disabled { opacity: .55; cursor: default; }
+.souci { padding: 10px 12px; border-radius: 10px; background: #fdecea; color: #7a1c14; font-size: 14px; }
+[hidden] { display: none !important; }
+@media (prefers-color-scheme: dark) { :root { --fond: #17151b; --carte: #211f26; --texte: #f1eff4; --doux: #a9a4b1; --ligne: #34313b; } .souci { background: #3a1c19; color: #ffd2cc; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="marque">ORIGAMI</div>
+  <h1 id="titre">Connecter l'appli Origami de ce Mac à Google</h1>
+  <p id="texte">L'appli Origami de ce Mac t'a amené ici, parce que Google n'accepte pas de se connecter dans la fenêtre d'une appli. Choisis ton compte Google : la connexion repart ensuite dans l'appli, qui revient devant toi.</p>
+  <p id="souci" class="souci" role="alert" hidden></p>
+  <button id="continuer" type="button">Continuer avec Google</button>
+  <p id="aide" class="doux" style="margin-top:14px">Google ouvre une petite fenêtre. Laisse les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami.</p>
+</main>
+<script src="../google.js?v=2026-11-22.54"></script>
+<script>
+// Page « pont » (22.11.2026) : ouverte par l'appli Origami du Mac dans le navigateur, le temps d'une connexion à Google.
+// L'adresse porte, après le #, le port de la passerelle de l'appli (sur ce Mac seulement) et le secret tiré pour cette
+// connexion. Une fois le compte choisi, la connexion est remise à la passerelle : http://127.0.0.1:PORT/, encore après le #,
+// la partie de l'adresse qui ne voyage pas. Cette page ne garde rien et n'envoie rien ailleurs.
+(function () {
+  "use strict";
+  var G = window.OrigamiGoogle, titre = document.getElementById("titre"), texte = document.getElementById("texte"), souci = document.getElementById("souci"), bouton = document.getElementById("continuer"), aide = document.getElementById("aide");
+  var m = /^#(\d{4,5})\.([0-9a-f]{32,64})(\.d)?$/.exec(location.hash || ""), port = m ? Number(m[1]) : 0;
+  try { history.replaceState(null, "", location.pathname); } catch (e) {}   // le secret ne reste pas dans la barre d'adresse
+  function dire(t, p) { titre.textContent = t; texte.textContent = p; }
+  if (!m || port < 1024 || port > 65535 || !G) {
+    dire("Rien à faire ici", "Cette page sert seulement à connecter l'appli Origami d'un Mac à Google. Ouvre l'appli Origami et clique « Continuer avec Google » : elle t'amènera ici au bon moment.");
+    bouton.hidden = true; aide.hidden = true; return;
+  }
+  G.charger().catch(function () {});   // prêt avant le clic : la fenêtre de Google doit s'ouvrir dans le clic même
+  bouton.addEventListener("click", function () {
+    souci.hidden = true; bouton.disabled = true; bouton.textContent = "La fenêtre de Google est ouverte…";
+    G.connecter("pont", { drive: !!m[3] }).then(function (s) {
+      var reste = Math.max(60, Math.round((s.fin - Date.now()) / 1000) + 120);
+      dire("Un instant…", "La connexion repart dans l'appli Origami.");
+      bouton.hidden = true; aide.hidden = true;
+      G.oublier("pont");
+      location.replace("http://127.0.0.1:" + port + "/#s=" + m[2] + "&j=" + encodeURIComponent(s.jeton) + "&e=" + reste + "&d=" + (s.drive ? "1" : "0"));
+    }, function (e) {
+      bouton.disabled = false; bouton.textContent = "Continuer avec Google";
+      souci.textContent = String((e && e.message) || e); souci.hidden = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>

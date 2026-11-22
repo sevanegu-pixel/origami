@@ -8,6 +8,10 @@
  * Le code de la Compta n'est pas ici : la page le relit dans le moteur du compte (fichiers « compta_… »), avec la connexion
  * de la personne, et le pose tel quel dans son projet. Rien n'est gardé, rien ne part ailleurs que chez Google.
  * La connexion (jeton) reste dans la mémoire de la page : elle disparaît quand on ferme ou recharge Origami.
+ *
+ * Appli du Mac (0.4, 22.11.2026) : Google refuse sa fenêtre de connexion à l'intérieur d'une appli. L'appli ouvre donc le
+ * navigateur du Mac sur la page « pont/ » ; la personne y choisit son compte ; la page ramène la connexion à l'appli par une
+ * passerelle qui n'existe que sur ce Mac (127.0.0.1), le temps de cette connexion. Rien ne passe par un autre serveur.
  */
 (function (racine) {
   "use strict";
@@ -89,7 +93,8 @@
   // ---------- Connexion à Google ----------
   function pret() { return !!(racine.google && racine.google.accounts && racine.google.accounts.oauth2); }
   /** Charge la connexion de Google (à appeler dès l'ouverture de l'écran : le clic « Se connecter » doit ouvrir la fenêtre tout de suite). */
-  function charger() {
+  function charger() { return coquille() ? Promise.resolve() : chargerGoogle(); }
+  function chargerGoogle() {
     if (pret()) return Promise.resolve();
     if (chargement) return chargement;
     chargement = new Promise(function (ok, non) {
@@ -106,6 +111,7 @@
   }
   /** Ouvre la fenêtre de Google (choix du compte, accord). Rend la session { jeton, adresse, fin }. À lancer depuis un clic. */
   function connecter(cle, plus) {
+    if (coquille()) return ouvrirParPont(cle, plus);
     // Connexion déjà chargée : la fenêtre s'ouvre dans le clic même (sinon certains navigateurs la bloquent).
     return pret() ? ouvrir(cle, plus) : charger().then(function () { return ouvrir(cle, plus); });
   }
@@ -137,6 +143,58 @@
       });
     }
   }
+  // ---------- Appli du Mac : la connexion se fait dans le navigateur du Mac et revient par la passerelle ----------
+  var PONT = "https://sevanegu-pixel.github.io/origami/accueil/pont/";
+  var pontEnCours = null;
+  /** L'appli du Mac, quand elle a de quoi ouvrir le navigateur et écouter la passerelle. */
+  function coquille() {
+    var T = racine.__TAURI__;
+    return T && T.core && typeof T.core.invoke === "function" && T.event && typeof T.event.listen === "function" && T.opener && typeof T.opener.openUrl === "function" ? T : null;
+  }
+  /** Le panneau d'attente, par-dessus l'écran : la personne est dans son navigateur, elle doit pouvoir annuler ou le rouvrir. */
+  function panneauPont(rouvrir, annuler) {
+    var d = racine.document; if (!d || !d.body) return function () {};
+    var v = d.createElement("div"); v.id = "pontGoogle"; v.setAttribute("role", "dialog"); v.setAttribute("aria-modal", "true"); v.setAttribute("aria-labelledby", "pontGoogleTitre");
+    v.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(21,19,26,.45);font:14px/1.45 system-ui,-apple-system,sans-serif";
+    v.innerHTML = '<div style="max-width:440px;width:100%;padding:22px;border-radius:14px;background:var(--carte,#fff);color:var(--texte,#15131a);box-shadow:0 12px 40px rgba(0,0,0,.25)">' +
+      '<h2 id="pontGoogleTitre" style="margin:0 0 8px;font-size:18px">Connexion à Google</h2>' +
+      '<p style="margin:0 0 8px">Ton navigateur vient de s\'ouvrir. Clique « Continuer avec Google », choisis le compte et accepte, en laissant les cases cochées.</p>' +
+      '<p style="margin:0 0 16px;color:var(--doux,#67626e)">Origami revient devant toi tout seul. Google n\'accepte pas de se connecter dans la fenêtre d\'une appli : c\'est pour cela que le navigateur s\'ouvre.</p>' +
+      '<div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap"><button type="button" class="bouton" data-pont="annuler">Annuler</button><button type="button" class="bouton" data-pont="rouvrir">Rouvrir le navigateur</button></div></div>';
+    v.addEventListener("click", function (ev) { var b = ev.target && ev.target.closest ? ev.target.closest("[data-pont]") : null; if (!b) return; if (b.getAttribute("data-pont") === "annuler") annuler(); else rouvrir(); });
+    d.body.appendChild(v);
+    return function () { try { v.remove(); } catch (e) {} };
+  }
+  function ouvrirParPont(cle, plus) {
+    var T = coquille(), drive = !!(plus && plus.drive);
+    if (pontEnCours) pontEnCours("Connexion à Google annulée.");
+    return T.core.invoke("pont_google").then(function (p) { return p; }, function () {
+      throw souci("Cette appli Origami du Mac est trop ancienne pour se connecter à Google. Mets-la à jour dans l'écran « Applis », puis recommence.", "mac-ancien");
+    }).then(function (p) {
+      if (!p || !(Number(p.port) > 1023 && Number(p.port) < 65536) || !/^[0-9a-f]{32,64}$/.test(String(p.secret || "")) || !/^[0-9a-f]{8,32}$/.test(String(p.id || ""))) throw souci("La passerelle vers le navigateur n'a pas pu s'ouvrir sur ce Mac.", "refus");
+      var lien = PONT + "#" + Number(p.port) + "." + p.secret + (drive ? ".d" : "");
+      return new Promise(function (ok, non) {
+        var fini = false, arreter = null, fermerPanneau = function () {}, garde = 0;
+        function clore() { fini = true; clearTimeout(garde); if (arreter) { try { arreter(); } catch (e) {} } fermerPanneau(); if (pontEnCours === abandon) pontEnCours = null; }
+        function abandon(m) { if (fini) return; clore(); try { Promise.resolve(T.core.invoke("pont_annuler")).catch(function () {}); } catch (e) {} non(souci(m || "La connexion à Google a été annulée.", "ferme")); }
+        function ouvrirNavigateur() { try { Promise.resolve(T.opener.openUrl(lien)).catch(function () { abandon("Le navigateur de ce Mac ne s'est pas ouvert."); }); } catch (e) { abandon("Le navigateur de ce Mac ne s'est pas ouvert."); } }
+        pontEnCours = abandon;
+        Promise.resolve(T.event.listen("origami-pont", function (e) {
+          var r = e && e.payload;
+          if (fini || !r || r.pour !== p.id) return;
+          clore();
+          if (!/^[\w.~+\/=-]{20,4096}$/.test(String(r.jeton || ""))) { non(souci("Google n'a pas donné de connexion. Recommence.", "refus")); return; }
+          if (drive && !r.drive) { non(souci("Il manque un droit : à l'écran de Google, laisse toutes les cases cochées.", "cases")); return; }
+          var s = { jeton: String(r.jeton), adresse: "", drive: drive, fin: Date.now() + Math.max(60, (Number(r.duree) || 3000) - 120) * 1000 };
+          lireAdresse(s.jeton).then(function (a) { s.adresse = a; sessions[cle] = s; ok(s); });
+        })).then(function (u) { arreter = typeof u === "function" ? u : null; if (fini && arreter) arreter(); }, function () { abandon("L'appli n'a pas pu attendre la connexion à Google."); });
+        garde = setTimeout(function () { abandon("La connexion à Google n'est pas revenue dans l'appli. Recommence."); }, racine.__attentePont || 9 * 60000);
+        fermerPanneau = panneauPont(ouvrirNavigateur, function () { abandon("La connexion à Google a été annulée."); });
+        ouvrirNavigateur();
+      });
+    });
+  }
+
   function session(cle) { var s = sessions[cle]; if (s && s.fin <= Date.now()) { delete sessions[cle]; s = null; } return s || null; }
   function oublier(cle) { delete sessions[cle]; }
   /** La connexion faite pour « ajouter un compte » devient celle du compte, une fois qu'il existe dans l'appli. */
@@ -438,7 +496,13 @@
   /** Retire à Origami l'accès donné chez Google pour ce compte (il sera redemandé à la prochaine connexion). Ne bloque jamais : rend oui ou non. */
   function retirerAcces(cle) {
     var s = session(cle); delete sessions[cle];
-    if (!s || !pret() || typeof racine.google.accounts.oauth2.revoke !== "function") return Promise.resolve(false);
+    if (!s) return Promise.resolve(false);
+    // Dans l'appli du Mac, l'outil de Google n'est pas chargé pour se connecter : on le charge ici, seulement pour retirer l'accès.
+    var outil = pret() || !coquille() ? Promise.resolve() : new Promise(function (ok) { var g = setTimeout(ok, racine.__sansAttente ? 300 : 8000); chargerGoogle().then(function () { clearTimeout(g); ok(); }, function () { clearTimeout(g); ok(); }); });
+    return outil.then(function () { return retirerAccesGoogle(s); });
+  }
+  function retirerAccesGoogle(s) {
+    if (!pret() || typeof racine.google.accounts.oauth2.revoke !== "function") return Promise.resolve(false);
     return new Promise(function (ok) {
       var fini = false, garde = setTimeout(function () { if (!fini) { fini = true; ok(false); } }, racine.__sansAttente ? 300 : 8000);
       try { racine.google.accounts.oauth2.revoke(s.jeton, function (r) { if (fini) return; fini = true; clearTimeout(garde); ok(!(r && r.successful === false)); }); }
@@ -453,7 +517,7 @@
 
   var sortie = { charger: charger, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
-    installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, jeterReste: jeterReste, retirerAcces: retirerAcces,
+    parPont: function () { return !!coquille(); }, installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, jeterReste: jeterReste, retirerAcces: retirerAcces,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
   if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;
 })(typeof window !== "undefined" ? window : this);
