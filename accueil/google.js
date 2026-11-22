@@ -397,6 +397,55 @@
       .then(function () { lie.range = true; return lie; }, function () { return lie; });
   }
 
+  /**
+   * Avant « Retirer Origami de ce compte » : Google ne laisse pas le moteur jeter un dossier qui contient un fichier créé par une
+   * autre appli (vu en vrai le 22.11.2026). La page ressort donc du dossier « Origami » le classeur des réglages qu'elle a créé.
+   * o = { cle, id }. Rend true si le classeur est sorti (ou déjà à la corbeille), false si la page ne le voit pas ou si Google refuse.
+   */
+  function sortirClasseur(o) {
+    var s = session(o.cle);
+    if (!s || !s.drive || !/^[\w-]{6,120}$/.test(String(o.id || ""))) return Promise.resolve(false);
+    return drive(s, "GET", "files/" + enc(o.id) + "?fields=id,parents,trashed").then(function (f) {
+      if (f && f.trashed) return true;
+      var parents = (f && f.parents) || [];
+      if (!parents.length) return false;
+      return drive(s, "PATCH", "files/" + enc(o.id) + "?addParents=root&removeParents=" + enc(parents.join(",")) + "&fields=id,parents", {}).then(function () { return true; });
+    }).catch(function (e) { if (e && e.code === "expire") throw e; return false; });
+  }
+
+  /**
+   * Après « Retirer Origami de ce compte » (moteur v11) : ce que le moteur n'a pas pu jeter lui-même et que la page a peut-être
+   * créé (le classeur des réglages). La page ne touche QUE les fichiers nommés par le moteur de ce compte : si un autre compte
+   * Google a été choisi dans la fenêtre, Google ne les trouve pas et rien ne se passe. Tout va à la corbeille du Drive.
+   * o = { cle, reste: [{ id, … }] }. Rend { reste: ce qui reste à faire à la main, vu: la page a vu au moins un de ces fichiers }.
+   */
+  function jeterReste(o) {
+    var s = session(o.cle);
+    if (!s || !s.drive) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
+    var reste = [], vu = false;
+    return (o.reste || []).reduce(function (suite, x) {
+      return suite.then(function () {
+        if (!x || !/^[\w-]{6,120}$/.test(String(x.id || ""))) { if (x) reste.push(x); return null; }
+        return drive(s, "GET", "files/" + enc(x.id) + "?fields=id,trashed").then(function (f) {
+          vu = true;
+          if (f && f.trashed) return null;
+          return drive(s, "PATCH", "files/" + enc(x.id) + "?fields=id,trashed", { trashed: true }).then(function (g) { if (!g || !g.trashed) reste.push(x); });
+        }).catch(function (e) { if (e && e.code === "expire") throw e; reste.push(x); });
+      });
+    }, Promise.resolve()).then(function () { return { reste: reste, vu: vu }; });
+  }
+
+  /** Retire à Origami l'accès donné chez Google pour ce compte (il sera redemandé à la prochaine connexion). Ne bloque jamais : rend oui ou non. */
+  function retirerAcces(cle) {
+    var s = session(cle); delete sessions[cle];
+    if (!s || !pret() || typeof racine.google.accounts.oauth2.revoke !== "function") return Promise.resolve(false);
+    return new Promise(function (ok) {
+      var fini = false, garde = setTimeout(function () { if (!fini) { fini = true; ok(false); } }, racine.__sansAttente ? 300 : 8000);
+      try { racine.google.accounts.oauth2.revoke(s.jeton, function (r) { if (fini) return; fini = true; clearTimeout(garde); ok(!(r && r.successful === false)); }); }
+      catch (e) { if (!fini) { fini = true; clearTimeout(garde); ok(false); } }
+    });
+  }
+
   /** La Compta répond-elle ? Une appli pas encore autorisée par son propriétaire ne répond rien de lisible. */
   function ping(adresse) {
     return fetch(String(adresse) + "?origami=ping", { redirect: "follow" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { return String(t).trim() === "origami-compta:ok"; }, function () { return false; });
@@ -404,7 +453,7 @@
 
   var sortie = { charger: charger, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
-    installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur,
+    installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, jeterReste: jeterReste, retirerAcces: retirerAcces,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
   if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;
 })(typeof window !== "undefined" ? window : this);

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-20.52">
+<meta name="origami-version" content="2026-11-22.53">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -178,6 +178,12 @@ html.sombre .info .note { background: #1e2a4a; }
 [data-parcours-vue] .actions { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 8px; }
 .info [data-parcours-vue] p.souci-guide { color: #b42318; }
 [data-parcours-vue] .pas-boutons { margin-top: 10px; }
+.liste-desinst { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; line-height: 1.45; }
+.liste-desinst a { white-space: nowrap; }
+.case-desinst { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--carte); cursor: pointer; }
+.case-desinst input { width: 18px; height: 18px; margin: 2px 0 0; flex: none; }
+.bouton.danger { border-color: #b42318; background: #b42318; color: #ffffff; font-weight: 600; }
+.bouton.danger:disabled { opacity: .45; cursor: default; }
 .info details.autres-facons { margin-top: 6px; border: 0; background: none; padding: 0; }
 .info details.autres-facons summary { color: var(--doux); font-weight: 400; padding: 6px 0; }
 details.autres-facons .choix-ajout { margin-top: 8px; }
@@ -494,9 +500,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-20.52"></script>
-<script src="repertoire.js?v=2026-11-20.52"></script>
-<script src="google.js?v=2026-11-20.52"></script>
+<script src="agenda.js?v=2026-11-22.53"></script>
+<script src="repertoire.js?v=2026-11-22.53"></script>
+<script src="google.js?v=2026-11-22.53"></script>
 <script>
 (function () {
   "use strict";
@@ -2837,6 +2843,7 @@ button.tuile:hover { border-color: var(--ligne); }
       h += '</div><p id="messageNom" class="souci" role="status"></p><div class="actions"><button class="bouton fort" data-renommer="' + c0.id + '">Enregistrer</button>' + (moteurs[c0.id] ? '<button class="bouton" data-appareils="' + c0.id + '">Appareils reliés</button><button class="bouton" data-autre="' + c0.id + '">Relier un autre appareil</button>' : "") + "</div>";
       h += '<p class="explication">' + (moteurs[c0.id] ? "Le nom et la couleur changent dans le volet, dans le menu des comptes de la Compta et sur tes autres appareils reliés à ce compte." : "Le nom et la couleur changent dans le volet et dans le menu des comptes de la Compta. Relie ce compte à son moteur pour qu'ils suivent aussi sur tes autres appareils.") + "</p></div>";
     }
+    if (!tous && c0.id !== "compagnie") h += '<div class="reglage"><div class="rangs"><div class="rang-r"><span class="nom">Retirer Origami de ce compte<small>Met à la corbeille du Drive tout ce qu\'Origami a créé dans ce compte (récupérable 30 jours), puis retire le compte de cette appli.</small></span><button class="bouton" data-desinst="ouvrir" data-de="' + c0.id + '">Désinstaller</button></div></div></div>';
     h += '<h2 class="sous-titre">Affichage</h2>' + blocTaille();
     h += '<div class="reglage"><div class="rangs"><div class="rang-r"><span class="nom">Toujours ouvrir le tableau de bord<small>Allumé : Origami s\'ouvre sur le tableau de bord. Éteint : il reprend le dernier écran.</small></span><button class="inter" role="switch" aria-checked="' + (etat.ouverture === "bord" ? "true" : "false") + '" aria-label="Toujours ouvrir le tableau de bord" data-ouverture="1"></button></div></div></div>';
     h += '<div class="reglage"><h3>Tableau de bord</h3><p>Les blocs affichés et leur ordre. Le même choix s\'ouvre depuis le tableau de bord.</p><div class="rangs" id="bordRangs">' + rangsBlocs() + "</div></div>";
@@ -2859,7 +2866,7 @@ button.tuile:hover { border-color: var(--ligne); }
       var n = etat.ajoutes.length, ordre = c.id === "compagnie" || n < 2 ? "" : '<button class="bouton petit" data-monter="' + c.id + '" aria-label="Monter « ' + texte(c.nom) + ' »"' + (i <= 1 ? " disabled" : "") + '>↑</button><button class="bouton petit" data-descendre="' + c.id + '" aria-label="Descendre « ' + texte(c.nom) + ' »"' + (i >= n ? " disabled" : "") + ">↓</button>";
       h += '<div class="rang-r"><span class="point" style="background:' + c.couleur + '"></span><span class="nom">' + texte(c.nom) + "<small>" + (moteurs[c.id] ? "Relié à son moteur" : "Pas encore relié") + "</small></span>" + ordre + '<button class="bouton" data-modifier-compte="' + c.id + '">Modifier</button>' + '<button class="bouton" data-retirer="' + c.id + '">Retirer</button>' + "</div>";
     });
-    h += '</div><div><button class="bouton" data-vue="ajouter">Ajouter un compte</button></div></div>';
+    h += '</div><p class="explication">« Retirer » enlève un compte de cette appli seulement : rien ne change dans son Drive. Pour retirer aussi Origami du Drive d\'un compte, ouvre ses réglages (« Modifier »), puis « Désinstaller ».</p><div><button class="bouton" data-vue="ajouter">Ajouter un compte</button></div></div>';
     h += '<h2 class="sous-titre">Cet appareil</h2><div class="reglage"><div class="rangs">';
     h += '<div class="rang-r"><span class="nom">Version d\'Origami<small>' + texte((document.querySelector('meta[name="origami-version"]') || {}).content || "inconnue") + '</small></span><button class="bouton" data-recharger="1">Recharger</button></div>';
     h += '<div class="rang-r"><span class="nom">Lien personnel de Frais<small>' + (cleFrais() ? "Gardé sur cet appareil : Frais s'ouvre directement." : "Aucun lien gardé sur cet appareil.") + '</small></span><button class="bouton" data-frais-r="changer">' + (cleFrais() ? "Changer" : "Ajouter") + "</button>" + (cleFrais() ? '<button class="bouton" data-frais-r="oublier">Oublier</button>' : "") + "</div>";
@@ -3015,6 +3022,125 @@ button.tuile:hover { border-color: var(--ligne); }
   // Un seul parcours, une étape à l'écran à la fois : se connecter, laisser Origami s'installer (ou se retrouver s'il est déjà
   // dans ce compte), autoriser, c'est prêt. Plus de classeur à copier ni de code à coller. google.js fait les gestes ;
   // le moteur v10 (55_Connexion.js) reconnaît le premier contact, puis les autres appareils par la connexion à Google.
+  // ---- Retirer Origami d'un compte (22.11.2026, Sévane : « je veux tout faire depuis l'app ») ----
+  // Règle de Google (vue en vrai le 22.11) : une appli ne jette que ce qu'elle a créé, et pas un dossier qui contient le fichier d'une
+  // autre. Donc, dans l'ordre : la page, connectée à Google, ressort du dossier le classeur des réglages qu'elle a créé ; le moteur du
+  // compte (v11) met à la corbeille ses dossiers « Origami » avec leur contenu ; la page jette le classeur, puis retire son accès.
+  // Rien n'est effacé pour de bon : Google garde la corbeille 30 jours. Ce que ni l'un ni l'autre ne peut jeter est montré avec un lien.
+  var desinst = { phase: "" };
+  var LIEN_DRIVE_ORIGAMI = "https://drive.google.com/drive/search?q=Origami", LIEN_ACCES_GOOGLE = "https://myaccount.google.com/connections";
+  function desinstMontrer() { if (etat.vue === "desinstaller") dessinerPage("desinstaller"); }
+  function desinstLien(l) { l = String(l || ""); return /^https:\/\/(docs|drive)\.google\.com\/[\w\/.?=&%-]+$/.test(l) ? l : ""; }
+  function desinstOuvrir(id) {
+    var c = compte(id);
+    if (!c || id === "compagnie") return;
+    desinst = { phase: "liste", id: id, nom: c.nom, inv: null, etatMoteur: "", souci: "", occupe: "Je regarde ce qu'Origami a créé dans ce compte…", coche: false };
+    etat.compte = id; etat.vue = "desinstaller"; montrer(); try { page.scrollTop = 0; window.scrollTo(0, 0); } catch (e) {}
+    if (!MAC && window.OrigamiGoogle) OrigamiGoogle.charger().catch(function () {});   // la fenêtre de Google doit pouvoir s'ouvrir dans le clic
+    var D = desinst;
+    if (!moteurs[id]) { D.occupe = ""; D.etatMoteur = "muet"; desinstMontrer(); return; }
+    moteurAppel(id, "compte.inventaire", null, { sans: true }).then(function (inv) {
+      if (desinst !== D) return;
+      D.occupe = "";
+      if (!inv || !Array.isArray(inv.elements)) D.etatMoteur = "muet"; else if (inv.retire) D.etatMoteur = "deja"; else D.inv = inv;
+      desinstMontrer();
+    }, function (e) {
+      if (desinst !== D) return;
+      D.occupe = ""; D.etatMoteur = e && e.code === "desinstalle" ? "deja" : /Demande inconnue/.test(String(e && e.message)) ? "ancien" : "muet"; desinstMontrer();
+    });
+  }
+  function desinstLancer(sansGoogle) {
+    var D = desinst, id = D.id, G = window.OrigamiGoogle, cle = "desinstaller";
+    if (D.phase !== "liste" || !D.inv || !D.coche || D.encours || !moteurs[id]) return;
+    var avecGoogle = !sansGoogle && !MAC && !!G;
+    D.encours = true; D.souci = ""; D.occupe = avecGoogle ? "Google ouvre une fenêtre : choisis ce même compte." : "Mise à la corbeille…"; desinstMontrer();
+    (avecGoogle ? G.connecter(cle, { drive: true }).then(function () { return true; }) : Promise.resolve(false)).then(function (connecte) {
+      if (desinst !== D) throw new Error("abandon");
+      D.phase = "travail"; D.occupe = "Mise à la corbeille du Drive…"; desinstMontrer();
+      // Le classeur des réglages rangé dans le dossier « Origami » : la page l'en ressort d'abord, sinon Google refuse le dossier au moteur.
+      var cl = D.inv.elements.filter(function (x) { return x && x.conteneur && x.range && x.id; })[0];
+      return (connecte && cl ? G.sortirClasseur({ cle: cle, id: cl.id }).catch(function () { return false; }) : Promise.resolve(true)).then(function (sorti) {
+        // La page a créé ce classeur et Google ne le lui montre pas : un autre compte Google a sans doute été choisi dans la fenêtre. On s'arrête
+        // avant de rien retirer. (Un classeur copié à la main, dans un compte installé à l'ancienne, n'est jamais visible : on continue.)
+        if (!sorti && cl.parPage) { G.oublier(cle); var ea = new Error("Google n'a pas trouvé le classeur d'Origami de ce compte : dans sa fenêtre, tu as peut-être choisi un autre compte Google. Rien n'a été retiré. Recommence en choisissant bien le compte " + D.nom + "."); ea.code = "autre-compte"; throw ea; }
+        return moteurAppel(id, "compte.desinstaller", { mot: "DESINSTALLER" }, { sans: true, lent: true });
+      }).then(function (r) {
+        var reste = (r && Array.isArray(r.reste) ? r.reste : []).filter(function (x) { return x && typeof x === "object"; }).slice(0, 20).map(function (x) {
+          return { nom: String(x.nom || "Un fichier").slice(0, 120), lien: desinstLien(x.lien), dossier: x.sorte === "dossier", id: x.conteneur && /^[\w-]{6,120}$/.test(String(x.id || "")) ? String(x.id) : "" };
+        });
+        if (!connecte) return { reste: reste, acces: false };
+        // Le classeur des réglages, si c'est la page qui l'a créé : elle le voit et le jette (ou constate qu'il est parti avec le dossier).
+        return G.jeterReste({ cle: cle, reste: reste }).then(function (j) {
+          // L'accès n'est retiré que si Google a montré un fichier de CE compte : la preuve que c'est le bon compte Google.
+          if (!j.vu) { G.oublier(cle); return { reste: j.reste, acces: false }; }
+          return G.retirerAcces(cle).then(function (a) { return { reste: j.reste, acces: a }; });
+        }, function () { G.oublier(cle); return { reste: reste, acces: false }; });
+      });
+    }).then(function (fin) {
+      var attente = parcoursAttente();
+      if (attente && moteurs[id] && attente.adresse === moteurs[id].u) garder("origami_installation", "");
+      garder("origami_google_adresse@" + id, ""); garder("origami_compta_autorisee@" + id, "");
+      oublierCompte(id);
+      desinst = { phase: "fini", nom: D.nom, reste: fin.reste, acces: fin.acces };
+      etat.compte = compteParDefaut(); etat.vue = "desinstaller"; montrer(); try { page.scrollTop = 0; window.scrollTo(0, 0); } catch (e) {}
+    }, function (e) {
+      if (desinst !== D) return;
+      D.encours = false; D.occupe = "";
+      if (D.phase === "liste") { D.souci = String((e && e.message) || e) + " Rien n'a été retiré."; D.sansGoogle = true; }   // la connexion à Google n'a pas abouti
+      else { if (G) G.oublier(cle); D.phase = "liste"; D.souci = e && e.code === "desinstalle" ? "" : String((e && e.message) || e); if (e && e.code === "autre-compte") D.sansGoogle = true; if (e && e.code === "desinstalle") { D.inv = null; D.etatMoteur = "deja"; } }
+      desinstMontrer();
+    });
+  }
+  function desinstDessiner() {
+    var D = desinst, nom = "<strong>" + texte(D.nom || "") + "</strong>", h = '<div data-parcours-vue="desinst-' + texte(D.phase) + '">';
+    var occupe = D.occupe ? '<p class="progression" role="status"><progress></progress><span>' + texte(D.occupe) + "</span></p>" : "";
+    var souci = D.souci ? '<p class="souci-guide" role="alert">' + texte(D.souci) + "</p>" : "";
+    if (D.phase === "liste" && D.inv) {
+      var inv = D.inv, racines = inv.elements.filter(function (x) { return x && x.racine && x.etat === "la"; }), applis = (Array.isArray(inv.applis) ? inv.applis : []).map(function (a) { return String(a).slice(0, 30); }), n = Number(inv.appareils) || 0;
+      h += "<h1>Retirer Origami de ce compte</h1><p>Compte : " + nom + "</p>";
+      h += "<p>Tout ce qu'Origami a créé dans le Google Drive de ce compte part à la <strong>corbeille du Drive</strong>. Google l'y garde 30 jours : pendant ce temps, tu peux tout remettre.</p>";
+      h += '<ul class="liste-desinst">';
+      racines.forEach(function (x) { var l = desinstLien(x.lien); h += "<li>Le dossier « Origami » et tout ce qu'il contient" + (l ? ' <a href="' + texte(l) + '" target="_blank" rel="noopener">Voir le dossier</a>' : "") + "</li>"; });
+      if (!racines.length) h += "<li>Le dossier « Origami » est déjà à la corbeille ou n'existe plus.</li>";
+      if (applis.length) h += "<li>Les applis installées dans ce compte, avec leurs données : " + texte(applis.join(", ")) + "</li>";
+      h += "<li>Le classeur « Origami - Réglages du compte », avec l'Origami de ce compte</li>";
+      if (n > 1) h += "<li>Les " + n + " appareils reliés à ce compte ne pourront plus l'ouvrir</li>";
+      h += "</ul>";
+      h += '<p class="aide-fine">Ce qui ne bouge pas : tes mails, tes agendas Google et tous les fichiers qu\'Origami n\'a pas créés.</p>';
+      if (applis.indexOf("Compta") >= 0) h += "<p>La Compta de ce compte a créé ses propres fichiers dans le dossier « Origami », et Google ne laisse pas Origami jeter un dossier qui contient les fichiers d'une autre appli. À la fin, Origami te donnera le lien de ce dossier : tu le mettras à la corbeille toi-même, en un geste.</p>";
+      h += '<label class="case-desinst"><input type="checkbox" id="desinstCoche"' + (D.coche ? " checked" : "") + (D.encours ? " disabled" : "") + "><span>J'ai compris : mets tout à la corbeille du Drive et retire ce compte de l'appli.</span></label>";
+      h += '<p class="aide-fine">' + (MAC ? "Dans l'appli du Mac, Origami ne peut pas ouvrir la fenêtre de Google. S'il reste un fichier qu'il n'a pas pu jeter, il te le montrera avec un lien." : "Google va ouvrir une fenêtre : choisis ce même compte et laisse les cases cochées. Elle sert à jeter le classeur des réglages et à retirer l'accès d'Origami à ce compte.") + "</p>";
+      h += occupe + souci;
+      h += '<div class="pas-boutons"><button class="bouton" data-desinst="annuler"' + (D.encours ? " disabled" : "") + '>Annuler</button><button class="bouton danger" data-desinst="lancer"' + (D.coche && !D.encours ? "" : " disabled") + ">Désinstaller</button></div>";
+      if (D.sansGoogle && !D.encours) h += '<p class="aide-fine">La fenêtre de Google ne s\'ouvre pas ? <button class="lien" data-desinst="sans-google"' + (D.coche ? "" : " disabled") + ">Désinstaller sans me connecter à Google</button> : s'il reste un fichier à jeter, Origami te le montrera.</p>";
+    } else if (D.phase === "liste") {
+      h += "<h1>Retirer Origami de ce compte</h1><p>Compte : " + nom + "</p>" + occupe;
+      if (D.etatMoteur === "deja") h += "<p>Origami a déjà été retiré du Drive de ce compte. Il reste à retirer le compte de cette appli.</p>";
+      else if (D.etatMoteur === "ancien") h += "<p>L'Origami de ce compte n'a pas encore la mise à jour qui permet de le retirer depuis l'appli. Tu peux retirer le compte de cette appli ; dans son Drive, rien ne changera.</p>";
+      else if (D.etatMoteur === "muet") h += "<p>Origami n'arrive pas à joindre ce compte (pas de connexion, ou il n'est pas relié sur cet appareil). Réessaie dans un instant. Tu peux aussi retirer le compte de cette appli ; dans son Drive, rien ne changera.</p>";
+      if (!D.occupe) h += '<div class="pas-boutons"><button class="bouton" data-desinst="annuler">Retour</button><button class="bouton' + (D.etatMoteur === "deja" ? " fort" : "") + '" data-desinst="seulement">Retirer de cette appli</button></div>';
+    } else if (D.phase === "travail") {
+      h += "<h1>Origami se retire de ce compte</h1><p>Compte : " + nom + ". Quelques secondes : garde cette page ouverte.</p>" + occupe;
+    } else {   // fini
+      var reste = Array.isArray(D.reste) ? D.reste : [];
+      if (!reste.length) h += "<h1>Origami est retiré de ce compte</h1><p>Tout ce qu'il avait créé dans le Drive de " + nom + " est à la corbeille. Google le garde 30 jours. Le compte n'est plus dans cette appli.</p>";
+      else {
+        h += "<h1>Presque fini : un dernier geste dans le Drive</h1><p>Origami est retiré de " + nom + " dans cette appli et ne répond plus dans ce compte. " + (reste.length > 1 ? "Il reste " + reste.length + " éléments" : "Il reste un élément") + " qu'il n'a pas le droit de jeter lui-même : Google ne laisse une appli toucher qu'à ce qu'elle a créé.</p>";
+        h += "<p><strong>Ouvre " + (reste.length > 1 ? "chacun" : "ce lien") + " avec ce compte Google et mets-le à la corbeille</strong>, s'il n'y est pas déjà. Un dossier part avec tout ce qu'il contient.</p>";
+        h += '<ul class="liste-desinst">';
+        reste.forEach(function (x) { h += "<li>" + texte(x.nom) + (x.lien ? ' <a href="' + texte(x.lien) + '" target="_blank" rel="noopener">Ouvrir</a>' : "") + '<span class="aide-fine" style="display:block">' + (x.dossier ? "Dans le Drive : clic droit sur le nom du dossier, en haut, puis « Placer dans la corbeille »." : "Dans le classeur : menu Fichier, « Placer dans la corbeille ».") + "</span></li>"; });
+        h += "</ul>";
+      }
+      h += '<p class="aide-fine">Pour vérifier qu\'il ne reste rien : <a href="' + LIEN_DRIVE_ORIGAMI + '" target="_blank" rel="noopener">chercher « Origami » dans le Drive</a> de ce compte. ' + (D.acces ? "L'accès d'Origami à ce compte Google est retiré." : 'Pour retirer aussi l\'accès d\'Origami chez Google : <a href="' + LIEN_ACCES_GOOGLE + '" target="_blank" rel="noopener">les applis connectées à ton compte</a>.') + "</p>";
+      h += '<details class="aide-fine"><summary>Tu as changé d\'avis ?</summary><p>Pendant 30 jours : ouvre la corbeille du Drive de ce compte et remets le dossier « Origami » et le classeur « Origami - Réglages du compte ». Ouvre ensuite ce classeur, menu Origami, « Installer ou réparer », puis « Relier un appareil ».</p></details>';
+      h += '<div class="pas-boutons"><button class="bouton" data-desinst="fermer">Terminé</button><button class="bouton fort" data-desinst="reinstaller">Réinstaller depuis zéro</button></div>';
+    }
+    return h + "</div>";
+  }
+  document.addEventListener("change", function (ev) {
+    if (!ev.target || ev.target.id !== "desinstCoche" || desinst.phase !== "liste") return;
+    desinst.coche = !!ev.target.checked; desinstMontrer();
+  });
   var PARCOURS_GOOGLE = !/[?&]parcours=non\b/.test(location.search);   // allumé le 20.11 (essai 4 réussi en vrai, moteur v10) ; « ?parcours=non » montre l'ancien écran
   var ETAPES_PARCOURS = { chercher: "Je regarde si Origami est déjà dans ce compte…", code: "Lecture du code d'Origami…", classeur: "Création du classeur des réglages…", projet: "Création d'Origami dans ton compte…", contenu: "Envoi du code…", version: "Enregistrement…", ligne: "Mise en ligne…" };
   var parcours = { phase: "" };
@@ -3310,6 +3436,8 @@ button.tuile:hover { border-color: var(--ligne); }
     var h = '<div class="info">';
     if (vue === "ajouter") {
       h += dessinerAjout();
+    } else if (vue === "desinstaller") {
+      h += desinstDessiner();
     } else if (vue === "relier") {
       var cr = compte(etat.compte);
       if (moteurs[cr.id]) {
@@ -3383,7 +3511,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : c0 && vue === "compta" && comptaDe(c0.id) ? cleCadre(c0, vue) : "";
-    if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
+    if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "desinstaller" && desinst.phase) && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
     if (cadre) ouvrirCadre(cadre);
     if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
     for (var id in cadres) cadres[id].hidden = id !== cadre;
@@ -3423,6 +3551,16 @@ button.tuile:hover { border-color: var(--ligne); }
       return;
     }
     if (d.compte) { etat.compte = d.compte; if ((etat.vue === "agenda" || etat.vue === "repertoire" || etat.vue === "reglages" || etat.vue === "applis") && (d.compte === "tous" || compte(d.compte))) { montrer(); return; } if (d.compte === "tous" || !compte(d.compte) || vuesDe(compte(d.compte)).indexOf(etat.vue) < 0) etat.vue = "accueil"; montrer(); return; }
+    if (d.desinst) {
+      var qd = d.desinst;
+      if (qd === "ouvrir") desinstOuvrir(d.de);
+      else if (qd === "lancer") desinstLancer(false);
+      else if (qd === "sans-google") desinstLancer(true);
+      else if (qd === "seulement") { var is = desinst.id; desinst = { phase: "" }; page.innerHTML = ""; if (compte(is) && is !== "compagnie") oublierCompte(is); etat.compte = compteParDefaut(); etat.vue = comptes().length ? "reglages" : "accueil"; avis("Compte retiré de cette appli."); montrer(); }
+      else if (qd === "annuler" || qd === "fermer") { var ia = desinst.id; desinst = { phase: "" }; page.innerHTML = ""; if (ia && compte(ia)) etat.compte = ia; etat.vue = comptes().length ? "reglages" : "accueil"; montrer(); }
+      else if (qd === "reinstaller") { desinst = { phase: "" }; parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; if (PARCOURS_GOOGLE && window.OrigamiGoogle && !MAC) OrigamiGoogle.charger().catch(function () {}); montrer(); }
+      return;
+    }
     if (d.parcours && PARCOURS_GOOGLE) {
       var qp = d.parcours;
       if (qp === "lancer") { parcours.souciAccueil = ""; parcoursLancer(); }
@@ -3552,12 +3690,13 @@ button.tuile:hover { border-color: var(--ligne); }
         [{ nom: "Annuler" }, { nom: "Retirer", fort: true, action: function () { retirerCompagnie(); } }]);
       return;
     }
-    if (d.retirer) {
-      delete etat.noms[d.retirer]; delete fenComptes[d.retirer]; oublierCompta(d.retirer); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== d.retirer; }); delete etat.masques[d.retirer];
-      delete moteurs[d.retirer]; delete memoires[d.retirer]; oublierDiff(d.retirer); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(d.retirer); file = file.filter(function (x) { return x.compte !== d.retirer; }); retenirMoteurs(); garderMemoire(d.retirer);
-      etat.compte = compteParDefaut(); etat.vue = comptes().length ? "reglages" : "accueil"; montrer();
-    }
+    if (d.retirer) { oublierCompte(d.retirer); etat.compte = compteParDefaut(); etat.vue = comptes().length ? "reglages" : "accueil"; montrer(); }
   });
+  // Un compte ajouté disparaît de cet appareil : sa liaison, sa mémoire, ses applis ouvertes. Rien ne change chez Google.
+  function oublierCompte(id) {
+    delete etat.noms[id]; delete fenComptes[id]; oublierCompta(id); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== id; }); delete etat.masques[id];
+    delete moteurs[id]; delete memoires[id]; oublierDiff(id); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(id); file = file.filter(function (x) { return x.compte !== id; }); retenirMoteurs(); garderMemoire(id);
+  }
   // Retirer la compagnie : tout ce qui la relie à cet appareil est oublié, puis elle disparaît des comptes.
   function retirerCompagnie() {
     ["diffusion", "tickets", "compta:compagnie"].forEach(function (x) { deconnecter(x); });
