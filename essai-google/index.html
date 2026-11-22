@@ -40,7 +40,7 @@
 <body>
 <main>
   <h1>Essai : Origami se connecte à Google</h1>
-  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée des mini-applis vides, nommées « Origami - essai (à supprimer) ». L'essai 3 crée en plus un classeur vide du même nom et, si tu colles l'identifiant du moteur, compte les fichiers qu'il porte sans rien en garder. L'essai 4 fait créer ce classeur par la page elle-même, le range dans un dossier d'essai du même nom et compte les fichiers du modèle Origami, sans rien en garder. Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
+  <p class="doux">Cette page vérifie une seule chose : Google laisse-t-il Origami créer une petite appli dans ton compte, la mettre en ligne et la mettre à jour ? Elle crée des mini-applis vides, nommées « Origami - essai (à supprimer) ». L'essai 3 crée en plus un classeur vide du même nom et, si tu colles l'identifiant du moteur, compte les fichiers qu'il porte sans rien en garder. L'essai 4 fait créer ce classeur par la page elle-même, le range dans un dossier d'essai du même nom et compte les fichiers du modèle Origami, sans rien en garder. L'essai 5 fait le chemin inverse : il crée un classeur et un dossier d'essai, puis les met à la corbeille de ton Drive avec les anciens fichiers d'essai du même nom (récupérables 30 jours), et retire à la fin l'accès de cette page à ton compte. Elle ne lit rien d'autre dans ton compte et n'envoie rien ailleurs que chez Google.</p>
 
   <div class="carte">
     <label for="client">ID client du projet Google de la compagnie</label>
@@ -49,7 +49,8 @@
     <label for="moteur" style="margin-top:12px">Identifiant du moteur de ce compte (facultatif, pour l'essai 3)</label>
     <input type="text" id="moteur" autocomplete="off" spellcheck="false" placeholder="donné dans la conversation">
     <div class="actions">
-      <button class="fort" id="lancer4">Essai 4 : installer sans rien copier</button>
+      <button class="fort" id="lancer5">Essai 5 : désinstaller (fichiers d'essai à la corbeille)</button>
+      <button id="lancer4">Essai 4 : installer sans rien copier (déjà réussi)</button>
       <button id="lancer3">Essai 3 : attacher à un classeur (déjà réussi)</button>
       <button id="lancer2">Essai 2 : l'autorisation (déjà réussi)</button>
       <button id="lancer">Essai 1 : créer et mettre à jour (déjà réussi)</button>
@@ -93,6 +94,14 @@
       <p>2. Reviens sur cette page et clique :</p>
       <div class="actions"><button class="fort" id="verifier6">C'est fait, vérifier</button></div>
     </div>
+    <div id="suite5" hidden>
+      <p><strong>À toi, deux gestes.</strong> La mini-appli 7 est attachée au classeur que la page vient de créer, et en ligne. C'est elle qui mettra le dossier d'essai à la corbeille, comme le fera Origami. Il reste à l'autoriser.</p>
+      <p>1. Clique ce lien, choisis le même compte et accepte :</p>
+      <p><a id="lienAutoriser7" target="_blank" rel="noopener">Autoriser la mini-appli 7</a></p>
+      <p class="doux">Si Google affiche « Page introuvable » (plusieurs comptes connectés dans ce navigateur) : copie le lien et ouvre-le dans une fenêtre de navigation privée, ou dans le navigateur de ce compte. <button id="copierLien7">Copier le lien</button> <span id="lienCopie7" hidden>Copié.</span></p>
+      <p>2. Reviens sur cette page et clique :</p>
+      <div class="actions"><button class="fort" id="verifier7">C'est fait, vérifier</button></div>
+    </div>
     <div class="actions">
       <button id="copier" hidden>Copier le compte rendu</button>
     </div>
@@ -115,7 +124,7 @@
       .then(function (r) { return r.ok ? r.json() : {}; }).then(function (d) { return /^[^\s@]+@[^\s@]+$/.test(String(d.email || "")) ? String(d.email) : ""; }, function () { return ""; });
   }
   var $ = function (id) { return document.getElementById(id); };
-  var champ = $("client"), bouton = $("lancer"), bouton2 = $("lancer2"), bouton3 = $("lancer3"), bouton4 = $("lancer4"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
+  var champ = $("client"), bouton = $("lancer"), bouton2 = $("lancer2"), bouton3 = $("lancer3"), bouton4 = $("lancer4"), bouton5 = $("lancer5"), liste = $("etapes"), jeton = "", rapport = [], lignes = {};
 
   var CLIENT_COMPAGNIE = "964221481435-nv5bh3a8v6vlnbiaf1fgjfft6a7sb9kn.apps.googleusercontent.com";   // public par nature : il ne donne aucun accès à lui seul
   try { champ.value = localStorage.getItem("origami_essai_client") || CLIENT_COMPAGNIE; } catch (e) { champ.value = CLIENT_COMPAGNIE; }
@@ -224,7 +233,7 @@
             var base = "https://script.google.com/macros/d/" + encodeURIComponent(c.id) + "/authorize", l = $("lienAutoriser"), l2 = $("lienSimple");
             l.href = base + (adresseCompte ? "?authuser=" + encodeURIComponent(adresseCompte) : ""); l2.href = base;
             rapport.push("Lien d'autorisation : " + base + (adresseCompte ? "?authuser=(adresse du compte)" : ""));
-            $("suite2").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false;
+            $("suite2").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false; bouton5.disabled = false;
           });
       });
   }
@@ -256,7 +265,7 @@
       .then(function (d) {
         appli4 = d; rapport.push("Adresse 4 : " + d.adresse);
         $("lienAutoriser4").href = lienAutorisation(d.id);
-        $("suite3a").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false;
+        $("suite3a").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false; bouton5.disabled = false;
       });
   }
   $("continuer3").addEventListener("click", function () {
@@ -341,7 +350,7 @@
       })
       .then(function () {
         var l = lienAutorisation(appli6.id);
-        $("lienAutoriser6").href = l; $("lienCopie6").hidden = true; $("suite4").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false; rapport.push("Lien d'autorisation : " + l.replace(/authuser=.*$/, "authuser=(adresse du compte)"));
+        $("lienAutoriser6").href = l; $("lienCopie6").hidden = true; $("suite4").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false; bouton5.disabled = false; rapport.push("Lien d'autorisation : " + l.replace(/authuser=.*$/, "authuser=(adresse du compte)"));
       });
   }
   $("copierLien6").addEventListener("click", function () {
@@ -379,11 +388,123 @@
       }, function () { bilan(false, "La mini-appli 6 ne répond pas encore. Si tu viens d'autoriser, attends dix secondes et clique de nouveau « C'est fait, vérifier »."); })
       .then(function () { $("verifier6").disabled = false; });
   });
-  function bilan(ok, texte) { var b = $("bilan"); b.hidden = false; b.className = "bilan " + (ok ? "bon" : "mal"); b.textContent = texte; rapport.push((ok ? "BILAN OK : " : "BILAN : ") + texte); $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false; }
+
+  // ---- Essai 5 : désinstaller ----
+  // Le chemin inverse de l'essai 4. Google ne laisse une appli jeter que ce qu'elle a créé : la mini-appli (comme le moteur) jette le dossier
+  // qu'elle a créé, avec dedans le classeur de la page et donc elle-même ; la page jette ce qu'elle a créé. Tout va à la corbeille (30 jours).
+  var DOSSIER_ = "application/vnd.google-apps.folder", CLASSEUR_ = "application/vnd.google-apps.spreadsheet";
+  var appli7 = null, secret7 = "", classeur7 = "", marque7 = "", anciens7 = [];
+  function codeG(empreinte) {
+    return "var EMPREINTE = " + JSON.stringify(empreinte) + ", TITRE = " + JSON.stringify(TITRE) + ";\n" +
+      "function hacher_(t) { return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, t, Utilities.Charset.UTF_8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join(''); }\n" +
+      "function doGet(e) {\n  if (e && e.parameter && e.parameter.origami === 'ping') return ContentService.createTextOutput('origami-essai:ok');\n  return ContentService.createTextOutput(\"Mini-appli 7 de l'essai Origami.\");\n}\n" +
+      "function doPost(e) {\n  var d = {}, r = {};\n  try { d = JSON.parse(e.postData.contents); } catch (x) {}\n  try {\n" +
+      "    if (hacher_(String(d.secret || '')) !== EMPREINTE) r = { ok: false, raison: 'secret' };\n" +
+      "    else if (d.geste === 'preparer') {\n      var dossier = Drive.Files.create({ name: TITRE, mimeType: '" + DOSSIER_ + "' }, null, { fields: 'id' }).id;\n" +
+      "      var sous = Drive.Files.create({ name: 'Données', mimeType: '" + DOSSIER_ + "', parents: [dossier] }, null, { fields: 'id' }).id;\n" +
+      "      var fichier = Drive.Files.create({ name: TITRE, mimeType: '" + CLASSEUR_ + "', parents: [sous] }, null, { fields: 'id' }).id;\n" +
+      "      r = { ok: true, dossier: dossier, sous: sous, fichier: fichier };\n" +
+      "    } else if (d.geste === 'corbeille') {\n      Drive.Files.update({ trashed: true }, String(d.dossier));\n" +
+      "      r = { ok: !!Drive.Files.get(String(d.dossier), { fields: 'id,trashed' }).trashed };\n" +
+      "    } else r = { ok: false, raison: 'geste' };\n" +
+      "  } catch (x) { r = { ok: false, raison: 'erreur', detail: String((x && x.message) || x).slice(0, 200) }; }\n  return ContentService.createTextOutput(JSON.stringify(r)).setMimeType(ContentService.MimeType.JSON);\n}\n";
+  }
+  function sorte(m) { return m === DOSSIER_ ? "dossier" : m === CLASSEUR_ ? "classeur" : m === "application/vnd.google-apps.script" ? "mini-appli" : "autre"; }
+  function jeter(id) { return drive("PATCH", "files/" + encodeURIComponent(id) + "?fields=id,trashed", { trashed: true }).then(function (f) { if (!f.trashed) throw new Error("Google ne l'a pas mis à la corbeille"); return f; }); }
+  // Une ligne « pour savoir » : ratée, elle est notée mais n'arrête pas l'essai.
+  function pasSouple(cle, titre, f, dire, manque) { return pas(cle, titre, f, dire).then(function () { return true; }, function () { manques7.push(manque); return false; }); }
+  var manques7 = [];
+  function essaiRetirer() {
+    marque7 = hasard(8); secret7 = hasard(32); manques7 = []; anciens7 = [];
+    return lireAdresse().then(function (adr) { adresseCompte = adr; rapport.push("Adresse du compte connue de la page : " + (adr ? "oui, elle commence par « " + adr.slice(0, 3) + " »" : "non")); })
+      .then(function () {
+        return pas("r1", "Drive : ce que la page voit dans ton compte", function () { return drive("GET", "files?pageSize=200&fields=" + encodeURIComponent("files(id,name,mimeType)") + "&q=" + encodeURIComponent("trashed=false")); }, function (l) {
+          var f = l.files || [], par = {}, noms = {};
+          anciens7 = f.filter(function (x) { return x.name === TITRE; });
+          f.forEach(function (x) { var s = sorte(x.mimeType); par[s] = (par[s] || 0) + 1; if (x.name !== TITRE) noms[String(x.name).slice(0, 40) + " (" + s + ")"] = 1; });
+          return f.length + " fichier(s) : " + (Object.keys(par).map(function (k) { return par[k] + " " + k; }).join(", ") || "aucun") + " ; dont " + anciens7.length + " d'essai" + (Object.keys(noms).length ? " ; les autres : " + Object.keys(noms).slice(0, 12).join(", ") : "");
+        });
+      })
+      .then(function () { return pas("r2", "Drive : la page crée le classeur d'essai", function () { return drive("POST", "files?fields=id,name", { name: TITRE, mimeType: CLASSEUR_, appProperties: { origamiEssai: marque7 } }); }, function () { return "classeur créé"; }); })
+      .then(function (r) { classeur7 = r.id; return hacher(secret7); })
+      .then(function (h) { return installer("Mini-appli 7 (désinstallation)", codeG(h), [DROIT_DRIVE], { classeur: classeur7, drive: true }); })
+      .then(function (p7) {
+        appli7 = p7;
+        var l = lienAutorisation(appli7.id);
+        $("lienAutoriser7").href = l; $("lienCopie7").hidden = true; $("suite5").hidden = false; $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false; bouton5.disabled = false; rapport.push("Lien d'autorisation : " + l.replace(/authuser=.*$/, "authuser=(adresse du compte)"));
+      });
+  }
+  $("copierLien7").addEventListener("click", function () {
+    var t = $("lienAutoriser7").href;
+    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(t) : Promise.reject()).catch(function () {
+      var z = document.createElement("textarea"); z.value = t; document.body.appendChild(z); z.select(); try { document.execCommand("copy"); } catch (e) {} z.remove();
+    }).then(function () { $("lienCopie7").hidden = false; });
+  });
+  function retirerAcces() {
+    return new Promise(function (ok, non) {
+      var fini = false, garde = setTimeout(function () { if (!fini) { fini = true; non(new Error("Google n'a pas répondu")); } }, window.__sansAttente ? 300 : 8000);
+      try { google.accounts.oauth2.revoke(jeton, function (r) { if (fini) return; fini = true; clearTimeout(garde); if (r && r.successful === false) non(new Error(String(r.error_description || r.error || "refusé"))); else ok(); }); }
+      catch (e) { fini = true; clearTimeout(garde); non(e); }
+    }).then(function () { return lireAdresse(); }).then(function (adr) { if (adr) throw new Error("la page lit encore l'adresse du compte"); });
+  }
+  var tours7 = 0;
+  $("verifier7").addEventListener("click", function () {
+    if (!appli7) return;
+    $("verifier7").disabled = true; $("bilan").hidden = true; tours7++;
+    var k = "w" + tours7 + "-", lieu = null;
+    function refus(r) { return new Error("refusé (" + (r.raison || "?") + (r.detail ? " : " + r.detail : "") + ")"); }
+    pas(k + "1", "Mini-appli 7 : vérifier qu'elle répond", function () { return lire(appli7.adresse + "?origami=ping").then(function (t) { if (String(t).trim() !== "origami-essai:ok") throw new Error("elle répond « " + propre(t) + " »"); return t; }); }, function () { return "elle répond"; })
+      .then(function () {
+        return pas(k + "2", "La mini-appli crée un dossier d'essai, un sous-dossier et un classeur", function () { return poster(appli7.adresse, { geste: "preparer", secret: secret7 }).then(function (r) { if (!r.ok || !r.dossier || !r.sous) throw refus(r); return r; }); }, function () { return "créés"; })
+          .then(function (r) {
+            lieu = r;
+            return pas(k + "3", "La page range son classeur dans le sous-dossier", function () {
+              return drive("GET", "files/" + encodeURIComponent(classeur7) + "?fields=parents").then(function (f) {
+                return drive("PATCH", "files/" + encodeURIComponent(classeur7) + "?addParents=" + encodeURIComponent(lieu.sous) + "&removeParents=" + encodeURIComponent((f.parents || []).join(",")) + "&fields=id,parents", {});
+              }).then(function (f) { if ((f.parents || []).indexOf(lieu.sous) < 0) throw new Error("le classeur n'a pas bougé"); return f; });
+            }, function () { return "rangé"; });
+          })
+          .then(function () { return pas(k + "4", "Désinstaller : la mini-appli met son dossier à la corbeille, avec tout ce qu'il contient", function () { return poster(appli7.adresse, { geste: "corbeille", secret: secret7, dossier: lieu.dossier }).then(function (r) { if (!r.ok) throw refus(r); return r; }); }, function () { return "dossier à la corbeille"; }); })
+          .then(function () { return pas(k + "5", "Le classeur de la page est parti avec le dossier", function () { return drive("GET", "files/" + encodeURIComponent(classeur7) + "?fields=id,trashed").then(function (f) { if (!f.trashed) throw new Error("il n'est pas à la corbeille"); return f; }); }, function () { return "à la corbeille"; }); })
+          .then(function () {
+            return pasSouple(k + "6", "Un nouvel appareil ne retrouve plus ce classeur", function () {
+              return drive("GET", "files?fields=files(id,name)&q=" + encodeURIComponent("appProperties has { key='origamiEssai' and value='" + marque7 + "' } and trashed=false")).then(function (l) { if ((l.files || []).length) throw new Error("il est encore trouvé"); return l; });
+            }, function () { return "introuvable, comme prévu"; }, "la recherche qui trouve encore le classeur jeté");
+          })
+          .then(function () {
+            // Pour savoir : une appli dont le classeur est à la corbeille répond-elle encore ? Les deux réponses sont bonnes à connaître.
+            return pas(k + "7", "Pour savoir : la mini-appli répond-elle encore, une fois à la corbeille ?", function () { return lire(appli7.adresse + "?origami=ping").then(function (t) { return String(t).trim() === "origami-essai:ok" ? "oui, elle répond encore" : "non : « " + propre(t) + " »"; }, function (e) { return "non : " + String((e && e.message) || e).slice(0, 120); }); }, function (t) { return t; });
+          })
+          .then(function () {
+            return pasSouple(k + "8", "La page jette elle-même un classeur qu'elle a créé", function () {
+              return drive("POST", "files?fields=id,name", { name: TITRE, mimeType: CLASSEUR_ }).then(function (f) { return jeter(f.id); });
+            }, function () { return "à la corbeille"; }, "la page qui jette son propre classeur");
+          })
+          .then(function () {
+            return pasSouple(k + "9", "La page jette une mini-appli qu'elle a créée sans classeur (comme la Compta)", function () {
+              return api("POST", "projects", { title: TITRE }).then(function (p) { return jeter(p.scriptId); });
+            }, function () { return "à la corbeille"; }, "la page qui jette une mini-appli sans classeur");
+          })
+          .then(function () {
+            if (!anciens7.length) return null;
+            var faits = 0, refuses = 0;
+            return pas(k + "10", "Ménage : mettre à la corbeille les anciens fichiers d'essai (" + anciens7.length + ")", function () {
+              return anciens7.reduce(function (suite, f) { return suite.then(function () { return jeter(f.id).then(function () { faits++; }, function () { refuses++; }); }); }, Promise.resolve()).then(function () { return null; });
+            }, function () { return faits + " à la corbeille" + (refuses ? ", " + refuses + " refusé(s)" : ""); });
+          })
+          .then(function () { return pasSouple(k + "11", "Retirer l'accès de cette page à ton compte Google", retirerAcces, function () { return "accès retiré, la page ne peut plus rien lire"; }, "le retrait de l'accès Google"); })
+          .then(function () {
+            jeton = ""; $("suite5").hidden = true;
+            bilan(true, !manques7.length ? "Tout a marché : Origami peut se retirer d'un compte, tout part à la corbeille du Drive." : "L'essentiel a marché (le dossier et son contenu partent à la corbeille), sauf " + manques7.join(" et ") + " : il faudra passer autrement pour ce point.");
+          }, function (e) { bilan(false, e && e.statut === 401 ? "La connexion à Google a expiré. Relance l'essai 5." : "La désinstallation s'est arrêtée. Copie le compte rendu et colle-le dans la conversation."); });
+      }, function () { bilan(false, "La mini-appli 7 ne répond pas encore. Si tu viens d'autoriser, attends dix secondes et clique de nouveau « C'est fait, vérifier »."); })
+      .then(function () { $("verifier7").disabled = false; });
+  });
+  function bilan(ok, texte) { var b = $("bilan"); b.hidden = false; b.className = "bilan " + (ok ? "bon" : "mal"); b.textContent = texte; rapport.push((ok ? "BILAN OK : " : "BILAN : ") + texte); $("copier").hidden = false; bouton.disabled = false; bouton2.disabled = false; bouton3.disabled = false; bouton4.disabled = false; bouton5.disabled = false; }
   function conseil(e) {
     var m = String((e && e.message) || e);
     if (/User has not enabled the Apps Script API|usersettings/i.test(m)) return "Dans ce compte, l'interrupteur « API Google Apps Script » est éteint (script.google.com/home/usersettings). Allume-le, attends une minute et relance.";
-    if (/Drive API/i.test(m) && /has not been used in project|it is disabled|SERVICE_DISABLED/i.test(m)) return "« Google Drive API » n'est pas encore activée dans le projet Google de la compagnie. Active-la (lien donné dans la conversation), attends une minute et relance l'essai 4.";
+    if (/Drive API/i.test(m) && /has not been used in project|it is disabled|SERVICE_DISABLED/i.test(m)) return "« Google Drive API » n'est pas encore activée dans le projet Google de la compagnie. Active-la (lien donné dans la conversation), attends une minute et relance l'essai.";
     if (/has not been used in project|it is disabled|SERVICE_DISABLED/i.test(m)) return "L'API Apps Script n'est pas activée dans le projet Google de la compagnie (étape 2 de la marche à suivre).";
     if (e && e.statut === 401) return "Google n'a pas accepté la connexion. Relance l'essai.";
     if (e && e.statut === 403) return "Google refuse. Copie le compte rendu et colle-le dans la conversation.";
@@ -394,26 +515,28 @@
   bouton2.addEventListener("click", function () { lancer(essaiAutorisation); });
   bouton3.addEventListener("click", function () { lancer(essaiClasseur); });
   bouton4.addEventListener("click", function () { lancer(essaiSansCopie); });
+  bouton5.addEventListener("click", function () { lancer(essaiRetirer); });
+  function avecDrive(quoi) { return quoi === essaiSansCopie || quoi === essaiRetirer; }
   function lancer(quoi) {
     var client = champ.value.trim();
     if (!/^[\w-]+\.apps\.googleusercontent\.com$/.test(client)) { alerter("Colle d'abord l'ID client : une ligne qui finit par .apps.googleusercontent.com"); return; }
     if (!(window.google && google.accounts && google.accounts.oauth2)) { alerter("La connexion à Google n'est pas encore chargée. Attends deux secondes et recommence. Si ça dure, un bloqueur de publicité l'empêche peut-être."); return; }
     try { localStorage.setItem("origami_essai_client", client); } catch (e) {}
-    bouton.disabled = true; bouton2.disabled = true; bouton3.disabled = true; bouton4.disabled = true; appli3 = null; appli4 = null; appli5 = null; appli6 = null; jeton = ""; $("suite2").hidden = true; $("suite3a").hidden = true; $("suite3b").hidden = true; $("suite4").hidden = true; liste.innerHTML = ""; lignes = {}; rapport = ["Essai Origami / Google, " + new Date().toLocaleString("fr-CH")];
+    bouton.disabled = true; bouton2.disabled = true; bouton3.disabled = true; bouton4.disabled = true; bouton5.disabled = true; appli3 = null; appli4 = null; appli5 = null; appli6 = null; appli7 = null; jeton = ""; $("suite2").hidden = true; $("suite3a").hidden = true; $("suite3b").hidden = true; $("suite4").hidden = true; $("suite5").hidden = true; liste.innerHTML = ""; lignes = {}; rapport = ["Essai Origami / Google, " + new Date().toLocaleString("fr-CH")];
     $("suivi").hidden = false; $("bilan").hidden = true; $("suite").hidden = true; $("copier").hidden = true; $("copie").hidden = true;
     etape("c", "Se connecter à Google");
     var rendu = false;
     function refus(texte) { if (rendu) return; rendu = true; finir("c", false, texte); bilan(false, "La connexion à Google n'a pas abouti."); }
     try {
       google.accounts.oauth2.initTokenClient({
-        client_id: client, scope: DROITS.concat(quoi !== essai ? [DROIT_ADRESSE] : [], quoi === essaiSansCopie ? [DROIT_DRIVE] : []).join(" "), prompt: "select_account",
+        client_id: client, scope: DROITS.concat(quoi !== essai ? [DROIT_ADRESSE] : [], avecDrive(quoi) ? [DROIT_DRIVE] : []).join(" "), prompt: "select_account",
         callback: function (r) {
           if (rendu) return;
           if (!r || !r.access_token) { refus("Google a répondu : " + String((r && (r.error_description || r.error)) || "pas de jeton")); return; }
           if (!google.accounts.oauth2.hasGrantedAllScopes(r, DROITS[0], DROITS[1])) { refus("Il manque un des deux droits : à l'écran de Google, laisse les deux cases cochées."); return; }
-          if (quoi === essaiSansCopie && !google.accounts.oauth2.hasGrantedAllScopes(r, DROIT_DRIVE)) { refus("Il manque le droit sur les fichiers créés par Origami : à l'écran de Google, laisse toutes les cases cochées."); return; }
-          rendu = true; jeton = r.access_token; finir("c", true, quoi === essaiSansCopie ? "connectée, les droits sont donnés" : "connectée, les deux droits sont donnés");
-          quoi().then(function () { if (quoi !== essaiClasseur && quoi !== essaiSansCopie) jeton = ""; }, function (e) { jeton = ""; bilan(false, conseil(e)); });
+          if (avecDrive(quoi) && !google.accounts.oauth2.hasGrantedAllScopes(r, DROIT_DRIVE)) { refus("Il manque le droit sur les fichiers créés par Origami : à l'écran de Google, laisse toutes les cases cochées."); return; }
+          rendu = true; jeton = r.access_token; finir("c", true, avecDrive(quoi) ? "connectée, les droits sont donnés" : "connectée, les deux droits sont donnés");
+          quoi().then(function () { if (quoi !== essaiClasseur && !avecDrive(quoi)) jeton = ""; }, function (e) { jeton = ""; bilan(false, conseil(e)); });
         },
         error_callback: function (e) { refus(e && e.type === "popup_closed" ? "La fenêtre de Google a été fermée avant la fin." : e && e.type === "popup_failed_to_open" ? "Le navigateur a bloqué la fenêtre de Google : autorise les fenêtres surgissantes pour cette page." : "Google a répondu : " + String((e && (e.message || e.type)) || "erreur")); }
       }).requestAccessToken();
