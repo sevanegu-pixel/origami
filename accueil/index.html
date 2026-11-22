@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.57">
+<meta name="origami-version" content="2026-11-22.58">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -526,9 +526,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.57"></script>
-<script src="repertoire.js?v=2026-11-22.57"></script>
-<script src="google.js?v=2026-11-22.57"></script>
+<script src="agenda.js?v=2026-11-22.58"></script>
+<script src="repertoire.js?v=2026-11-22.58"></script>
+<script src="google.js?v=2026-11-22.58"></script>
 <script>
 (function () {
   "use strict";
@@ -670,7 +670,12 @@ button.tuile:hover { border-color: var(--ligne); }
       if (ap && ap.apparence) param = "&apparence=" + encodeURIComponent(JSON.stringify(ap.apparence));
       return ADRESSES.diffusion + (FORME_DIFFUSION.test(j) ? "?jeton=" + encodeURIComponent(j) + param : (param ? "?" + param.slice(1) : ""));
     }
-    if (id.indexOf("compta@") === 0) { var ja = lire(cleJetonCompta(id.slice(7))); return comptaDe(id.slice(7)) + (FORME_COMPTA.test(ja) ? "?jeton=" + ja : ""); }
+    if (id.indexOf("compta@") === 0) {
+      var ja = lire(cleJetonCompta(id.slice(7))), pa = [];
+      if (FORME_COMPTA.test(ja)) pa.push("jeton=" + ja);
+      if (FENETRE === "compta" && OUVRIR && DE === id.slice(7)) pa.push("ouvrir=" + OUVRIR);   // fenêtre détachée de la Compta de ce compte
+      return comptaDe(id.slice(7)) + (pa.length ? "?" + pa.join("&") : "");
+    }
     if (id === "compta") {
       var jc = lire("origami_jeton"), pc = [];
       if (FORME_COMPTA.test(jc)) pc.push("jeton=" + jc);
@@ -828,12 +833,12 @@ button.tuile:hover { border-color: var(--ligne); }
   function nomMac(id) { return id === "origami" ? "Origami" : APPLIS[id].nom; }
   // Versions publiées des applis du Mac (à changer à chaque nouvelle version) et leurs notes de version.
   // Boîte mail : numérotée par ses fichiers (appli-boite-NN), pas de comparaison possible ; « Réinstaller » prend la dernière.
-  var VERSIONS_MAC = { origami: "0.4.1", compta: "0.4.0", tickets: "0.4.0", frais: "0.4.0" };
+  var VERSIONS_MAC = { origami: "0.4.2", compta: "0.4.2", tickets: "0.4.2", frais: "0.4.2" };
   var NOTES_MAC = {
-    origami: [["0.4.1", "Autoriser Origami ou la Compta dans une fenêtre privée, quand plusieurs comptes Google sont connectés dans le navigateur. Une installation interrompue ne bloque plus les suivantes."], ["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
-    compta: [["0.4.0", "Connexion à Google par le navigateur du Mac, pour installer ou mettre à jour la Compta d'ici."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
-    tickets: [["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
-    frais: [["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami."]],
+    origami: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.1", "Autoriser Origami ou la Compta dans une fenêtre privée, quand plusieurs comptes Google sont connectés dans le navigateur. Une installation interrompue ne bloque plus les suivantes."], ["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    compta: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Connexion à Google par le navigateur du Mac, pour installer ou mettre à jour la Compta d'ici."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    tickets: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    frais: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami."]],
     boite: [["21", "Douze mois de mails gardés sur le Mac, pièces jointes ouvertes gardées, réglage « Gardé sur ce Mac »."], ["20", "La Compta ouvre directement la fenêtre d'écriture, avec le PDF joint."]]
   };
   function plusRecente(a, b) { var x = String(a || "").split(".").map(Number), y = String(b || "").split(".").map(Number); for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; }
@@ -962,6 +967,8 @@ button.tuile:hover { border-color: var(--ligne); }
   if (FENETRE) document.documentElement.classList.add("fenetre");
   // Fenêtre détachée de la Compta (son bouton « nouvelle fenêtre ») : …/accueil/?fenetre=compta&ouvrir=… dit quel écran ouvrir.
   var OUVRIR = (/[?&]ouvrir=([A-Za-z0-9_-]{1,6000})(&|$)/.exec(location.search) || [])[1] || "";
+  // … et « &de=<compte> » dit de quel compte est cette Compta (22.11 ; sans lui : la compagnie).
+  var DE = OUVRIR ? (/[?&]de=([A-Za-z0-9_-]{1,40})(&|$)/.exec(location.search) || [])[1] || "" : "";
   // Frais a sa propre page (même site, donc même mémoire) : elle s'ouvre avec le lien personnel reçu de la compagnie, gardé sous ce nom.
   // Dans une fenêtre Frais, un lien déjà connu ouvre Frais tout de suite ; sinon l'écran demande de le coller une fois.
   var CLE_FRAIS = "origami_frais_cle", FORME_CLE_FRAIS = /^[A-Za-z0-9]{16,64}$/;
@@ -1074,16 +1081,23 @@ button.tuile:hover { border-color: var(--ligne); }
   // Appli Mac : chaque fenêtre détachée est une fenêtre Origami d'une seule appli (nom « appli-… »), donc elle peut
   // à son tour en ouvrir d'autres, autant qu'on veut. Dans un navigateur : la page de la Compta, comme avant.
   var nFenetres = 0;
-  function fenetreCompta(ouvrir) {
+  // 22.11 : le bouton ne faisait rien dans la Compta d'un autre compte que la compagnie (la demande était ignorée).
+  // La fenêtre détachée reçoit maintenant le compte (« &de= ») et montre la Compta de ce compte. Autant de fenêtres qu'on veut :
+  // chacune a son propre nom. Si le Mac refuse d'en créer une, la page le dit au lieu de se taire.
+  function fenetreCompta(ouvrir, cid) {
+    var autre = cid && cid !== "compagnie" && compte(cid) ? cid : "", ici = location.href.split("#")[0].split("?")[0];
+    var url = ici + "?fenetre=compta&ouvrir=" + ouvrir + (autre ? "&de=" + encodeURIComponent(autre) : "");
+    function rate() { avis("La nouvelle fenêtre ne s'est pas ouverte. Réessaie ; si ça continue, quitte l'appli et rouvre-la.", true); }
     try {
       var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
       if (W) {
-        var ici = location.href.split("#")[0].split("?")[0];
-        new W("appli-compta-" + Date.now().toString(36) + "-" + (++nFenetres), { url: ici + "?fenetre=compta&ouvrir=" + ouvrir, title: "Compta", width: 1100, height: 900, minWidth: 380, minHeight: 520 });
+        var w = new W("appli-compta-" + Date.now().toString(36) + "-" + (++nFenetres), { url: url, title: autre ? "Compta · " + compte(autre).nom : "Compta", width: 1100, height: 900, minWidth: 380, minHeight: 520 });
+        try { if (w && typeof w.once === "function") w.once("tauri://error", rate); } catch (e2) {}
         return;
       }
-    } catch (e) {}
-    window.open(new URL("../index.html?ouvrir=" + ouvrir, location.href).href, "_blank", "popup=yes,width=1100,height=900");
+    } catch (e) { if (MAC) { rate(); return; } }
+    var f = window.open(autre ? url : new URL("../index.html?ouvrir=" + ouvrir, location.href).href, "_blank", "popup=yes,width=1100,height=900");
+    if (!f) avis("Le navigateur a bloqué la nouvelle fenêtre : autorise les fenêtres pour Origami, puis réessaie.", true);
   }
   document.addEventListener("click", function (ev) {
     var a = ev.target.closest ? ev.target.closest('a[target="_blank"]') : null;
@@ -1146,7 +1160,6 @@ button.tuile:hover { border-color: var(--ligne); }
       // La Boîte mail et les fenêtres à part ne servent que la Compta de la compagnie pour l'instant : l'autre Compta passe par Gmail.
       if (autre && d.origami === "boite-demande") { try { ev.source.postMessage({ origami: "boite", dispo: false, directe: false, liens: boitePossible() }, ev.origin); } catch (e) {} return; }
       if (autre && d.origami === "boite-ouvrir") { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} return; }
-      if (autre && d.origami === "ouvrir") return;
       // La Compta demande si un brouillon (PDF joint) peut s'ouvrir dans l'appli Boîte mail, puis le demande.
       if (d.origami === "boite-demande") { fenCompta = { w: ev.source, o: ev.origin }; direBoiteCompta(); return; }
       if (d.origami === "boite-ouvrir") {
@@ -1157,7 +1170,7 @@ button.tuile:hover { border-color: var(--ligne); }
         else { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} }
         return;
       }
-      if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { fenetreCompta(d.ouvrir); return; }
+      if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) { fenetreCompta(d.ouvrir, cid); return; }
       // Appli Mac : le cadre de la Compta ne peut pas ouvrir de fenêtre ; il confie ses liens (justificatif, PDF, Drive, Gmail) à la page, qui les ouvre dans le navigateur du Mac.
       if (d.origami === "lien") { var lu = String(d.url || ""); if (boitePossible() && lu.length <= 6000 && /^(https:\/\/|mailto:)/i.test(lu)) { try { Promise.resolve(MAC.opener.openUrl(lu)).then(function () {}, function () { avis("Le lien ne s'est pas ouvert.", true); }); } catch (e) {} } return; }
       if (d.origami === "apercu" && typeof d.html === "string" && d.html.length < 8e6) {
@@ -3839,7 +3852,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // ---- Appli Compta du Mac, installée seule (19.11) ----
   // Elle a sa propre mémoire et ne connaissait que la Compta de la compagnie. Origami lui transmet, en l'ouvrant, les comptes qui
   // ont une Compta (#comptas=…) ; elle les garde, montre celui demandé, puis se souvient du dernier compte choisi dans son menu.
-  // La fenêtre Compta qu'Origami ouvre lui-même (&dans=origami) et les fenêtres détachées montrent toujours la compagnie.
+  // La fenêtre Compta qu'Origami ouvre lui-même (&dans=origami) montre la compagnie ; une fenêtre détachée, le compte dit par « &de= ».
   var COMPTA_SEULE = FENETRE === "compta" && !OUVRIR && !/[?&]dans=origami(&|$)/.test(location.search), COMPTAS_RECUES = {};
   function lireComptasTransmises(b) {
     try {
@@ -3900,7 +3913,8 @@ button.tuile:hover { border-color: var(--ligne); }
   if (ancre === "reglages") etat.vue = "reglages";
   if (APPLIS[ancre] && compte("compagnie") && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
   if (FENETRE === "compta") recevoirComptas(ancre);
-  if (FENETRE) { etat.compte = "compagnie"; if (COMPTA_SEULE) { var chx = lire("origami_compta_choisi"); if (chx && compte(chx)) etat.compte = chx; else if (!compte("compagnie")) etat.compte = compteParDefaut(); } etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE; }
+  if (FENETRE === "compta" && DE) prendreComptas();   // appli Compta du Mac : ses comptes viennent de la liste reçue d'Origami
+  if (FENETRE) { etat.compte = "compagnie"; if (DE && compte(DE)) etat.compte = DE; else if (COMPTA_SEULE) { var chx = lire("origami_compta_choisi"); if (chx && compte(chx)) etat.compte = chx; else if (!compte("compagnie")) etat.compte = compteParDefaut(); } etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE; }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (versFrais) location.replace(APPLIS.frais.lien);   // fenêtre Frais avec un lien déjà connu : la page Frais prend la place
