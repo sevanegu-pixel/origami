@@ -1,6 +1,6 @@
 [package]
 name = "origami-appli"
-version = "0.4.1"
+version = "0.4.2"
 description = "Appli Origami (toutes les applis dans une fenêtre, installateur des applis, icône dans la barre des menus, connexion à Google par le navigateur)"
 edition = "2021"
 

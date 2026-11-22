@@ -527,9 +527,23 @@ fn menu_choisi(app: &AppHandle, id: &str) {
     }
 }
 
+// 22.11 : sur un Mac réglé sur « Toujours afficher les barres de défilement », la page d'une appli (la Compta surtout)
+// gardait une bande au bord droit de la fenêtre : la place de la barre, d'une autre couleur que l'apparence choisie.
+// Vu chez Sévane : avec ce réglage posé pour l'appli seule, la bande disparaît. L'appli demande donc, pour elle seule,
+// des barres qui n'apparaissent qu'en défilant ; le réglage du Mac ne change pas pour les autres applis.
+// Écrit avant que la fenêtre existe : valable dès ce lancement.
+fn barres_discretes(identifiant: &str) {
+    if cfg!(target_os = "macos") {
+        let _ = std::process::Command::new("/usr/bin/defaults")
+            .args(["write", identifiant, "AppleShowScrollBars", "-string", "WhenScrolling"])
+            .status();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let contexte = tauri::generate_context!();
+    barres_discretes(&contexte.config().identifier);
     let est_origami = contexte.config().identifier == ORIGAMI;
     let mut b = tauri::Builder::default().plugin(tauri_plugin_opener::init()).manage(Barre::default());
     if est_origami {
