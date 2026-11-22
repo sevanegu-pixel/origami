@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.55">
+<meta name="origami-version" content="2026-11-22.56">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -165,6 +165,9 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .info details ol { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .info details a { color: var(--accent); }
 .aide-fine { margin: 0; color: var(--doux); font-size: 13px; }
+.indice-comptes { margin: 14px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--accent-clair); font-size: 13.5px; }
+.indice-comptes p { margin: 0 0 8px; }
+.indice-comptes .actions { margin: 0; }
 .info .note { padding: 8px 12px; border-radius: 10px; background: var(--accent-clair); color: var(--texte); font-size: 13px; }
 html.sombre .info .note { background: #1e2a4a; }
 .info details ul { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
@@ -500,9 +503,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.55"></script>
-<script src="repertoire.js?v=2026-11-22.55"></script>
-<script src="google.js?v=2026-11-22.55"></script>
+<script src="agenda.js?v=2026-11-22.56"></script>
+<script src="repertoire.js?v=2026-11-22.56"></script>
+<script src="google.js?v=2026-11-22.56"></script>
 <script>
 (function () {
   "use strict";
@@ -755,6 +758,18 @@ button.tuile:hover { border-color: var(--ligne); }
   // Appli du Mac 0.4 et plus (22.11) : « Continuer avec Google » passe par le navigateur du Mac et revient tout seul (google.js).
   // Une appli plus ancienne ne sait pas le faire : elle propose de se mettre à jour.
   var PONT_MAC = false;
+  // Appli du Mac 0.4.1 : elle sait ouvrir la page d'autorisation de Google dans une fenêtre privée (un seul compte connecté).
+  var PRIVE_MAC = false;
+  // 22.11, Sévane devant « Impossible d'ouvrir le fichier » : « en tant qu'utilisateur lambda je n'ai aucun indice ». La page
+  // d'autorisation de Google échoue quand plusieurs comptes sont connectés dans la même fenêtre : l'indice est écrit en
+  // clair avant le clic, avec le remède à portée de main. « qui » : le compte, déjà en HTML sûr.
+  function aidePlusieursComptes(lien, qui) {
+    if (!lien) return "";
+    return '<div class="indice-comptes"><p><strong>Si Google affiche « Impossible d\'ouvrir le fichier » ou « Page introuvable »</strong> : rien de grave. Plusieurs comptes Google sont connectés dans ton navigateur, et Google s\'y perd. Reviens ici et ' +
+      (PRIVE_MAC ? "clique « Autoriser dans une fenêtre privée » : une fenêtre s'ouvre, où tu te connectes seulement à " + qui + "."
+        : "clique « Copier le lien », puis colle-le dans une fenêtre de navigation privée (dans Chrome : menu Fichier, « Nouvelle fenêtre de navigation privée »), en te connectant seulement à " + qui + ".") + "</p>" +
+      '<div class="actions">' + (PRIVE_MAC ? '<button class="bouton" data-fenetre-privee="' + texte(lien) + '">Autoriser dans une fenêtre privée</button>' : "") + '<button class="bouton" data-guide-compta-copier="' + texte(lien) + '">Copier le lien</button></div></div>';
+  }
   function macSansGoogle() { return !!MAC && !PONT_MAC; }
   function ouvreGoogle() { return MAC ? "Ton navigateur s'ouvre pour la connexion à Google, puis Origami revient devant toi tout seul." : "Google ouvre une fenêtre."; }
   function noteMacAncien() {
@@ -764,6 +779,7 @@ button.tuile:hover { border-color: var(--ligne); }
   if (MAC && MAC.app && MAC.app.getVersion) try { MAC.app.getVersion().then(function (v) {
     var n = String(v || "").split(".").map(Number); CAMERA_MAC = n[0] > 0 || n[1] >= 2;
     PONT_MAC = (n[0] > 0 || n[1] >= 4) && !!(window.OrigamiGoogle && OrigamiGoogle.parPont && OrigamiGoogle.parPont());
+    PRIVE_MAC = n[0] > 0 || n[1] > 4 || (n[1] === 4 && (n[2] || 0) >= 1);
     if (PONT_MAC) try { if (etat.vue === "ajouter" || etat.vue === "accueil" || etat.vue === "desinstaller") montrer(); } catch (e) {}
   }, function () {}); } catch (e) {}
   // Appli Mac Origami 0.3 et plus (19.11) : elle installe elle-même les applis (Compta, Tickets, Frais, Boîte mail) et se met
@@ -789,9 +805,9 @@ button.tuile:hover { border-color: var(--ligne); }
   function nomMac(id) { return id === "origami" ? "Origami" : APPLIS[id].nom; }
   // Versions publiées des applis du Mac (à changer à chaque nouvelle version) et leurs notes de version.
   // Boîte mail : numérotée par ses fichiers (appli-boite-NN), pas de comparaison possible ; « Réinstaller » prend la dernière.
-  var VERSIONS_MAC = { origami: "0.4.0", compta: "0.4.0", tickets: "0.4.0", frais: "0.4.0" };
+  var VERSIONS_MAC = { origami: "0.4.1", compta: "0.4.0", tickets: "0.4.0", frais: "0.4.0" };
   var NOTES_MAC = {
-    origami: [["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    origami: [["0.4.1", "Autoriser Origami ou la Compta dans une fenêtre privée, quand plusieurs comptes Google sont connectés dans le navigateur. Une installation interrompue ne bloque plus les suivantes."], ["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     compta: [["0.4.0", "Connexion à Google par le navigateur du Mac, pour installer ou mettre à jour la Compta d'ici."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     tickets: [["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     frais: [["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami."]],
@@ -2646,7 +2662,7 @@ button.tuile:hover { border-color: var(--ligne); }
       '<div class="actions">' + (lienA ? '<a class="bouton" href="' + texte(lienA) + '" target="_blank" rel="noopener">Autoriser ma Compta</a>' : "") + '<button class="bouton fort" data-guide-compta-ping="1">C\'est fait, vérifier</button></div>' +
       (guideC.code === "ping" ? '<div class="actions"><button class="bouton" data-guide-compta-fini="1">Je l\'ai autorisée, continuer sans vérifier</button></div>' : "") +
       // 19.11, essai en vrai : dans un navigateur où plusieurs comptes Google sont connectés, la page d'autorisation de Google ne s'ouvre pas.
-      (lienA ? '<details class="aide-fine"><summary>Google affiche « Page introuvable » ou « Impossible d\'ouvrir le fichier » ?</summary><p>Cela arrive quand plusieurs comptes Google sont connectés dans ce navigateur. Copie le lien, puis ouvre-le là où seul <strong>' + nom + '</strong> est connecté : son propre navigateur, ou une fenêtre de navigation privée. Autorise, puis reviens ici et clique « C\'est fait, vérifier ».</p><div class="actions"><button class="bouton" data-guide-compta-copier="' + texte(lienA) + '">Copier le lien</button></div></details>' : "") +
+      aidePlusieursComptes(lienA, "<strong>" + nom + "</strong>") +
       '<p class="aide-fine">À sa première ouverture, la Compta se prépare seule (une minute environ), puis demande le nom de ta structure, ta banque et ton code PIN.</p>';
     var h = '<div data-guide-compta="1"><h2>Installer la Compta</h2><p class="aide-fine">Dans le compte ' + nom + ". Trois étapes, une seule fois. Tu peux fermer et revenir : le guide reprend où tu en étais.</p>" +
       '<ol class="guide-compta">' + etape(0, "Connecter Origami à Google", e1) + etape(1, "Installer la Compta", e2) + etape(2, "Autoriser ta Compta", e3) + "</ol>" +
@@ -3237,7 +3253,7 @@ button.tuile:hover { border-color: var(--ligne); }
         "<li>Laisse toutes les cases cochées, puis <strong>Continuer</strong>.</li><li>Reviens ici : la suite part toute seule.</li></ol>";
       h += '<div class="actions">' + (lienA ? '<a class="bouton fort" href="' + texte(lienA) + '" target="_blank" rel="noopener">Autoriser Origami</a>' : "") + '<button class="bouton" data-parcours="verifier">C\'est fait, vérifier</button></div>';
       h += occupe + souci;
-      if (lienA) h += '<details class="aide-fine"><summary>Google affiche « Page introuvable » ou « Impossible d\'ouvrir le fichier » ?</summary><p>Cela arrive quand plusieurs comptes Google sont connectés dans ce navigateur. Copie le lien, puis ouvre-le dans une fenêtre de navigation privée, en te connectant seulement à ' + adr + '. Autorise, puis reviens ici.</p><div class="actions"><button class="bouton" data-guide-compta-copier="' + texte(lienA) + '">Copier le lien</button></div></details>';
+      h += aidePlusieursComptes(lienA, adr);
       h += "<details class=\"aide-fine\"><summary>Ce que tu autorises</summary><ul><li>Lire et modifier le classeur des réglages, et les fichiers qu'Origami crée lui-même dans ton Drive.</li><li>Envoyer les mails de Tickets depuis ce compte (jamais lire tes mails).</li><li>Voir et modifier tes agendas, pour l'Agenda.</li><li>Lire tes classeurs sans jamais les modifier, pour que l'Agenda retrouve tes dates.</li></ul></details>";
       h += '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Plus tard</button></div>';
     } else if (P.phase === "pret") {
@@ -3254,6 +3270,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function parcoursSouci(e) {
     var code = (e && e.code) || "", m = String((e && e.message) || e), G = window.OrigamiGoogle;
     if (code === "api-eteinte") { parcoursPhase("interrupteur", { brut: String((e && e.brut) || "").slice(0, 320) }); parcoursGuetter("interrupteur"); return; }
+    if (code === "ferme" && !MAC && /fermée avant la fin/.test(m)) m += " Si elle affichait « Accès bloqué » : ce compte Google n'est pas encore inscrit parmi les testeurs d'Origami, il faut d'abord l'y ajouter.";
     if (code === "ferme" || code === "refus" || code === "cases" || code === "bloque" || code === "google-absent" || code === "mac-ancien") { parcoursQuitter(); guide.etape = 0; parcours.souciAccueil = m; parcoursMontrer(); return; }
     var re = code === "expire" || code === "connexion";
     if (re) m = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprend où elle en était.";
@@ -3674,6 +3691,12 @@ button.tuile:hover { border-color: var(--ligne); }
         if (etat.vue === "applis") montrer();
         avis(pannes.length ? "Pas de réponse de " + pannes.map(function (c) { return c.nom; }).join(", ") + ". Réessaie dans un instant." : "C'est à jour.", !!pannes.length);
       });
+      return;
+    }
+    if (d.fenetrePrivee) {
+      if (!MAC || !PRIVE_MAC) return;
+      invoquer("fenetre_privee", { url: d.fenetrePrivee }).then(function (n) { avis("Une fenêtre privée s'est ouverte dans " + String(n || "ton navigateur") + " : connecte-toi seulement au compte à autoriser, puis accepte."); },
+        function (e) { avis(/aucun-navigateur/.test(String(e && e.message || e || "")) ? "Ce Mac n'a pas de navigateur qu'Origami sache ouvrir en fenêtre privée (Chrome, Firefox, Edge ou Brave). Clique « Copier le lien » et colle-le dans une fenêtre privée de ton navigateur." : "La fenêtre privée ne s'est pas ouverte. Clique « Copier le lien » et colle-le dans une fenêtre privée de ton navigateur.", true); });
       return;
     }
     if (d.guideComptaCopier) {
