@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.54">
+<meta name="origami-version" content="2026-11-22.55">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -500,9 +500,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.54"></script>
-<script src="repertoire.js?v=2026-11-22.54"></script>
-<script src="google.js?v=2026-11-22.54"></script>
+<script src="agenda.js?v=2026-11-22.55"></script>
+<script src="repertoire.js?v=2026-11-22.55"></script>
+<script src="google.js?v=2026-11-22.55"></script>
 <script>
 (function () {
   "use strict";
@@ -780,7 +780,7 @@ button.tuile:hover { border-color: var(--ligne); }
       var n = String(v || "").split(".").map(Number); MAC_VERSION = String(v || ""); INSTALLEUR = n[0] > 0 || n[1] >= 3;
       if (!INSTALLEUR) return;
       if (MAC.event && MAC.event.listen) {
-        MAC.event.listen("origami-installation", function (e) { var p = e && e.payload; if (!p || !p.appli) return; MAC_INSTALL[p.appli] = p; if (p.etape === "fini" || p.etape === "erreur") relireMac(); else majMac(); });
+        MAC.event.listen("origami-installation", function (e) { var p = e && e.payload; if (!p || !p.appli) return; MAC_INSTALL[p.appli] = p; if (p.etape === "fini" || p.etape === "erreur") { if (MAC_EN_COURS === p.appli && MAC_LANCEE !== p.appli) { MAC_EN_COURS = ""; setTimeout(macSuivante, window.__sansAttente ? 150 : 1500); } relireMac(); } else { if (!MAC_EN_COURS) MAC_EN_COURS = p.appli; majMac(); } });
         MAC.event.listen("origami-aller", function (e) { var v = e && e.payload; if (v === "applis" || v === "reglages") { etat.vue = v; montrer(); } });
       }
       relireMac().then(function () { if (etat.vue === "applis" || etat.vue === "boite") montrer(); });
@@ -806,6 +806,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (INSTALLEUR) {
       var a = MAC_APPLIS && MAC_APPLIS[id], p = MAC_INSTALL[id], present = !!(a && a.presente);
       if (p && (p.etape === "telechargement" || p.etape === "installation")) h = '<span class="progression" role="status"><progress max="100" value="' + (p.etape === "installation" ? 100 : (p.pct || 0)) + '"></progress><span>' + (p.etape === "installation" ? "Installation…" : "Téléchargement " + (p.pct || 0) + " %") + "</span></span>";
+      else if (p && p.etape === "attente") h = '<span class="progression" role="status"><span>En attente' + (MAC_EN_COURS && MAC_EN_COURS !== id ? " : après " + texte(nomMac(MAC_EN_COURS)) : "…") + '</span></span><button class="bouton" data-mac-attente="' + id + '">Annuler</button>';
       else if (!MAC_APPLIS) h = '<span class="etat-appli">Un instant…</span>';
       else {
         if (aMettreAJour(id)) h = '<button class="bouton fort" data-mac-installer="' + id + '">Mettre à jour</button>';
@@ -846,14 +847,44 @@ button.tuile:hover { border-color: var(--ligne); }
     return h + "</div></section>";
   }
   function majRangsMac() { document.querySelectorAll("[data-rang-mac]").forEach(function (r) { var e = r.querySelector(".etat-mac"); if (e) e.innerHTML = etatMacTexte(r.getAttribute("data-rang-mac")); }); }
+  // Le Mac n'installe qu'une appli à la fois (22.11, Sévane : « Une installation est déjà en cours » restait affiché sur les
+  // autres). Une appli demandée pendant une installation attend son tour ici et part toute seule.
+  var MAC_EN_COURS = "", MAC_LANCEE = "", MAC_FILE = [], MAC_ESSAIS = {};
   function macInstaller(id) {
     if (!INSTALLEUR || !DMG[id]) return;
-    MAC_INSTALL[id] = { appli: id, etape: "telechargement", pct: 0 }; majMac();
+    if (MAC_EN_COURS === id || MAC_FILE.indexOf(id) >= 0) return;
+    if (MAC_EN_COURS) { MAC_FILE.push(id); MAC_INSTALL[id] = { appli: id, etape: "attente" }; majMac(); return; }
+    macLancer(id);
+  }
+  function macSuivante() {
+    if (MAC_EN_COURS) return;
+    var id = MAC_FILE.shift();
+    if (id) macLancer(id); else majMac();
+  }
+  function macAttenteAnnuler(id) {
+    var i = MAC_FILE.indexOf(id); if (i >= 0) MAC_FILE.splice(i, 1);
+    if (MAC_INSTALL[id] && MAC_INSTALL[id].etape === "attente") delete MAC_INSTALL[id];
+    delete MAC_ESSAIS[id]; majMac();
+  }
+  function macLancer(id) {
+    MAC_EN_COURS = id; MAC_LANCEE = id; MAC_INSTALL[id] = { appli: id, etape: "telechargement", pct: 0 }; majMac();
     invoquer("installer_appli", { appli: id, url: DMG[id] }).then(function () {
-      MAC_INSTALL[id] = { appli: id, etape: "fini" }; relireMac();
-      if (id === "origami") { avis("Nouvelle version d'Origami installée : elle redémarre."); setTimeout(function () { invoquer("relancer_origami").catch(function () {}); }, 1800); }
-      else avis(nomMac(id) + " est installée sur ce Mac.");
-    }, function (e) { MAC_INSTALL[id] = { appli: id, etape: "erreur", message: String(e && e.message || e || "") }; majMac(); });
+      delete MAC_ESSAIS[id];
+      MAC_INSTALL[id] = { appli: id, etape: "fini" }; if (MAC_EN_COURS === id) MAC_EN_COURS = ""; if (MAC_LANCEE === id) MAC_LANCEE = ""; relireMac();
+      if (id === "origami") { MAC_FILE = []; avis("Nouvelle version d'Origami installée : elle redémarre."); setTimeout(function () { invoquer("relancer_origami").catch(function () {}); }, 1800); return; }
+      avis(nomMac(id) + " est installée sur ce Mac."); macSuivante();
+    }, function (e) {
+      var m = String(e && e.message || e || "");
+      if (MAC_EN_COURS === id) MAC_EN_COURS = "";
+      if (MAC_LANCEE === id) MAC_LANCEE = "";
+      // Le Mac est encore pris par une installation que cette page n'a pas lancée (page rechargée, fin d'installation) : on attend.
+      if (/déjà en cours/.test(m) && (MAC_ESSAIS[id] = (MAC_ESSAIS[id] || 0) + 1) <= 200) {
+        MAC_INSTALL[id] = { appli: id, etape: "attente" }; if (MAC_FILE.indexOf(id) < 0) MAC_FILE.unshift(id); majMac();
+        setTimeout(macSuivante, window.__sansAttente ? 150 : 3000); return;
+      }
+      delete MAC_ESSAIS[id];
+      MAC_INSTALL[id] = { appli: id, etape: "erreur", message: /déjà en cours/.test(m) ? "Le Mac reste occupé par une autre installation. Quitte Origami (Cmd + Q), rouvre-la, puis réessaie." : m }; majMac(); macSuivante();
+    });
   }
   // Menus « … » : un seul ouvert à la fois ; un clic ailleurs ou Échap le ferme (19.11, Sévane : ils s'empilaient).
   function fermerMenusMac(sauf) { document.querySelectorAll("details.plus-mac[open]").forEach(function (x) { if (x !== sauf) x.open = false; }); }
@@ -2627,7 +2658,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function guideComptaConnecter() {
     var id = guideC.id, G = window.OrigamiGoogle;
     if (!id || !G || guideC.occupe) return;
-    var p = G.connecter(id);   // dans le clic même : la fenêtre de Google doit pouvoir s'ouvrir
+    var p = G.connecter(id, { adresse: googleAdresse(id) });   // dans le clic même : la fenêtre de Google doit pouvoir s'ouvrir
     guideC.souci = ""; guideC.code = ""; guideC.brut = ""; guideC.occupe = "La fenêtre de Google est ouverte : choisis le compte et accepte…"; dessinerGuideCompta();
     p.then(function (s) {
       if (s.adresse) garder("origami_google_adresse@" + id, s.adresse);
@@ -2686,7 +2717,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function comptaMajConnecter(id) {
     var G = window.OrigamiGoogle;
     if (!G || comptaEnCours[id]) return;
-    G.connecter(id).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); fermerVoile(); comptaMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
+    G.connecter(id, { adresse: googleAdresse(id) }).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); fermerVoile(); comptaMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
   }
   function comptaMajLancer(id) {
     var G = window.OrigamiGoogle;
@@ -3071,7 +3102,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (D.phase !== "liste" || !D.inv || !D.coche || D.encours || !moteurs[id]) return;
     var avecGoogle = !sansGoogle && !macSansGoogle() && !!G;
     D.encours = true; D.souci = ""; D.occupe = avecGoogle ? (MAC ? "Ton navigateur s'ouvre pour la connexion à Google : choisis ce même compte." : "Google ouvre une fenêtre : choisis ce même compte.") : "Mise à la corbeille…"; desinstMontrer();
-    (avecGoogle ? G.connecter(cle, { drive: true }).then(function () { return true; }) : Promise.resolve(false)).then(function (connecte) {
+    (avecGoogle ? G.connecter(cle, { drive: true, adresse: googleAdresse(id) }).then(function () { return true; }) : Promise.resolve(false)).then(function (connecte) {
       if (desinst !== D) throw new Error("abandon");
       D.phase = "travail"; D.occupe = "Mise à la corbeille du Drive…"; desinstMontrer();
       // Le classeur des réglages rangé dans le dossier « Origami » : la page l'en ressort d'abord, sinon Google refuse le dossier au moteur.
@@ -3347,9 +3378,11 @@ button.tuile:hover { border-color: var(--ligne); }
     garder("origami_installation", "");
     if (estMoteurCompagnie(lie.u)) { id = "compagnie"; etat.sansCompagnie = false; delete etat.noms.compagnie; }
     else id = Object.keys(moteurs).filter(function (k) { return k !== "compagnie" && moteurs[k].u === lie.u && compte(k); })[0] || "";
+    // Le moteur installé par la page ne connaît pas l'adresse du compte : il s'appelle « Mon compte ». La page, elle, la connaît.
+    var sansNom = !lie.nom || lie.nom === "Mon compte", nomGoogle = google ? google.split("@")[0].slice(0, 40) : "", aNommer = false;
     if (!id) {
-      id = "c" + Date.now().toString(36);
-      etat.ajoutes.push({ id: id, nom: lie.nom || (google ? google.split("@")[0] : "") || "Mon compte", couleur: COULEURS.indexOf(lie.couleur) >= 0 ? lie.couleur : COULEURS[1], applis: ["boite"] });
+      id = "c" + Date.now().toString(36); aNommer = sansNom && !!nomGoogle;
+      etat.ajoutes.push({ id: id, nom: (sansNom ? nomGoogle : lie.nom) || lie.nom || "Mon compte", couleur: COULEURS.indexOf(lie.couleur) >= 0 ? lie.couleur : COULEURS[1], applis: ["boite"] });
     }
     moteurs[id] = { u: lie.u, c: lie.c }; memoires[id] = { version: 0, listes: {} }; retenirMoteurs(); garderMemoire(id); LIEN_RELIER = null;
     if (google) garder("origami_google_adresse@" + id, google);
@@ -3357,7 +3390,8 @@ button.tuile:hover { border-color: var(--ligne); }
     clearInterval(parcours.minuteur);
     parcours = { phase: "pret", id: id, retrouve: !!lie.retrouve, google: google, haut: true };
     guide.etape = 0; guide.pour = ""; etat.compte = id; etat.vue = "ajouter"; montrer();
-    relever(id);
+    if (aNommer) moteurAppel(id, "compte.regler", { nom: nomGoogle }, { sans: true }).then(function () { relever(id); }, function () { relever(id); });
+    else relever(id);
   }
   function dessinerAjout() {
     var cr = guide.pour && compte(guide.pour), h = "", e = guide.etape;
@@ -3607,11 +3641,12 @@ button.tuile:hover { border-color: var(--ligne); }
       return;
     }
     // Applis du Mac (lanceur « Sur ce Mac ») : installer, ouvrir, menu « … ».
-    if (d.macInstaller || d.macOuvrir || d.macFinder || d.macNotes || d.macDesinstaller || d.macNouvelle) {
+    if (d.macInstaller || d.macAttente || d.macOuvrir || d.macFinder || d.macNotes || d.macDesinstaller || d.macNouvelle) {
       var dt = b.closest("details"); if (dt) dt.open = false;
       if (d.macNouvelle) { etat.vue = "applis"; montrer(); return; }
       if (!INSTALLEUR) return;
       if (d.macInstaller) { macInstaller(d.macInstaller); return; }
+      if (d.macAttente) { macAttenteAnnuler(d.macAttente); return; }
       if (d.macOuvrir) { macOuvrir(d.macOuvrir, d.de && compte(d.de) ? d.de : ""); return; }
       if (d.macFinder) { invoquer("montrer_dans_finder", { appli: d.macFinder }).catch(function (e) { avis(String(e && e.message || e), true); }); return; }
       if (d.macNotes && NOTES_MAC[d.macNotes]) {
