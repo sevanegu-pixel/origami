@@ -251,16 +251,64 @@ fn installer(app: &AppHandle, id: &str, url: &str) -> Result<String, String> {
 async fn installer_appli(app: AppHandle, appli: String, url: String) -> Result<String, String> {
     {
         let etat = app.state::<Barre>();
-        let mut o = etat.occupe.lock().unwrap();
+        let mut o = etat.occupe.lock().unwrap_or_else(|e| e.into_inner());
         if *o {
             return Err("Une installation est déjà en cours.".into());
         }
         *o = true;
     }
+    // Rendu quoi qu'il arrive à l'installation (0.4.1) : une installation arrêtée net ne bloque plus les suivantes.
+    let _garde = Liberer(app.clone());
     let a2 = app.clone();
-    let r = tauri::async_runtime::spawn_blocking(move || installer(&a2, &appli, &url)).await.map_err(|e| e.to_string())?;
-    *app.state::<Barre>().occupe.lock().unwrap() = false;
-    r
+    tauri::async_runtime::spawn_blocking(move || installer(&a2, &appli, &url)).await.map_err(|e| e.to_string())?
+}
+
+struct Liberer(AppHandle);
+impl Drop for Liberer {
+    fn drop(&mut self) {
+        let etat = self.0.state::<Barre>();
+        let mut o = etat.occupe.lock().unwrap_or_else(|e| e.into_inner());
+        *o = false;
+    }
+}
+
+// Les navigateurs qui savent ouvrir une adresse dans une fenêtre privée depuis une commande (Safari ne le sait pas).
+const NAVIGATEURS_PRIVES: [(&str, &str, &str); 4] = [
+    ("Google Chrome", "Google Chrome.app", "--incognito"),
+    ("Brave", "Brave Browser.app", "--incognito"),
+    ("Microsoft Edge", "Microsoft Edge.app", "--inprivate"),
+    ("Firefox", "Firefox.app", "--private-window"),
+];
+
+// L'autorisation d'une appli Google Apps Script échoue quand plusieurs comptes Google sont connectés dans la même fenêtre
+// (22.11, vu chez Sévane : « Impossible d'ouvrir le fichier »). Dans une fenêtre privée, un seul compte : ça passe.
+// Seulement pour les pages de script.google.com. Rend le nom du navigateur ouvert.
+#[tauri::command]
+fn fenetre_privee(url: String) -> Result<String, String> {
+    if !url.starts_with("https://script.google.com/") || url.len() > 700 || url.chars().any(|c| c.is_whitespace() || c.is_control() || c == '"' || c == '\'' || c == '\\') {
+        return Err("Adresse refusée.".into());
+    }
+    for (nom, dossier, drapeau) in NAVIGATEURS_PRIVES.iter() {
+        for d in dossiers_applis() {
+            let chemin = d.join(dossier);
+            if !chemin.exists() {
+                continue;
+            }
+            let ok = Command::new("/usr/bin/open")
+                .arg("-na")
+                .arg(&chemin)
+                .arg("--args")
+                .arg(drapeau)
+                .arg(&url)
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if ok {
+                return Ok(nom.to_string());
+            }
+        }
+    }
+    Err("aucun-navigateur".into())
 }
 
 // Origami se met à jour : la nouvelle version est déjà en place, on la relance.
@@ -499,7 +547,8 @@ pub fn run() {
             barre_alertes,
             demarrage_auto,
             pont_google,
-            pont_annuler
+            pont_annuler,
+            fenetre_privee
         ])
         .setup(move |app| {
             // La fenêtre part cachée (réglage) et s'affiche ici, sauf pour Origami ouverte au démarrage de la session :
