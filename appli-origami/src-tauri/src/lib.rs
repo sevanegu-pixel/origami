@@ -8,6 +8,11 @@
 // - vivre dans la barre des menus (icône en haut de l'écran), démarrer avec la session, rester ouverte quand on ferme
 //   sa fenêtre, et signaler un compte déconnecté.
 // Compta, Tickets et Frais sont faites avec la même coquille : elles savent seulement lire le lien qu'on leur a transmis.
+//
+// Depuis la version 0.4 (22.11.2026), « Continuer avec Google » marche aussi dans l'appli. Google refuse sa fenêtre de
+// connexion à l'intérieur d'une appli : l'appli ouvre donc le navigateur du Mac sur une page d'Origami, la personne y
+// choisit son compte, et la page ramène la connexion ici par une passerelle qui n'existe que sur ce Mac (127.0.0.1),
+// le temps de cette connexion, et qui n'accepte que le secret tiré pour elle. Rien ne passe par un autre serveur.
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -17,6 +22,8 @@ use std::time::{Duration, SystemTime};
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+
+mod pont;
 
 const ORIGAMI: &str = "ch.origami.origami";
 // Les seules applis que l'installateur connaît : id dans la page, nom affiché, identité Mac.
@@ -361,6 +368,39 @@ fn demarrage_auto(app: AppHandle, actif: Option<bool>) -> bool {
     al.is_enabled().unwrap_or(false)
 }
 
+// ---------- Passerelle « connexion à Google » (0.4) : voir pont.rs ----------
+#[derive(Serialize)]
+struct Pont {
+    port: u16,
+    secret: String,
+    id: String,
+}
+
+#[derive(Serialize, Clone)]
+struct PontJeton {
+    pour: String,
+    jeton: String,
+    duree: u64,
+    drive: bool,
+}
+
+// La page demande une passerelle avant d'ouvrir le navigateur : elle reçoit le port et le secret à lui confier.
+#[tauri::command]
+fn pont_google(app: AppHandle) -> Result<Pont, String> {
+    let id = pont::hasard(8)?;
+    let (a2, i2) = (app.clone(), id.clone());
+    let (port, secret) = pont::ouvrir(move |r| {
+        let _ = a2.emit("origami-pont", PontJeton { pour: i2.clone(), jeton: r.jeton, duree: r.duree, drive: r.drive });
+        montrer_origami(&a2, None);
+    })?;
+    Ok(Pont { port, secret, id })
+}
+
+#[tauri::command]
+fn pont_annuler() {
+    pont::fermer();
+}
+
 fn montrer_origami(app: &AppHandle, vue: Option<&str>) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -457,7 +497,9 @@ pub fn run() {
             montrer_dans_finder,
             desinstaller_appli,
             barre_alertes,
-            demarrage_auto
+            demarrage_auto,
+            pont_google,
+            pont_annuler
         ])
         .setup(move |app| {
             // La fenêtre part cachée (réglage) et s'affiche ici, sauf pour Origami ouverte au démarrage de la session :

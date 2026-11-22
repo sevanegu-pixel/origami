@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Fenêtre principale et fenêtres d'appli (appli-compta, appli-tickets, appli-frais) : la page Origami en ligne peut ouvrir un lien dans le navigateur du Mac (ou dans l'appli Boîte mail, adresses boitemail:), ouvrir une fenêtre à part et la ramener devant ; dans l'appli mère, installer et ouvrir les applis Origami du Mac (fichiers des versions du dépôt Origami seulement), leur transmettre un lien Relier, signaler un compte à revoir dans la barre des menus. Rien d'autre.",
+  "description": "Fenêtre principale et fenêtres d'appli (appli-compta, appli-tickets, appli-frais) : la page Origami en ligne peut ouvrir un lien dans le navigateur du Mac (ou dans l'appli Boîte mail, adresses boitemail:), ouvrir une fenêtre à part et la ramener devant ; dans l'appli mère, installer et ouvrir les applis Origami du Mac (fichiers des versions du dépôt Origami seulement), leur transmettre un lien Relier, signaler un compte à revoir dans la barre des menus ; ouvrir, le temps d'une connexion à Google faite dans le navigateur, une passerelle locale (127.0.0.1) qui la ramène ici. Rien d'autre.",
   "windows": [
     "main",
     "appli-*"
@@ -38,6 +38,8 @@
     "allow-barre-alertes",
     "allow-demarrage-auto",
     "allow-montrer-dans-finder",
-    "allow-desinstaller-appli"
+    "allow-desinstaller-appli",
+    "allow-pont-google",
+    "allow-pont-annuler"
   ]
 }
