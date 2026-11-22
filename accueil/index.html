@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.53">
+<meta name="origami-version" content="2026-11-22.54">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -500,9 +500,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.53"></script>
-<script src="repertoire.js?v=2026-11-22.53"></script>
-<script src="google.js?v=2026-11-22.53"></script>
+<script src="agenda.js?v=2026-11-22.54"></script>
+<script src="repertoire.js?v=2026-11-22.54"></script>
+<script src="google.js?v=2026-11-22.54"></script>
 <script>
 (function () {
   "use strict";
@@ -752,7 +752,20 @@ button.tuile:hover { border-color: var(--ligne); }
   if (MAC) SUR_MAC = true;   // l'appli Origami n'existe que pour Mac
   // La caméra en direct n'est permise qu'aux applis Mac de la version 0.2 ou plus (elles ont le droit « Caméra » ; une plus ancienne se fermerait).
   var CAMERA_MAC = false;
-  if (MAC && MAC.app && MAC.app.getVersion) try { MAC.app.getVersion().then(function (v) { var n = String(v || "").split(".").map(Number); CAMERA_MAC = n[0] > 0 || n[1] >= 2; }, function () {}); } catch (e) {}
+  // Appli du Mac 0.4 et plus (22.11) : « Continuer avec Google » passe par le navigateur du Mac et revient tout seul (google.js).
+  // Une appli plus ancienne ne sait pas le faire : elle propose de se mettre à jour.
+  var PONT_MAC = false;
+  function macSansGoogle() { return !!MAC && !PONT_MAC; }
+  function ouvreGoogle() { return MAC ? "Ton navigateur s'ouvre pour la connexion à Google, puis Origami revient devant toi tout seul." : "Google ouvre une fenêtre."; }
+  function noteMacAncien() {
+    return '<p class="note">Pour te connecter à Google depuis l\'appli du Mac, il lui faut sa version ' + VERSIONS_MAC.origami + '. Va dans « Applis », section « Sur ce Mac », ligne « Origami », et clique « Mettre à jour ».</p>' +
+      '<div class="actions"><button class="bouton fort" data-vue="applis">Ouvrir « Applis »</button><a class="bouton" href="' + ADRESSE_ORIGAMI + '" target="_blank" rel="noopener">Ou continuer dans le navigateur</a></div>';
+  }
+  if (MAC && MAC.app && MAC.app.getVersion) try { MAC.app.getVersion().then(function (v) {
+    var n = String(v || "").split(".").map(Number); CAMERA_MAC = n[0] > 0 || n[1] >= 2;
+    PONT_MAC = (n[0] > 0 || n[1] >= 4) && !!(window.OrigamiGoogle && OrigamiGoogle.parPont && OrigamiGoogle.parPont());
+    if (PONT_MAC) try { if (etat.vue === "ajouter" || etat.vue === "accueil" || etat.vue === "desinstaller") montrer(); } catch (e) {}
+  }, function () {}); } catch (e) {}
   // Appli Mac Origami 0.3 et plus (19.11) : elle installe elle-même les applis (Compta, Tickets, Frais, Boîte mail) et se met
   // à jour, avec une barre de progression, sans navigateur ni GitHub. Une seule commande par appli : Installer, la barre, Ouvrir.
   var INSTALLEUR = false, MAC_VERSION = "", MAC_APPLIS = null, MAC_INSTALL = {};
@@ -776,12 +789,12 @@ button.tuile:hover { border-color: var(--ligne); }
   function nomMac(id) { return id === "origami" ? "Origami" : APPLIS[id].nom; }
   // Versions publiées des applis du Mac (à changer à chaque nouvelle version) et leurs notes de version.
   // Boîte mail : numérotée par ses fichiers (appli-boite-NN), pas de comparaison possible ; « Réinstaller » prend la dernière.
-  var VERSIONS_MAC = { origami: "0.3.0", compta: "0.3.0", tickets: "0.3.0", frais: "0.3.0" };
+  var VERSIONS_MAC = { origami: "0.4.0", compta: "0.4.0", tickets: "0.4.0", frais: "0.4.0" };
   var NOTES_MAC = {
-    origami: [["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
-    compta: [["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
-    tickets: [["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
-    frais: [["0.3.0", "S'installe depuis Origami."]],
+    origami: [["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    compta: [["0.4.0", "Connexion à Google par le navigateur du Mac, pour installer ou mettre à jour la Compta d'ici."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    tickets: [["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    frais: [["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami."]],
     boite: [["21", "Douze mois de mails gardés sur le Mac, pièces jointes ouvertes gardées, réglage « Gardé sur ce Mac »."], ["20", "La Compta ouvre directement la fenêtre d'écriture, avec le PDF joint."]]
   };
   function plusRecente(a, b) { var x = String(a || "").split(".").map(Number), y = String(b || "").split(".").map(Number); for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; }
@@ -2574,7 +2587,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function comptaGuide(id) {
     guideC = { id: id, occupe: comptaEnCours[id] || "Je regarde où en est ce compte…", souci: "", code: "", brut: "" };
     dessinerGuideCompta();
-    if (window.OrigamiGoogle && !MAC) OrigamiGoogle.charger().catch(function () {});   // prêt avant le clic « Se connecter »
+    if (window.OrigamiGoogle && !macSansGoogle()) OrigamiGoogle.charger().catch(function () {});   // prêt avant le clic « Se connecter »
     relireCompte(id).then(function () { if (guideC.id !== id) return; guideC.occupe = comptaEnCours[id] || ""; dessinerGuideCompta(); });
   }
   function dessinerGuideCompta() {
@@ -2591,9 +2604,9 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     var brutGoogle = guideC.brut ? '<p class="aide-fine">Réponse de Google, telle quelle : « ' + texte(guideC.brut) + " »</p>" : "";
     var e1 = !pret ? "<p>" + (m.panne ? "Le moteur de ce compte ne répond pas pour l'instant." : "Le moteur de ce compte n'a pas encore la mise à jour qui permet d'installer la Compta d'ici. Elle arrive bientôt.") + "</p>" + '<div class="actions"><button class="bouton" data-guide-compta-verifier="1">Vérifier à nouveau</button></div>'
-      : MAC ? "<p>La connexion à Google se fait dans ton navigateur (Chrome ou Safari) : Google la refuse dans la fenêtre de l'appli du Mac. Ouvre Origami dans ton navigateur, avec ce compte relié, et reviens sur cet écran. Une fois la Compta installée, elle s'ouvre ici comme les autres.</p>" + '<div class="actions"><a class="bouton fort" href="' + ADRESSE_ORIGAMI + '" target="_blank" rel="noopener">Ouvrir Origami dans le navigateur</a><button class="bouton" data-guide-compta-verifier="1">C\'est installé, vérifier</button></div>'
+      : macSansGoogle() ? noteMacAncien() + '<div class="actions"><button class="bouton" data-guide-compta-verifier="1">C\'est installé, vérifier</button></div>'
       : !G ? "<p>La connexion à Google n'est pas chargée. Recharge Origami et reviens ici.</p>"
-      : "<p>Google ouvre une fenêtre. Choisis le compte <strong>" + nom + "</strong> et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami de la compagnie. Elle sert seulement à créer ta Compta dans ton propre compte.</p>" + '<div class="actions"><button class="bouton fort" data-guide-compta-connecter="1">Se connecter à Google</button></div>';
+      : "<p>" + ouvreGoogle() + " Choisis le compte <strong>" + nom + "</strong> et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami de la compagnie. Elle sert seulement à créer ta Compta dans ton propre compte.</p>" + '<div class="actions"><button class="bouton fort" data-guide-compta-connecter="1">Se connecter à Google</button></div>';
     var e2 = guideC.code === "api-eteinte" ? "<p>Google demande d'allumer un interrupteur du compte, une seule fois. Sur la page qui s'ouvre, vérifie en haut à droite que c'est bien <strong>" + nom + "</strong>, puis allume « API Google Apps Script ».</p>" +
         '<div class="actions"><a class="bouton" href="' + REGLAGES_API + (googleAdresse(id) ? "?authuser=" + encodeURIComponent(googleAdresse(id)) : "") + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-guide-compta-installer="1">C\'est allumé, continuer</button></div>' + brutGoogle
       : "<p>Origami crée ta Compta dans ton Drive (dossier Origami › Compta) et la met en ligne. Une minute environ.</p>" + '<div class="actions"><button class="bouton fort" data-guide-compta-installer="1">' + (cm.enCours ? "Reprendre l'installation" : "Installer la Compta") + "</button></div>" + brutGoogle;
@@ -2666,8 +2679,8 @@ button.tuile:hover { border-color: var(--ligne); }
     var G = window.OrigamiGoogle;
     if (comptaEnCours[id] || !G) return;
     if (G.session(id)) { comptaMajLancer(id); return; }
-    if (!MAC) G.charger().catch(function () {});
-    ouvrirVoile("<h2>Mettre à jour la Compta</h2>" + (MAC ? "<p>La connexion à Google se fait dans ton navigateur (Chrome ou Safari) : Google la refuse dans la fenêtre de l'appli du Mac. Ouvre Origami dans ton navigateur, avec ce compte relié, et lance la mise à jour de là.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Fermer</button><a class="bouton fort" href="' + ADRESSE_ORIGAMI + '" target="_blank" rel="noopener">Ouvrir Origami dans le navigateur</a></div>'
+    if (!macSansGoogle()) G.charger().catch(function () {});
+    ouvrirVoile("<h2>Mettre à jour la Compta</h2>" + (macSansGoogle() ? noteMacAncien() + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Fermer</button></div>'
       : "<p>Pour mettre à jour la Compta de <strong>" + texte(nomCompte(id)) + "</strong>, Origami se connecte à Google. Choisis ce compte à la fenêtre de Google et accepte. Tes données et tes réglages ne bougent pas.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Annuler</button><button class="bouton fort" data-compta-maj-go="' + texte(id) + '">Se connecter et mettre à jour</button></div>'));
   }
   function comptaMajConnecter(id) {
@@ -2753,8 +2766,12 @@ button.tuile:hover { border-color: var(--ligne); }
   function dessinerAccueil() {
     if (!comptes().length) {   // appli vierge : aucun compte encore
       accueil.innerHTML = '<div class="bord"><div class="info vierge"><h1>Bienvenue dans Origami</h1><p>Commence par ajouter un compte Google. Chaque compte a ses applis et son dossier « Origami » dans son Drive.</p>' +
-        '<div class="choix-ajout"><button class="carte-choix" data-guide="1"><strong>Installer Origami dans un compte Google</strong><span>Guide pas à pas, sur un ordinateur, environ 10 minutes. Une seule fois par compte.</span></button>' +
-        '<button class="carte-choix" data-guide="-1"><strong>Origami est déjà installé dans ce compte</strong><span>Colle son code de liaison (classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil »).</span></button></div>' +
+        (PARCOURS_GOOGLE && window.OrigamiGoogle && !macSansGoogle()
+          ? '<div class="choix-ajout"><button class="carte-choix principal" data-accueil-google="1"><strong>Continuer avec Google</strong><span>Tu choisis le compte, Origami s\'y installe tout seul, ou s\'y retrouve s\'il y est déjà. Deux minutes, rien à copier.</span></button></div>' +
+            '<p class="aide-fine">' + (MAC ? "Ton navigateur s'ouvrira le temps de choisir le compte, puis Origami reviendra devant toi. " : "") + '<button class="lien" data-guide="0">Autres façons d\'ajouter un compte</button></p>'
+          : '<div class="choix-ajout"><button class="carte-choix" data-guide="1"><strong>Installer Origami dans un compte Google</strong><span>Guide pas à pas, sur un ordinateur, environ 10 minutes. Une seule fois par compte.</span></button>' +
+            '<button class="carte-choix" data-guide="-1"><strong>Origami est déjà installé dans ce compte</strong><span>Colle son code de liaison (classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil »).</span></button></div>' +
+            (PARCOURS_GOOGLE && macSansGoogle() ? noteMacAncien() : "")) +
         '<h3 class="titre-apercu">Ce qui t\'attend</h3><p class="aide-fine">Tout s\'ouvre dès qu\'un compte est ajouté.</p><div class="apercu">' +
         APERCU_MODULES.concat(APERCU_APPLIS).map(function (id) { return '<div class="tuile" aria-disabled="true">' + icone(id) + "<strong>" + APPLIS[id].nom + "</strong><span>" + (TEXTES_APERCU[id] || APPLIS[id].texte) + "</span></div>"; }).join("") + "</div></div></div>";
       return;
@@ -3036,7 +3053,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!c || id === "compagnie") return;
     desinst = { phase: "liste", id: id, nom: c.nom, inv: null, etatMoteur: "", souci: "", occupe: "Je regarde ce qu'Origami a créé dans ce compte…", coche: false };
     etat.compte = id; etat.vue = "desinstaller"; montrer(); try { page.scrollTop = 0; window.scrollTo(0, 0); } catch (e) {}
-    if (!MAC && window.OrigamiGoogle) OrigamiGoogle.charger().catch(function () {});   // la fenêtre de Google doit pouvoir s'ouvrir dans le clic
+    if (!macSansGoogle() && window.OrigamiGoogle) OrigamiGoogle.charger().catch(function () {});   // la fenêtre de Google doit pouvoir s'ouvrir dans le clic
     var D = desinst;
     if (!moteurs[id]) { D.occupe = ""; D.etatMoteur = "muet"; desinstMontrer(); return; }
     moteurAppel(id, "compte.inventaire", null, { sans: true }).then(function (inv) {
@@ -3052,8 +3069,8 @@ button.tuile:hover { border-color: var(--ligne); }
   function desinstLancer(sansGoogle) {
     var D = desinst, id = D.id, G = window.OrigamiGoogle, cle = "desinstaller";
     if (D.phase !== "liste" || !D.inv || !D.coche || D.encours || !moteurs[id]) return;
-    var avecGoogle = !sansGoogle && !MAC && !!G;
-    D.encours = true; D.souci = ""; D.occupe = avecGoogle ? "Google ouvre une fenêtre : choisis ce même compte." : "Mise à la corbeille…"; desinstMontrer();
+    var avecGoogle = !sansGoogle && !macSansGoogle() && !!G;
+    D.encours = true; D.souci = ""; D.occupe = avecGoogle ? (MAC ? "Ton navigateur s'ouvre pour la connexion à Google : choisis ce même compte." : "Google ouvre une fenêtre : choisis ce même compte.") : "Mise à la corbeille…"; desinstMontrer();
     (avecGoogle ? G.connecter(cle, { drive: true }).then(function () { return true; }) : Promise.resolve(false)).then(function (connecte) {
       if (desinst !== D) throw new Error("abandon");
       D.phase = "travail"; D.occupe = "Mise à la corbeille du Drive…"; desinstMontrer();
@@ -3109,7 +3126,7 @@ button.tuile:hover { border-color: var(--ligne); }
       h += '<p class="aide-fine">Ce qui ne bouge pas : tes mails, tes agendas Google et tous les fichiers qu\'Origami n\'a pas créés.</p>';
       if (applis.indexOf("Compta") >= 0) h += "<p>La Compta de ce compte a créé ses propres fichiers dans le dossier « Origami », et Google ne laisse pas Origami jeter un dossier qui contient les fichiers d'une autre appli. À la fin, Origami te donnera le lien de ce dossier : tu le mettras à la corbeille toi-même, en un geste.</p>";
       h += '<label class="case-desinst"><input type="checkbox" id="desinstCoche"' + (D.coche ? " checked" : "") + (D.encours ? " disabled" : "") + "><span>J'ai compris : mets tout à la corbeille du Drive et retire ce compte de l'appli.</span></label>";
-      h += '<p class="aide-fine">' + (MAC ? "Dans l'appli du Mac, Origami ne peut pas ouvrir la fenêtre de Google. S'il reste un fichier qu'il n'a pas pu jeter, il te le montrera avec un lien." : "Google va ouvrir une fenêtre : choisis ce même compte et laisse les cases cochées. Elle sert à jeter le classeur des réglages et à retirer l'accès d'Origami à ce compte.") + "</p>";
+      h += '<p class="aide-fine">' + (macSansGoogle() ? "Cette version de l'appli du Mac ne sait pas encore se connecter à Google (mets-la à jour dans « Applis »). S'il reste un fichier qu'Origami n'a pas pu jeter, il te le montrera avec un lien." : MAC ? "Ton navigateur va s'ouvrir pour la connexion à Google : choisis ce même compte et laisse les cases cochées, puis Origami revient devant toi. Elle sert à jeter le classeur des réglages et à retirer l'accès d'Origami à ce compte." : "Google va ouvrir une fenêtre : choisis ce même compte et laisse les cases cochées. Elle sert à jeter le classeur des réglages et à retirer l'accès d'Origami à ce compte.") + "</p>";
       h += occupe + souci;
       h += '<div class="pas-boutons"><button class="bouton" data-desinst="annuler"' + (D.encours ? " disabled" : "") + '>Annuler</button><button class="bouton danger" data-desinst="lancer"' + (D.coche && !D.encours ? "" : " disabled") + ">Désinstaller</button></div>";
       if (D.sansGoogle && !D.encours) h += '<p class="aide-fine">La fenêtre de Google ne s\'ouvre pas ? <button class="lien" data-desinst="sans-google"' + (D.coche ? "" : " disabled") + ">Désinstaller sans me connecter à Google</button> : s'il reste un fichier à jeter, Origami te le montrera.</p>";
@@ -3148,6 +3165,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function nomCetAppareil() {
     var u = navigator.userAgent || "", quoi = /iPhone/.test(u) ? "iPhone" : /iPad/.test(u) ? "iPad" : /Android/.test(u) ? "Android" : /Mac/.test(u) ? "Mac" : /Windows/.test(u) ? "PC" : "Appareil";
     var nav = /Edg\//.test(u) ? "Edge" : /Firefox\//.test(u) ? "Firefox" : /Chrome\//.test(u) ? "Chrome" : /Safari\//.test(u) ? "Safari" : "";
+    if (MAC) return "Mac (appli Origami)";
     return quoi + (nav ? " (" + nav + ")" : "");
   }
   function parcoursMontrer() { if (etat.vue === "ajouter") { dessinerPage("ajouter"); try { var z = page.querySelector("[data-parcours-vue]"); if (z && parcours.haut) { page.scrollTop = 0; window.scrollTo(0, 0); parcours.haut = false; } } catch (e) {} } }
@@ -3166,7 +3184,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var occupe = P.occupe ? '<p class="progression" role="status"><progress></progress><span>' + texte(P.occupe) + "</span></p>" : "";
     if (P.phase === "travail") {
       h += parcoursBarre(P.installe ? 2 : 1) + "<h1>" + (P.installe ? "Origami s'installe" : "Connexion à Google") + "</h1>";
-      h += P.installe ? "<p>Dans le compte " + adr + ". Une minute environ : garde cette page ouverte.</p>" : "<p>Google ouvre une fenêtre. Choisis le compte à ajouter et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami.</p>";
+      h += P.installe ? "<p>Dans le compte " + adr + ". Une minute environ : garde cette page ouverte.</p>" : "<p>" + ouvreGoogle() + " Choisis le compte à ajouter et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami.</p>";
       h += occupe + '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Annuler</button></div>';
     } else if (P.phase === "confirmer") {
       h += parcoursBarre(2) + "<h1>Installer Origami dans ce compte ?</h1><p>Compte Google : " + adr + "</p>";
@@ -3205,7 +3223,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function parcoursSouci(e) {
     var code = (e && e.code) || "", m = String((e && e.message) || e), G = window.OrigamiGoogle;
     if (code === "api-eteinte") { parcoursPhase("interrupteur", { brut: String((e && e.brut) || "").slice(0, 320) }); parcoursGuetter("interrupteur"); return; }
-    if (code === "ferme" || code === "refus" || code === "cases" || code === "bloque" || code === "google-absent") { parcoursQuitter(); guide.etape = 0; parcours.souciAccueil = m; parcoursMontrer(); return; }
+    if (code === "ferme" || code === "refus" || code === "cases" || code === "bloque" || code === "google-absent" || code === "mac-ancien") { parcoursQuitter(); guide.etape = 0; parcours.souciAccueil = m; parcoursMontrer(); return; }
     var re = code === "expire" || code === "connexion";
     if (re) m = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprend où elle en était.";
     else if (code === "projet-compagnie" || code === "modele" || code === "modele-ancien") m = "Origami n'arrive pas à s'installer dans ce compte pour l'instant. Ce n'est pas de ton fait : préviens la personne qui s'occupe d'Origami.";
@@ -3220,7 +3238,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!G) return;
     if (G.session("ajout") && G.session("ajout").drive) { parcoursPhase("travail", { installe: false, occupe: ETAPES_PARCOURS.chercher }); parcoursSuite(); return; }
     var p = G.connecter("ajout", { drive: true });
-    parcoursPhase("travail", { installe: false, occupe: "La fenêtre de Google est ouverte : choisis le compte et accepte…" });
+    parcoursPhase("travail", { installe: false, occupe: MAC ? "En attente de ton navigateur : choisis le compte et accepte…" : "La fenêtre de Google est ouverte : choisis le compte et accepte…" });
     p.then(function (s) { if (parcours.phase !== "travail") return; parcours.google = s.adresse || ""; parcoursSuite(); }, function (e) { if (parcours.phase === "travail") parcoursSouci(e); });
   }
   // Connectée : Origami est-il déjà dans ce compte ? Oui : on relie cet appareil. Non : on propose de l'installer.
@@ -3349,10 +3367,9 @@ button.tuile:hover { border-color: var(--ligne); }
       h += "<h1>Ajouter un compte</h1><p>Un compte, c'est un compte Google avec ses propres applis et son dossier « Origami » dans le Drive.</p>";
       if (PARCOURS_GOOGLE) {
         if (parcours.souciAccueil) h += '<p class="souci-guide" role="alert">' + texte(parcours.souciAccueil) + "</p>";
-        if (MAC || !window.OrigamiGoogle) {
-          h += '<p class="note">' + (MAC ? "Dans l'appli du Mac, Google refuse sa fenêtre de connexion. Ajoute le compte dans ton navigateur (Chrome ou Safari), puis relie cette appli depuis ses Réglages, avec « Relier un autre appareil »." : "La connexion à Google n'est pas chargée. Recharge Origami et reviens ici.") + "</p>";
-          if (MAC) h += '<div class="actions"><a class="bouton fort" href="' + ADRESSE_ORIGAMI + '" target="_blank" rel="noopener">Ouvrir Origami dans le navigateur</a></div>';
-        } else {
+        if (macSansGoogle()) h += noteMacAncien();
+        else if (!window.OrigamiGoogle) h += '<p class="note">La connexion à Google n\'est pas chargée. Recharge Origami et reviens ici.</p>';
+        else {
           h += '<div class="choix-ajout"><button class="carte-choix principal" data-parcours="lancer"><strong>Continuer avec Google</strong><span>Tu choisis le compte, Origami s\'y installe tout seul, ou s\'y retrouve s\'il y est déjà. Deux minutes, rien à copier.</span></button></div>';
           if (parcoursAttente()) h += '<p class="aide-fine">Une installation commencée sur cet appareil n\'est pas finie : « Continuer avec Google » la reprend où elle en était.</p>';
         }
@@ -3558,9 +3575,11 @@ button.tuile:hover { border-color: var(--ligne); }
       else if (qd === "sans-google") desinstLancer(true);
       else if (qd === "seulement") { var is = desinst.id; desinst = { phase: "" }; page.innerHTML = ""; if (compte(is) && is !== "compagnie") oublierCompte(is); etat.compte = compteParDefaut(); etat.vue = comptes().length ? "reglages" : "accueil"; avis("Compte retiré de cette appli."); montrer(); }
       else if (qd === "annuler" || qd === "fermer") { var ia = desinst.id; desinst = { phase: "" }; page.innerHTML = ""; if (ia && compte(ia)) etat.compte = ia; etat.vue = comptes().length ? "reglages" : "accueil"; montrer(); }
-      else if (qd === "reinstaller") { desinst = { phase: "" }; parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; if (PARCOURS_GOOGLE && window.OrigamiGoogle && !MAC) OrigamiGoogle.charger().catch(function () {}); montrer(); }
+      else if (qd === "reinstaller") { desinst = { phase: "" }; parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; if (PARCOURS_GOOGLE && window.OrigamiGoogle && !macSansGoogle()) OrigamiGoogle.charger().catch(function () {}); montrer(); }
       return;
     }
+    // « Continuer avec Google » de l'écran de bienvenue : même geste que dans « Ajouter un compte », dans le clic même.
+    if (d.accueilGoogle && PARCOURS_GOOGLE) { parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; montrer(); parcoursLancer(); return; }
     if (d.parcours && PARCOURS_GOOGLE) {
       var qp = d.parcours;
       if (qp === "lancer") { parcours.souciAccueil = ""; parcoursLancer(); }
@@ -3637,7 +3656,8 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.comptaMaj) { comptaMettreAJour(d.comptaMaj); return; }
     if (d.comptaFini) { fermerVoile(); etat.compte = d.comptaFini; etat.vue = "compta"; montrer(); return; }
     if (d.vue) {
-      if (d.vue === "ajouter") { guide.etape = 0; guide.pour = ""; if (parcours.phase !== "autoriser" && parcours.phase !== "travail" && parcours.phase !== "interrupteur") parcoursQuitter(); if (PARCOURS_GOOGLE && window.OrigamiGoogle && !MAC) OrigamiGoogle.charger().catch(function () {}); }
+      if (!voile.hidden && voile.contains(b)) fermerVoile();   // bouton d'un guide ouvert par-dessus l'écran
+      if (d.vue === "ajouter") { guide.etape = 0; guide.pour = ""; if (parcours.phase !== "autoriser" && parcours.phase !== "travail" && parcours.phase !== "interrupteur") parcoursQuitter(); if (PARCOURS_GOOGLE && window.OrigamiGoogle && !macSansGoogle()) OrigamiGoogle.charger().catch(function () {}); }
       // La Boîte mail ne s'ouvre que sur un bouton « Ouvrir » ; le volet mène à sa page dans Origami (18.11, Sévane :
       // une vieille copie restée dans la corbeille s'ouvrait à la place, avec l'alerte de macOS).
       if (d.vue === "boite" && d.ouvrir && !FENETRE && boitePossible()) { lancerBoite(d.de || etat.compte); return; }
