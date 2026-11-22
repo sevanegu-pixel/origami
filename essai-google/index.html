@@ -451,7 +451,7 @@
   $("verifier7").addEventListener("click", function () {
     if (!appli7) return;
     $("verifier7").disabled = true; $("bilan").hidden = true; tours7++;
-    var k = "w" + tours7 + "-", lieu = null;
+    var k = "w" + tours7 + "-", lieu = null, dejaParti = false, encoreLa = false;
     function refus(r) { return new Error("refusé (" + (r.raison || "?") + (r.detail ? " : " + r.detail : "") + ")"); }
     pas(k + "1", "Mini-appli 7 : vérifier qu'elle répond", function () { return lire(appli7.adresse + "?origami=ping").then(function (t) { if (String(t).trim() !== "origami-essai:ok") throw new Error("elle répond « " + propre(t) + " »"); return t; }); }, function () { return "elle répond"; })
       .then(function () {
@@ -464,38 +464,60 @@
               }).then(function (f) { if ((f.parents || []).indexOf(lieu.sous) < 0) throw new Error("le classeur n'a pas bougé"); return f; });
             }, function () { return "rangé"; });
           })
-          .then(function () { return pas(k + "4", "Désinstaller : la mini-appli met son dossier à la corbeille, avec tout ce qu'il contient", function () { return poster(appli7.adresse, { geste: "corbeille", secret: secret7, dossier: lieu.dossier }).then(function (r) { if (!r.ok) throw refus(r); return r; }); }, function () { return "dossier à la corbeille"; }); })
-          .then(function () { return pas(k + "5", "Le classeur de la page est parti avec le dossier", function () { return drive("GET", "files/" + encodeURIComponent(classeur7) + "?fields=id,trashed").then(function (f) { if (!f.trashed) throw new Error("il n'est pas à la corbeille"); return f; }); }, function () { return "à la corbeille"; }); })
+          // Vu en vrai le 22.11 : Google refuse qu'une appli jette un dossier tant qu'il contient un fichier créé par une autre.
+          // Chacun jette donc ce qu'il a créé : la page ressort son classeur, la mini-appli jette son dossier, la page jette son classeur.
           .then(function () {
-            return pasSouple(k + "6", "Un nouvel appareil ne retrouve plus ce classeur", function () {
+            return pas(k + "4", "Pour savoir : la mini-appli peut-elle jeter son dossier tant que le classeur de la page est dedans ?", function () {
+              return poster(appli7.adresse, { geste: "corbeille", secret: secret7, dossier: lieu.dossier }).then(function (r) { return r.ok ? "oui" : "non, Google refuse (" + String(r.detail || r.raison || "?").slice(0, 110) + ")"; }, function (e) { return "non : " + String((e && e.message) || e).slice(0, 110); });
+            }, function (t) { dejaParti = t === "oui"; return t; });
+          })
+          .then(function () {
+            if (dejaParti) return null;
+            return pas(k + "5", "La page ressort son classeur du dossier", function () {
+              return drive("PATCH", "files/" + encodeURIComponent(classeur7) + "?addParents=root&removeParents=" + encodeURIComponent(lieu.sous) + "&fields=id,parents", {}).then(function (f) { if ((f.parents || []).indexOf(lieu.sous) >= 0) throw new Error("le classeur n'a pas bougé"); return f; });
+            }, function () { return "ressorti"; })
+              .then(function () { return pas(k + "6", "Désinstaller : la mini-appli met son dossier à la corbeille, avec ce qu'elle y a créé", function () { return poster(appli7.adresse, { geste: "corbeille", secret: secret7, dossier: lieu.dossier }).then(function (r) { if (!r.ok) throw refus(r); return r; }); }, function () { return "dossier à la corbeille"; }); });
+          })
+          .then(function () { return pas(k + "7", "Désinstaller : la page met son classeur à la corbeille, avec la mini-appli attachée", function () { return drive("GET", "files/" + encodeURIComponent(classeur7) + "?fields=id,trashed").then(function (f) { return f.trashed ? f : jeter(classeur7); }); }, function () { return "à la corbeille"; }); })
+          .then(function () {
+            return pasSouple(k + "8", "Un nouvel appareil ne retrouve plus ce classeur", function () {
               return drive("GET", "files?fields=files(id,name)&q=" + encodeURIComponent("appProperties has { key='origamiEssai' and value='" + marque7 + "' } and trashed=false")).then(function (l) { if ((l.files || []).length) throw new Error("il est encore trouvé"); return l; });
             }, function () { return "introuvable, comme prévu"; }, "la recherche qui trouve encore le classeur jeté");
           })
           .then(function () {
             // Pour savoir : une appli dont le classeur est à la corbeille répond-elle encore ? Les deux réponses sont bonnes à connaître.
-            return pas(k + "7", "Pour savoir : la mini-appli répond-elle encore, une fois à la corbeille ?", function () { return lire(appli7.adresse + "?origami=ping").then(function (t) { return String(t).trim() === "origami-essai:ok" ? "oui, elle répond encore" : "non : « " + propre(t) + " »"; }, function (e) { return "non : " + String((e && e.message) || e).slice(0, 120); }); }, function (t) { return t; });
+            return pas(k + "9", "Pour savoir : la mini-appli répond-elle encore, une fois son classeur à la corbeille ?", function () { return lire(appli7.adresse + "?origami=ping").then(function (t) { return String(t).trim() === "origami-essai:ok" ? "oui, elle répond encore" : "non : « " + propre(t) + " »"; }, function (e) { return "non : " + String((e && e.message) || e).slice(0, 120); }); }, function (t) { encoreLa = /^oui/.test(t); return t; });
           })
           .then(function () {
-            return pasSouple(k + "8", "La page jette elle-même un classeur qu'elle a créé", function () {
-              return drive("POST", "files?fields=id,name", { name: TITRE, mimeType: CLASSEUR_ }).then(function (f) { return jeter(f.id); });
-            }, function () { return "à la corbeille"; }, "la page qui jette son propre classeur");
+            // Pour savoir (utile à la Compta, qui crée ses propres fichiers) : un fichier d'une autre appli DÉJÀ à la corbeille bloque-t-il encore le dossier ?
+            if (!encoreLa) return null;
+            var autre = null, classeur8 = "";
+            return pas(k + "10", "Pour savoir : un fichier de la page déjà à la corbeille bloque-t-il le dossier de la mini-appli ?", function () {
+              return poster(appli7.adresse, { geste: "preparer", secret: secret7 }).then(function (r) { if (!r.ok || !r.dossier || !r.sous) throw refus(r); autre = r; return drive("POST", "files?fields=id,name", { name: TITRE, mimeType: CLASSEUR_ }); })
+                .then(function (f) { classeur8 = f.id; return drive("GET", "files/" + encodeURIComponent(classeur8) + "?fields=parents"); })
+                .then(function (f) { return drive("PATCH", "files/" + encodeURIComponent(classeur8) + "?addParents=" + encodeURIComponent(autre.sous) + "&removeParents=" + encodeURIComponent((f.parents || []).join(",")) + "&fields=id,parents", {}); })
+                .then(function () { return jeter(classeur8); })
+                .then(function () { return poster(appli7.adresse, { geste: "corbeille", secret: secret7, dossier: autre.dossier }); })
+                .then(function (r) { return r.ok ? "non, le dossier part quand même" : "oui, Google refuse encore (" + String(r.detail || r.raison || "?").slice(0, 90) + ") : ce dossier d'essai reste dans ton Drive, tu peux le jeter à la main"; })
+                .catch(function (e) { return "pas pu le savoir : " + String((e && e.message) || e).slice(0, 110); });
+            }, function (t) { return t; });
           })
           .then(function () {
-            return pasSouple(k + "9", "La page jette une mini-appli qu'elle a créée sans classeur (comme la Compta)", function () {
+            return pasSouple(k + "11", "La page jette une mini-appli qu'elle a créée sans classeur (comme la Compta)", function () {
               return api("POST", "projects", { title: TITRE }).then(function (p) { return jeter(p.scriptId); });
             }, function () { return "à la corbeille"; }, "la page qui jette une mini-appli sans classeur");
           })
           .then(function () {
             if (!anciens7.length) return null;
             var faits = 0, refuses = 0;
-            return pas(k + "10", "Ménage : mettre à la corbeille les anciens fichiers d'essai (" + anciens7.length + ")", function () {
+            return pas(k + "12", "Ménage : mettre à la corbeille les anciens fichiers d'essai (" + anciens7.length + ")", function () {
               return anciens7.reduce(function (suite, f) { return suite.then(function () { return jeter(f.id).then(function () { faits++; }, function () { refuses++; }); }); }, Promise.resolve()).then(function () { return null; });
             }, function () { return faits + " à la corbeille" + (refuses ? ", " + refuses + " refusé(s)" : ""); });
           })
-          .then(function () { return pasSouple(k + "11", "Retirer l'accès de cette page à ton compte Google", retirerAcces, function () { return "accès retiré, la page ne peut plus rien lire"; }, "le retrait de l'accès Google"); })
+          .then(function () { return pasSouple(k + "13", "Retirer l'accès de cette page à ton compte Google", retirerAcces, function () { return "accès retiré, la page ne peut plus rien lire"; }, "le retrait de l'accès Google"); })
           .then(function () {
             jeton = ""; $("suite5").hidden = true;
-            bilan(true, !manques7.length ? "Tout a marché : Origami peut se retirer d'un compte, tout part à la corbeille du Drive." : "L'essentiel a marché (le dossier et son contenu partent à la corbeille), sauf " + manques7.join(" et ") + " : il faudra passer autrement pour ce point.");
+            bilan(true, !manques7.length ? "Tout a marché : Origami peut se retirer d'un compte, tout part à la corbeille du Drive." : "L'essentiel a marché (le dossier et le classeur partent à la corbeille), sauf " + manques7.join(" et ") + " : il faudra passer autrement pour ce point.");
           }, function (e) { bilan(false, e && e.statut === 401 ? "La connexion à Google a expiré. Relance l'essai 5." : "La désinstallation s'est arrêtée. Copie le compte rendu et colle-le dans la conversation."); });
       }, function () { bilan(false, "La mini-appli 7 ne répond pas encore. Si tu viens d'autoriser, attends dix secondes et clique de nouveau « C'est fait, vérifier »."); })
       .then(function () { $("verifier7").disabled = false; });
