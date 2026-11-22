@@ -11,6 +11,8 @@ fn main() {
         "desinstaller_appli",
         "barre_alertes",
         "demarrage_auto",
+        "pont_google",
+        "pont_annuler",
     ])))
     .expect("préparation de l'appli");
 }
