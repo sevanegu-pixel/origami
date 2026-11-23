@@ -25,6 +25,8 @@
   var API_DRIVE = "https://www.googleapis.com/drive/v3/";
   var MODELE_SCRIPT = "18Ri1dh1bJyiheHS5F0FEhGaUL5Lbq_HDKvlw7NalC7X5SehS7wiZdF0q";   // le moteur modèle (identifiant, pas de code) : la page le lit avec la connexion de la personne
   var NOM_CLASSEUR = "Origami - Réglages du compte", MARQUE = "reglages";
+  // Boîte mail installée par Origami (23.11) : le modèle « Boîte mail (vierge) » de la compagnie, partagé par lien comme celui du moteur.
+  var MODELE_BOITE = "1GEKuqfAGTl3aT42Kx6HGHiXqgewx2DvwOApBfsFgVmHyNbWJdgtTpetU", NOM_BOITE = "Origami - Boîte mail", MARQUE_BOITE = "boite";
   var ADRESSE_EXEC = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
   var ATTENTES = [1500, 4000, 9000];
   var sessions = {}, chargement = null;
@@ -531,7 +533,154 @@
     return fetch(String(adresse) + "?origami=ping", { redirect: "follow" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { return String(t).trim() === "origami-compta:ok"; }, function () { return false; });
   }
 
-  var sortie = { charger: charger, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
+  // ---------- Boîte mail installée dans le compte par Origami (23.11.2026, demande de Sévane : « vas-y ») ----------
+  // Avant : une copie du classeur modèle faite à la main, posée à la racine du Drive. Maintenant la page fait tout, comme pour la
+  // Compta : le moteur du compte prépare le dossier « Origami/Boîte mail/Données » (prise rangement.preparer, en ligne depuis la v5),
+  // la page y crée le classeur, y attache un projet, y pose le code du modèle tel quel, en fait une version et le publie.
+  // Premier contact : comme pour Origami, un secret dont le projet ne porte que l'empreinte ; la Boîte mail rend alors le code
+  // que l'appli du Mac connaît déjà (boitemail://relier?c=…). Rejouer l'installation met la Boîte mail à jour sur le modèle et
+  // donne un nouveau secret : c'est aussi le chemin pour relier un autre Mac.
+  var DOPOST = /function\s+doPost\s*\(\s*(\w*)\s*\)\s*\{/g;
+  var APPEL_BOITE = "\n  var origami_premier_ = origamiPremier_(arguments[0]); if (origami_premier_) return origami_premier_;   // ajouté par Origami\n";
+  function fichierPremierBoite(empreinte) {
+    return "// Posé par l'appli Origami à l'installation de cette Boîte mail : l'empreinte du secret du premier contact (le secret, lui, n'est écrit nulle part ici).\n" +
+      "var ORIGAMI_BOITE_ = { empreinte: " + JSON.stringify(empreinte) + " };\n" +
+      "/** Premier contact avec l'appli Origami qui vient d'installer cette Boîte mail : rend le code pour relier l'appli du Mac. */\n" +
+      "function origamiPremier_(e) {\n" +
+      "  var q = null;\n" +
+      "  try { q = JSON.parse((e && e.postData && e.postData.contents) || '{}'); } catch (x) { return null; }\n" +
+      "  if (!q || q.f !== 'origami.premier') return null;\n" +
+      "  var rep;\n" +
+      "  try {\n" +
+      "    var p = PropertiesService.getScriptProperties();\n" +
+      "    var h = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, 'boite-premier:' + String(q.secret || ''), Utilities.Charset.UTF_8).map(function (b) { return ('0' + (b & 255).toString(16)).slice(-2); }).join('');\n" +
+      "    if (!ORIGAMI_BOITE_.empreinte || h !== ORIGAMI_BOITE_.empreinte) throw new Error('Ce lien ne vaut pas pour cette Boîte mail. Relance l\\'installation depuis Origami.');\n" +
+      "    if (p.getProperty('ORIGAMI_PREMIER') === ORIGAMI_BOITE_.empreinte) throw new Error('Cette Boîte mail est déjà reliée avec ce lien. Pour relier un autre Mac, relance l\\'installation depuis Origami.');\n" +
+      "    var adr = String(q.adresse || '');\n" +
+      "    if (/^https:\\/\\/script\\.google\\.com\\/(a\\/[^\\/]+\\/)?macros\\/s\\/[\\w-]+\\/exec$/.test(adr)) p.setProperty('URL_MOTEUR', adr);\n" +
+      "    var r = relierAppli_(true);   // l'adresse est sûre : la page vient de joindre cette Boîte mail par elle\n" +
+      "    p.setProperty('ORIGAMI_PREMIER', ORIGAMI_BOITE_.empreinte);\n" +
+      "    rep = { ok: true, r: { code: r.code, email: r.email || '' } };\n" +
+      "  } catch (err) { rep = { ok: false, erreur: String((err && err.message) || err) }; }\n" +
+      "  return ContentService.createTextOutput(JSON.stringify(rep)).setMimeType(ContentService.MimeType.JSON);\n" +
+      "}\n";
+  }
+  function nbDoPost(t) { return (String(t).match(DOPOST) || []).length; }
+
+  /** Le code du modèle « Boîte mail (vierge) », lu avec la connexion de la personne, vérifié dans sa forme. */
+  function lireModeleBoite(s) {
+    return api(s, "GET", "projects/" + enc(MODELE_BOITE) + "/content").then(function (c) {
+      var f = ((c && c.files) || []).filter(function (x) { return x && TYPES[x.type] && /^[\w .-]{1,80}$/.test(String(x.name || "")) && typeof x.source === "string" && !/^99_Origami$/.test(x.name); })
+        .map(function (x) { return { name: x.name, type: x.type, source: x.source }; });
+      var noms = f.map(function (x) { return x.name; }), serveur = f.filter(function (x) { return x.type === "SERVER_JS"; });
+      var tout = serveur.map(function (x) { return x.source; }).join("\n");
+      if (noms.indexOf("appsscript") < 0 || noms.indexOf("Index") < 0) throw souci("Le modèle de la Boîte mail est incomplet.", "modele");
+      var avecPost = serveur.filter(function (x) { return nbDoPost(x.source) > 0; });
+      if (avecPost.length !== 1 || nbDoPost(avecPost[0].source) !== 1 || !/function relierAppli_\s*\(/.test(tout) || !/function adresseRepond_\s*\(/.test(tout))
+        throw souci("Le modèle de la Boîte mail a changé de forme : son installation doit être adaptée.", "modele");
+      var manifeste; try { manifeste = JSON.parse(f[noms.indexOf("appsscript")].source); } catch (e) { throw souci("Le manifeste du modèle de la Boîte mail est illisible.", "modele"); }
+      manifeste.webapp = { access: "ANYONE_ANONYMOUS", executeAs: "USER_DEPLOYING" };
+      f[noms.indexOf("appsscript")].source = JSON.stringify(manifeste, null, 2);
+      return hacher(f.map(function (x) { return x.name + "\n" + x.source; }).join("\n\u0000")).then(function (h) { return { fichiers: f, empreinte: h.slice(0, 16) }; });
+    }, function (e) {
+      if (e.code === "introuvable" || e.code === "refus-google") throw souci("Origami n'arrive pas à lire le modèle de la Boîte mail avec ce compte.", "modele", e.statut, e.brut);
+      throw e;
+    });
+  }
+  /** La Boîte mail de ce compte installée par Origami : { classeur, projet, deploiement, adresse } ou null. */
+  function chercherBoite(s) {
+    return drive(s, "GET", "files?pageSize=10&orderBy=createdTime&fields=" + enc("files(id,appProperties)") + "&q=" + enc("appProperties has { key='origami' and value='" + MARQUE_BOITE + "' } and trashed=false")).then(function (l) {
+      var f = ((l && l.files) || []).filter(function (x) { return x && /^[\w-]{20,120}$/.test(String(x.id || "")); }).map(function (x) {
+        var a = x.appProperties || {}, dep = /^[\w-]{20,120}$/.test(String(a.origamiMoteur || "")) ? a.origamiMoteur : "";
+        return { classeur: x.id, projet: /^[\w-]{20,120}$/.test(String(a.origamiProjet || "")) ? a.origamiProjet : "", deploiement: dep, adresse: adresseDeploiement(dep) };
+      });
+      return f.filter(function (x) { return x.deploiement; })[0] || f[0] || null;
+    });
+  }
+  /**
+   * Installe la Boîte mail dans le compte connecté, ou la remet au niveau du modèle. o = { cle, moteur(prise, args), dire(etape) }.
+   * Étapes dites : chercher, code, classeur, projet, contenu, version, ligne. Rend { classeur, projet, deploiement, adresse, dossier, secret, premiere }.
+   */
+  function installerBoite(o) {
+    var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, secret = hasard(32), dossier = "", premiere = false;
+    if (!s || !s.drive) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
+    dire("chercher");
+    return chercherBoite(s).then(function (x) {
+      r = x || { classeur: "", projet: "", deploiement: "", adresse: "" };
+      premiere = !r.deploiement;
+      dire("code");
+      return lireModeleBoite(s);
+    }).then(function (m) {
+      modele = m;
+      dire("classeur");
+      // Le dossier « Origami/Boîte mail/Données » : préparé par le moteur du compte (il le refait s'il a été mis à la corbeille).
+      return Promise.resolve(o.moteur ? o.moteur("rangement.preparer", { appli: "boite" }) : null).then(function (rg) {
+        dossier = rg && rg.donnees && /^[\w-]{6,120}$/.test(String(rg.donnees.id || "")) ? rg.donnees.id : "";
+        if (r.classeur) return null;
+        return drive(s, "POST", "files?fields=id", { name: NOM_BOITE, mimeType: "application/vnd.google-apps.spreadsheet", appProperties: { origami: MARQUE_BOITE } }).then(function (f) {
+          if (!/^[\w-]{20,120}$/.test(String(f.id || ""))) throw souci("Google n'a pas rendu l'identifiant du classeur. Réessaie.", "occupe");
+          r.classeur = f.id;
+        });
+      }).then(function () {
+        if (!dossier) return null;
+        // Rangé dans son dossier ; si Google refuse, il reste à la racine du Drive et rien ne casse.
+        return drive(s, "GET", "files/" + enc(r.classeur) + "?fields=parents").then(function (f) {
+          var p = (f && f.parents) || [];
+          if (p.indexOf(dossier) >= 0) return null;
+          return drive(s, "PATCH", "files/" + enc(r.classeur) + "?addParents=" + enc(dossier) + (p.length ? "&removeParents=" + enc(p.join(",")) : "") + "&fields=id", {});
+        }).catch(function (e) { if (e && e.code === "expire") throw e; });
+      });
+    }).then(function () {
+      if (r.projet) return null;
+      dire("projet");
+      return api(s, "POST", "projects", { title: "Boîte mail", parentId: r.classeur }).then(function (p) {
+        if (!/^[\w-]{20,120}$/.test(String(p.scriptId || ""))) throw souci("Google n'a pas rendu l'identifiant du projet. Réessaie.", "occupe");
+        r.projet = p.scriptId; return noter(s, r.classeur, { origamiProjet: r.projet });
+      });
+    }).then(function () { return hacher("boite-premier:" + secret); })
+      .then(function (empreinte) {
+        dire("contenu");
+        var fichiers = modele.fichiers.map(function (f) { return f.type === "SERVER_JS" && nbDoPost(f.source) ? { name: f.name, type: f.type, source: f.source.replace(DOPOST, function (m) { return m + APPEL_BOITE; }) } : f; })
+          .concat([{ name: "99_Origami", type: "SERVER_JS", source: fichierPremierBoite(empreinte) }]);
+        return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiers });
+      })
+      .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Boîte mail installée depuis Origami" }); })
+      .then(function (v) {
+        var version = Number(v.versionNumber) || 0; if (!version) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe");
+        dire("ligne");
+        if (r.deploiement) return api(s, "PUT", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement), { deploymentConfig: { scriptId: r.projet, versionNumber: version, manifestFileName: "appsscript", description: "Boîte mail de ce compte" } });
+        return api(s, "POST", "projects/" + enc(r.projet) + "/deployments", { versionNumber: version, manifestFileName: "appsscript", description: "Boîte mail de ce compte" }).then(function (d) {
+          if (!/^[\w-]{20,120}$/.test(String(d.deploymentId || ""))) throw souci("Google n'a pas rendu l'identifiant de la publication. Réessaie.", "occupe");
+          r.deploiement = d.deploymentId; r.adresse = adresseDe(d) || adresseDeploiement(d.deploymentId);
+        });
+      })
+      .then(function () { return noter(s, r.classeur, { origamiMoteur: r.deploiement, origamiModele: modele.empreinte }); })
+      .then(function () { return { classeur: r.classeur, projet: r.projet, deploiement: r.deploiement, adresse: r.adresse || adresseDeploiement(r.deploiement), dossier: dossier, secret: secret, premiere: premiere, modele: modele.empreinte }; })
+      .catch(function (e) {
+        if (e && e.code === "introuvable" && !o.refait && r && r.classeur && r.projet) return noter(s, r.classeur, { origamiProjet: null, origamiMoteur: null }).then(function () { return installerBoite({ cle: o.cle, moteur: o.moteur, dire: o.dire, refait: true }); });
+        throw e;
+      });
+  }
+  /** La Boîte mail répond-elle ? Pas encore autorisée par son propriétaire, elle ne répond rien de lisible. */
+  function pingBoite(adresse) {
+    if (!ADRESSE_EXEC.test(String(adresse || ""))) return Promise.resolve(false);
+    return fetch(String(adresse), { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ f: "etatAcces", jeton: "", args: [] }), redirect: "follow" })
+      .then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { var d = null; try { d = JSON.parse(t); } catch (e) { d = null; } return !!(d && d.ok === true); }, function () { return false; });
+  }
+  /** Premier contact : la Boîte mail rend le code de l'appli du Mac. o = { adresse, secret }. Rend { code, email, lien }. */
+  function relierBoite(o) {
+    if (!ADRESSE_EXEC.test(String(o.adresse || "")) || !/^[0-9a-f]{64}$/.test(String(o.secret || ""))) return Promise.reject(souci("L'installation de cette Boîte mail est à reprendre depuis Origami.", "secret"));
+    return fetch(String(o.adresse), { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ f: "origami.premier", secret: o.secret, adresse: o.adresse }), redirect: "follow" })
+      .then(function (r) { return r.text().then(function (t) { var d = null; try { d = JSON.parse(t); } catch (e) { d = null; } if (!r.ok || !d) throw souci("La Boîte mail ne répond pas encore.", "muet"); return d; }); }, function () { throw souci("La Boîte mail ne répond pas encore.", "muet"); })
+      .then(function (d) {
+        if (!d.ok) throw souci(String(d.erreur || "La Boîte mail a refusé."), "refus");
+        var code = String((d.r && d.r.code) || "");
+        if (!/^[A-Za-z0-9_-]{20,3000}$/.test(code)) throw souci("La Boîte mail n'a pas rendu de code lisible.", "refus");
+        return { code: code, email: String((d.r && d.r.email) || ""), lien: "boitemail://relier?c=" + code };
+      });
+  }
+
+  var sortie = { charger: charger, installerBoite: installerBoite, pingBoite: pingBoite, relierBoite: relierBoite, _fichierPremierBoite: fichierPremierBoite, _appelBoite: APPEL_BOITE, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
     parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, jeterReste: jeterReste, retirerAcces: retirerAcces,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
