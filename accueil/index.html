@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.60">
+<meta name="origami-version" content="2026-11-22.61">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -541,9 +541,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.60"></script>
-<script src="repertoire.js?v=2026-11-22.60"></script>
-<script src="google.js?v=2026-11-22.60"></script>
+<script src="agenda.js?v=2026-11-22.61"></script>
+<script src="repertoire.js?v=2026-11-22.61"></script>
+<script src="google.js?v=2026-11-22.61"></script>
 <script>
 (function () {
   "use strict";
@@ -734,7 +734,12 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   // Les Compta ouvertes reçoivent la liste des comptes ; elle leur est redite quand un compte change de nom ou de couleur.
   var fenComptes = {};
-  function listeComptes(cid) { return { origami: "comptes", actuel: cid, repertoire: !!window.OrigamiRepertoire, liste: comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), couleur: c.couleur, compta: !!comptaDe(c.id) }; }) }; }
+  function listeComptes(cid) {
+    var l = comptes().map(function (c) { return { id: c.id, nom: c.nom.slice(0, 60), couleur: c.couleur, compta: !!comptaDe(c.id) }; });
+    // Appli Compta du Mac seule (23.11) : la dernière ligne du menu de la Compta ajoute la Compta d'un autre compte, sans Origami.
+    if (typeof COMPTA_SEULE !== "undefined" && COMPTA_SEULE) l.push({ id: "+ajouter", nom: "+ Ajouter ou retirer une Compta", couleur: "", compta: true });
+    return { origami: "comptes", actuel: cid, repertoire: !!window.OrigamiRepertoire, liste: l };
+  }
   function direComptes() { Object.keys(fenComptes).forEach(function (cid) { var f = fenComptes[cid]; try { f.w.postMessage(listeComptes(cid), f.o); } catch (e) { delete fenComptes[cid]; } }); }
   // De quelle appli ouverte vient un message ? (lui-même ou un cadre placé dedans, jamais une autre page)
   function appliDe(w) {
@@ -1195,6 +1200,7 @@ button.tuile:hover { border-color: var(--ligne); }
       // Comptes : la Compta affiche le nom du compte et propose d'en changer.
       if (d.origami === "comptes-demande") { fenComptes[cid] = { w: ev.source, o: ev.origin }; try { ev.source.postMessage(listeComptes(cid), ev.origin); } catch (e) {} return; }
       if (d.origami === "compte-choisir") {
+        if (COMPTA_SEULE && d.id === "+ajouter") { etat.vue = "comptaAjout"; montrer(); return; }
         var cc = compte(String(d.id || ""));
         if (!cc || cc.id === cid) return;
         if (!comptaDe(cc.id)) { avis("La Compta n'est pas encore installée dans le compte « " + cc.nom + " »."); return; }
@@ -3829,7 +3835,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : c0 && vue === "compta" && comptaDe(c0.id) ? cleCadre(c0, vue) : "";
-    if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "desinstaller" && desinst.phase) && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0) && !(FENETRE === "tickets" && vue === "tickets0" && c0)) { vue = etat.vue = "accueil"; cadre = ""; }
+    if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "desinstaller" && desinst.phase) && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0) && !(FENETRE === "tickets" && vue === "tickets0" && c0) && !(COMPTA_SEULE && vue === "comptaAjout")) { vue = etat.vue = "accueil"; cadre = ""; }
     if (cadre) ouvrirCadre(cadre);
     if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
     for (var id in cadres) cadres[id].hidden = id !== cadre;
@@ -3843,6 +3849,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "reglages") { dessinerReglages(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "tickets0") { dessinerTickets(); releverSiVieux(c0.id); }
+    else if (vue === "comptaAjout") dessinerComptaAjout();
     else if (vue === "diffusion0") { dessinerDiffusion(); releverSiVieux(c0.id); releverDiffusionSiVieux(c0.id); }
     else if (vue === "agenda") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiAgenda) window.OrigamiAgenda.montrer(agendaZone, pontAgenda); else page.hidden = false, page.innerHTML = '<div class="info"><h1>Agenda</h1><p>L\'agenda n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (vue === "repertoire") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiRepertoire) window.OrigamiRepertoire.montrer(repertoireZone, pontRepertoire); else page.innerHTML = '<div class="info"><h1>Répertoire</h1><p>Le répertoire n\'a pas pu se charger. Recharge la page.</p></div>'; }
@@ -3881,6 +3888,8 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     // « Continuer avec Google » de l'écran de bienvenue : même geste que dans « Ajouter un compte », dans le clic même.
     if (d.accueilGoogle && PARCOURS_GOOGLE) { parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; montrer(); parcoursLancer(); return; }
+    if (d.comptaAjout && COMPTA_SEULE) { if (d.comptaAjout === "ok") comptaAjouter(); else { etat.vue = "compta"; montrer(); } return; }
+    if (d.comptaRetirer && COMPTA_SEULE) { comptaRetirer(d.comptaRetirer); return; }
     // Fenêtre Tickets : changer de compte, en ajouter un, relier un compte par Google.
     if (d.tkCompte && compte(d.tkCompte)) { etat.compte = d.tkCompte; etat.vue = vueTk(d.tkCompte); if (TK_SEUL) garder("origami_tk_choisi", d.tkCompte); if (parcours.phase) parcoursQuitter(); if (barreTk) { var dt = barreTk.querySelector("details"); if (dt) dt.open = false; } montrer(); return; }
     if (d.tkAjouter) { if (parcours.phase) parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; if (barreTk) { var da = barreTk.querySelector("details"); if (da) da.open = false; } montrer(); return; }
@@ -4079,11 +4088,51 @@ button.tuile:hover { border-color: var(--ligne); }
       else if (c && c.id !== "compagnie") { c.nom = String(r.nom || c.nom).slice(0, 40); if (COULEURS.indexOf(r.couleur) >= 0) c.couleur = r.couleur; }
     });
   }
+  // ---- Appli Compta du Mac seule : ajouter la Compta d'un compte à la main (23.11, Sévane : « même si Origami n'est pas installé ») ----
+  // On colle l'adresse de la Compta (Outils › Accès par code PIN › Copier l'adresse) ; la Compta demande ensuite son propre code PIN.
+  // L'adresse seule n'ouvre rien : chaque Compta vérifie son PIN elle-même, jamais celui d'une autre.
+  function comptasAMain() { var l = []; try { l = JSON.parse(lire("origami_comptas_recues") || "[]"); } catch (e) { l = []; } return (Array.isArray(l) ? l : []).filter(function (r) { return r && r.m === 1 && /^c[0-9a-z]{4,12}$/.test(r.id) && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(r.u); }); }
+  function dessinerComptaAjout() {
+    var mains = comptasAMain(), h = '<div class="info compta-ajout"><h1>Ajouter une Compta</h1>';
+    h += "<p>Pour ouvrir ici la Compta d'un autre compte Google, sans Origami : dans cette Compta (sur un appareil où elle est déjà ouverte), va dans <strong>Outils › Accès par code PIN</strong> et clique « Copier l'adresse ». Colle-la ci-dessous. La Compta te demandera ensuite son code PIN.</p>";
+    h += '<label class="champ">Adresse de la Compta<input id="ajComptaU" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></label>';
+    h += '<label class="champ">Nom à afficher<input id="ajComptaN" type="text" maxlength="40" placeholder="Par exemple : Sévane perso"></label>';
+    h += '<p id="ajComptaSouci" class="souci" role="status"></p><div class="actions"><button class="bouton fort" data-compta-ajout="ok">Ajouter</button><button class="bouton" data-compta-ajout="annuler">Annuler</button></div>';
+    if (mains.length) {
+      h += '<h2 class="sous-titre">Ajoutées à la main sur ce Mac</h2>';
+      mains.forEach(function (r) { var c = compte(r.id); h += '<div class="rang-r"><span class="nom">' + texte(c ? c.nom : r.nom) + '</span><button class="bouton" data-compta-retirer="' + r.id + '">Retirer</button></div>'; });
+      h += '<p class="aide-fine">Retirer une Compta d\'ici ne touche à rien dans Google : elle disparaît seulement de cette appli.</p>';
+    }
+    page.innerHTML = h + "</div>";
+  }
+  function comptaAjouter() {
+    var u = String((document.getElementById("ajComptaU") || {}).value || "").trim().replace(/\/dev$/, "/exec"), nom = String((document.getElementById("ajComptaN") || {}).value || "").trim().slice(0, 40), souci = document.getElementById("ajComptaSouci");
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u)) { souci.textContent = "Ce n'est pas une adresse de Compta. Elle commence par https://script.google.com/macros/s/ et finit par /exec."; return; }
+    if (u === ADRESSES.compta) { souci.textContent = "C'est la Compta de la compagnie : elle est déjà là."; return; }
+    var deja = Object.keys(COMPTAS_RECUES).filter(function (k) { return COMPTAS_RECUES[k] === u && compte(k); })[0];
+    if (deja) { garder("origami_compta_choisi", deja); etat.compte = deja; etat.vue = "compta"; montrer(); direComptes(); return; }
+    if (!nom) { souci.textContent = "Donne-lui un nom, pour la reconnaître dans le menu."; return; }
+    var pris = comptes().map(function (c) { return c.couleur; }), couleur = COULEURS.filter(function (x) { return pris.indexOf(x) < 0; })[0] || COULEURS[(comptes().length) % COULEURS.length];
+    var id = "c" + Date.now().toString(36), l = []; try { l = JSON.parse(lire("origami_comptas_recues") || "[]"); } catch (e) { l = []; }
+    l = (Array.isArray(l) ? l : []).concat([{ id: id, nom: nom, couleur: couleur, u: u, m: 1 }]).slice(-12);
+    garder("origami_comptas_recues", JSON.stringify(l)); COMPTAS_RECUES[id] = u;
+    etat.ajoutes.push({ id: id, nom: nom, couleur: couleur, applis: ["boite"] });
+    garder("origami_compta_choisi", id); etat.compte = id; etat.vue = "compta"; montrer(); direComptes();
+    avis("Compta ajoutée : elle te demande son code PIN.");
+  }
+  function comptaRetirer(id) {
+    var l = []; try { l = JSON.parse(lire("origami_comptas_recues") || "[]"); } catch (e) { l = []; }
+    garder("origami_comptas_recues", JSON.stringify((Array.isArray(l) ? l : []).filter(function (r) { return !(r && r.id === id && r.m === 1); })));
+    delete COMPTAS_RECUES[id]; etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== id; }); oublierCompta(id);
+    if (lire("origami_compta_choisi") === id) garder("origami_compta_choisi", "");
+    if (etat.compte === id) etat.compte = compte("compagnie") ? "compagnie" : compteParDefaut();
+    avis("Compta retirée de cette appli."); montrer(); direComptes();
+  }
   // Rend vrai si un paquet a été reçu (l'ancre est effacée tout de suite, comme pour « Relier »).
   function recevoirComptas(a) {
     var m = /^comptas=([A-Za-z0-9_-]{4,3800})$/.exec(String(a || "")), p = m && lireComptasTransmises(m[1]);
     if (m) { try { history.replaceState(null, "", location.href.split("#")[0]); } catch (e) {} ancre = ""; }
-    if (p && COMPTA_SEULE) { garder("origami_comptas_recues", JSON.stringify(p.l)); garder("origami_compta_sans_cie", p.g === 0 ? "1" : ""); if (p.c && (p.c !== "compagnie" || p.g)) garder("origami_compta_choisi", p.c); }
+    if (p && COMPTA_SEULE) { garder("origami_comptas_recues", JSON.stringify(p.l.concat(comptasAMain().filter(function (r) { return !p.l.some(function (x) { return x.u === r.u || x.id === r.id; }); })))); garder("origami_compta_sans_cie", p.g === 0 ? "1" : ""); if (p.c && (p.c !== "compagnie" || p.g)) garder("origami_compta_choisi", p.c); }
     if (COMPTA_SEULE) prendreComptas();
     return !!(p && COMPTA_SEULE);
   }
