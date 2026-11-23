@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.59">
+<meta name="origami-version" content="2026-11-22.60">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -49,6 +49,21 @@ h1, h2, h3, p { margin: 0; }
 #origami { display: flex; height: 100%; }
 /* Fenêtre d'une seule appli (appli Mac : une fenêtre par appli, ou l'appli installée seule) : ni volet ni barre. */
 html.fenetre #menu, html.fenetre #barre { display: none !important; }
+/* Fenêtre Tickets (23.11) : une barre en haut pour changer de compte, au-dessus de l'appli. */
+#tkComptes { position: absolute; top: 0; left: 0; right: 0; height: 48px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border-bottom: 1px solid var(--ligne); background: var(--carte); z-index: 4; }
+html.avec-tk-comptes #scene > section, html.avec-tk-comptes #attente { top: 48px; }
+html.avec-tk-comptes #scene iframe { top: 48px; height: calc(100% - 48px); }
+#tkComptes .point { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+.tk-choix { position: relative; }
+.tk-choix summary { list-style: none; display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 10px; border-radius: 8px; cursor: pointer; font-weight: 600; max-width: calc(100vw - 40px); }
+.tk-choix summary::-webkit-details-marker { display: none; }
+.tk-choix summary .nom { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tk-choix summary .fleche { color: var(--doux); font-weight: 400; }
+.tk-choix[open] summary, .tk-choix summary:hover { background: var(--carte2); }
+.tk-choix .liste { position: absolute; top: 40px; left: 0; min-width: 250px; max-width: calc(100vw - 24px); display: flex; flex-direction: column; gap: 1px; padding: 6px; border: 1px solid var(--ligne); border-radius: 12px; background: var(--carte); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); }
+.tk-choix .liste button { display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: none; text-align: left; }
+.tk-choix .liste button:hover, .tk-choix .liste button[aria-current="true"] { background: var(--carte2); }
+.tk-choix .liste .plus { color: var(--accent); }
 /* Pas de « color-scheme » ici : un cadre dont la page n'a pas le même réglage reçoit un fond blanc opaque (bande blanche au bord). */
 html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9a9a9; --ligne: #353535; }
 
@@ -526,9 +541,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.59"></script>
-<script src="repertoire.js?v=2026-11-22.59"></script>
-<script src="google.js?v=2026-11-22.59"></script>
+<script src="agenda.js?v=2026-11-22.60"></script>
+<script src="repertoire.js?v=2026-11-22.60"></script>
+<script src="google.js?v=2026-11-22.60"></script>
 <script>
 (function () {
   "use strict";
@@ -628,6 +643,13 @@ button.tuile:hover { border-color: var(--ligne); }
       if (garde.ouverture === "bord") etat.ouverture = "bord";
     }
   } catch (e) {}
+  // ---- Appli Tickets du Mac installée seule (23.11, Sévane : « que chaque compte ait son Tickets », « même si Origami n'est pas installé ») ----
+  // Elle a sa propre mémoire. Ses comptes : ceux qu'Origami lui transmet en l'ouvrant (#tickets=…, nom, couleur, adresse Google ;
+  // jamais de code ni de clé), et ceux ajoutés chez elle par « Continuer avec Google ». Elle les garde sous « origami_tk_comptes ».
+  var TK_SEUL = /[?&]fenetre=tickets(&|$)/.test(location.search) && !/[?&]dans=origami(&|$)/.test(location.search);
+  function tkComptesGardes() { var l = []; try { l = JSON.parse(lire("origami_tk_comptes") || "[]"); } catch (e) { l = []; } return (Array.isArray(l) ? l : []).filter(function (c) { return c && /^c[0-9a-z]{4,12}$/.test(c.id) && typeof c.nom === "string" && c.nom.trim() && COULEURS.indexOf(c.couleur) >= 0; }).slice(0, 12); }
+  if (TK_SEUL) tkComptesGardes().forEach(function (c) { if (!etat.ajoutes.some(function (x) { return x.id === c.id; })) etat.ajoutes.push({ id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, applis: ["boite"] }); });
+  function tkRetenir() { if (TK_SEUL) garder("origami_tk_comptes", JSON.stringify(etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }))); }
   // Les fenêtres à part du Mac (Compta, Tickets, Frais) et Tickets seul ouvrent toujours les applis de la compagnie.
   var EN_FENETRE = /[?&]fenetre=(compta|tickets0|tickets|frais)(&|$)/.test(location.search);
   var COMPTA_APPLI = /[?&]fenetre=compta(&|$)/.test(location.search) && !/[?&](dans=origami|ouvrir=)/.test(location.search);
@@ -943,8 +965,16 @@ button.tuile:hover { border-color: var(--ligne); }
     var j = JSON.stringify({ c: ch, l: l.slice(0, 12), g: avecCompagnie() ? 1 : 0 }), b = btoa(unescape(encodeURIComponent(j))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     return b.length > 3800 ? null : "https://sevanegu-pixel.github.io/origami/accueil/?fenetre=compta#comptas=" + b;
   }
+  // L'appli Tickets du Mac : Origami lui transmet ses comptes (nom, couleur, adresse Google, jamais de clé) et celui à montrer.
+  // Elle relie elle-même chaque compte, une fois, par « Continuer avec Google ».
+  function lienTicketsMac(voulu) {
+    var l = etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, g: String(googleAdresse(c.id) || "").slice(0, 120) }; });
+    var v = voulu || etat.compte, ch = v && v !== "tous" && compte(v) ? v : "";
+    var b = btoa(unescape(encodeURIComponent(JSON.stringify({ c: ch, l: l.slice(0, 12) })))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return b.length > 3800 ? null : "https://sevanegu-pixel.github.io/origami/accueil/?fenetre=tickets#tickets=" + b;
+  }
   function macOuvrir(id, de) {
-    var lien = id === "compta" ? lienComptaMac(de) : null;
+    var lien = id === "compta" ? lienComptaMac(de) : id === "tickets" ? lienTicketsMac(de) : null;
     if (id === "compta") {   // dire tout de suite pourquoi l'appli Compta montrera la compagnie
       var v = de || etat.compte, cv = v && v !== "tous" && v !== "compagnie" ? compte(v) : null;
       var sans = etat.ajoutes.filter(function (c) { return !comptaDe(c.id); });
@@ -969,6 +999,22 @@ button.tuile:hover { border-color: var(--ligne); }
   var OUVRIR = (/[?&]ouvrir=([A-Za-z0-9_-]{1,6000})(&|$)/.exec(location.search) || [])[1] || "";
   // … et « &de=<compte> » dit de quel compte est cette Compta (22.11 ; sans lui : la compagnie).
   var DE = OUVRIR ? (/[?&]de=([A-Za-z0-9_-]{1,40})(&|$)/.exec(location.search) || [])[1] || "" : "";
+  // Fenêtre Tickets (23.11) : chaque compte a ses tickets ; « &de=<compte> » dit lequel montrer d'abord. La compagnie garde son
+  // appli Tickets d'origine ; les autres comptes, les Tickets de leur moteur. Une barre en haut change de compte.
+  var DE_TK = FENETRE === "tickets" ? (/[?&]de=([A-Za-z0-9_-]{1,40})(&|$)/.exec(location.search) || [])[1] || "" : "";
+  var barreTk = null;
+  if (FENETRE === "tickets") document.addEventListener("click", function (e) { var dt = barreTk && barreTk.querySelector("details[open]"); if (dt && !(e.target.closest && e.target.closest(".tk-choix"))) dt.open = false; }, true);
+  if (FENETRE === "tickets") { barreTk = document.createElement("div"); barreTk.id = "tkComptes"; scene.insertBefore(barreTk, scene.firstChild); document.documentElement.classList.add("avec-tk-comptes"); }
+  function vueTk(id) { return id === "compagnie" && COMPTE_COMPAGNIE.applis.indexOf("tickets") >= 0 ? "tickets" : "tickets0"; }
+  function dessinerBarreTk() {
+    if (!barreTk) return;
+    var c0 = compte(etat.compte), ouvert = !!barreTk.querySelector("details[open]");
+    var h = '<details class="tk-choix"' + (ouvert ? " open" : "") + '><summary><span class="point" style="background:' + (c0 ? c0.couleur : "#999") + '"></span><span class="nom">' + texte(c0 ? c0.nom : "Choisir un compte") + '</span><span class="fleche" aria-hidden="true">▾</span></summary><div class="liste" role="menu">';
+    comptes().forEach(function (c) { h += '<button role="menuitem" data-tk-compte="' + c.id + '"' + (c0 && c0.id === c.id ? ' aria-current="true"' : "") + '><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
+    if (TK_SEUL) h += '<button role="menuitem" class="plus" data-tk-ajouter="1">+ Ajouter un compte</button>';   // dans Origami, les comptes s'ajoutent dans Origami
+    h += "</div></details>";
+    barreTk.innerHTML = h;
+  }
   // Frais a sa propre page (même site, donc même mémoire) : elle s'ouvre avec le lien personnel reçu de la compagnie, gardé sous ce nom.
   // Dans une fenêtre Frais, un lien déjà connu ouvre Frais tout de suite ; sinon l'écran demande de le coller une fois.
   var CLE_FRAIS = "origami_frais_cle", FORME_CLE_FRAIS = /^[A-Za-z0-9]{16,64}$/;
@@ -983,7 +1029,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function ouvrirFenetre(id) {
     var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
     if (!W || FENETRE || !FENETRES_MAC[id]) return false;
-    var label = "appli-" + id, url = new URL("?fenetre=" + id + (id === "compta" ? "&dans=origami" : ""), location.href.split("#")[0].split("?")[0]).href;
+    var label = "appli-" + id, url = new URL("?fenetre=" + id + (id === "compta" ? "&dans=origami" : id === "tickets" ? "&dans=origami&de=compagnie" : ""), location.href.split("#")[0].split("?")[0]).href;
     function creer() { try { new W(label, { url: url, title: APPLIS[id].nom, width: 1200, height: 860, minWidth: 380, minHeight: 520 }); } catch (e) {} }
     try {
       var p = typeof W.getByLabel === "function" ? W.getByLabel(label) : null;
@@ -1453,9 +1499,14 @@ button.tuile:hover { border-color: var(--ligne); }
       var hr = '<div class="appli" data-cadre="' + c.id + '|relier' + (moteurs[c.id] ? "1" : "0") + '"><div class="entete"><div><h1>' + titreTk + "</h1><p>" + nomCompteTk + '</p></div></div><div class="carte">';
       if (moteurs[c.id]) hr += '<p class="attend">' + roue() + 'Lecture du compte en cours…</p><div class="actions"><button class="bouton" data-relever="' + c.id + '">Actualiser</button></div>';
       else {
-        hr += "<p>Sur cet appareil, Origami n'est pas encore relié à ton compte Google. C'est la liaison d'Origami lui-même : elle se fait une seule fois par appareil et sert ensuite à tout Origami (Tickets, Agenda, Répertoire…).</p>";
-        hr += "<p>Le plus simple : sur un appareil où Origami est déjà relié, va dans Réglages, « Relier un autre appareil », et ouvre ici le lien obtenu. Sinon : classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil », et colle le code ici.</p>";
-        hr += '<div class="actions"><button class="bouton fort" data-vue="relier" data-de="' + c.id + '">Relier Origami</button></div>';
+        if (PARCOURS_GOOGLE && window.OrigamiGoogle && !macSansGoogle()) {   // 23.11 : relier par Google, une fois par appareil
+          hr += "<p>Ce compte n'est pas encore relié sur cet appareil. Connecte-toi à Google avec ce compte" + (googleAdresse(c.id) ? " (<strong>" + texte(googleAdresse(c.id)) + "</strong>)" : "") + ", une seule fois : Origami s'y retrouve tout seul, ou s'y installe s'il n'y est pas encore.</p>";
+          hr += '<div class="actions"><button class="bouton fort" data-tk-google="' + c.id + '">Continuer avec Google</button><button class="bouton" data-vue="relier" data-de="' + c.id + '">J\'ai un code ou un lien</button></div>';
+        } else {
+          hr += "<p>Sur cet appareil, Origami n'est pas encore relié à ton compte Google. C'est la liaison d'Origami lui-même : elle se fait une seule fois par appareil et sert ensuite à tout Origami (Tickets, Agenda, Répertoire…).</p>";
+          hr += "<p>Le plus simple : sur un appareil où Origami est déjà relié, va dans Réglages, « Relier un autre appareil », et ouvre ici le lien obtenu. Sinon : classeur « Origami - Réglages du compte », menu Origami, « Relier un appareil », et colle le code ici.</p>";
+          hr += '<div class="actions"><button class="bouton fort" data-vue="relier" data-de="' + c.id + '">Relier Origami</button></div>';
+        }
       }
       if (c.applis.indexOf("tickets") >= 0 && !seul) hr += "<p>Ton appli Tickets habituelle reste dans « Tickets ».</p>";
       if (!racine || racine.getAttribute("data-cadre") !== c.id + "|relier" + (moteurs[c.id] ? "1" : "0")) page.innerHTML = hr + "</div></div>";
@@ -3453,7 +3504,8 @@ button.tuile:hover { border-color: var(--ligne); }
       var cp = compte(P.id);
       h += parcoursBarre(4) + "<h1>C'est prêt</h1><p><strong>" + texte(cp ? cp.nom : "Ton compte") + "</strong> est dans Origami" + (P.retrouve ? " : il était déjà installé dans ce compte, cet appareil vient d'y être relié." : ".") + "</p>";
       h += "<p>Tu peux changer son nom et sa couleur dans les Réglages.</p>";
-      h += '<div class="pas-boutons"><button class="bouton" data-parcours="reglages">Réglages du compte</button><button class="bouton fort" data-parcours="applis">Choisir mes applis</button></div>';
+      h += FENETRE === "tickets" ? '<div class="pas-boutons"><button class="bouton fort" data-tk-compte="' + texte(P.id) + '">Ouvrir ses tickets</button></div>'
+        : '<div class="pas-boutons"><button class="bouton" data-parcours="reglages">Réglages du compte</button><button class="bouton fort" data-parcours="applis">Choisir mes applis</button></div>';
     } else {   // souci
       h += "<h1>L'installation s'est arrêtée</h1>" + souci + brut;
       h += '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Retour</button><button class="bouton fort" data-parcours="lancer">' + (P.reconnecter ? "Se reconnecter à Google" : "Réessayer") + "</button></div>";
@@ -3588,6 +3640,9 @@ button.tuile:hover { border-color: var(--ligne); }
     garder("origami_installation", "");
     if (estMoteurCompagnie(lie.u)) { id = "compagnie"; etat.sansCompagnie = false; delete etat.noms.compagnie; }
     else id = Object.keys(moteurs).filter(function (k) { return k !== "compagnie" && moteurs[k].u === lie.u && compte(k); })[0] || "";
+    // Relié depuis un compte déjà dans la liste mais pas encore relié ici (appli Tickets : « Continuer avec Google ») : c'est lui.
+    var pour = parcours.pour, gp = pour ? String(googleAdresse(pour) || "").toLowerCase() : "";
+    if (!id && pour && pour !== "compagnie" && compte(pour) && !moteurs[pour] && (!gp || !google || gp === google.toLowerCase())) id = pour;
     // Le moteur installé par la page ne connaît pas l'adresse du compte : il s'appelle « Mon compte ». La page, elle, la connaît.
     var sansNom = !lie.nom || lie.nom === "Mon compte", nomGoogle = google ? google.split("@")[0].slice(0, 40) : "", aNommer = false;
     if (!id) {
@@ -3599,7 +3654,9 @@ button.tuile:hover { border-color: var(--ligne); }
     G.adopter("ajout", id);
     clearInterval(parcours.minuteur);
     parcours = { phase: "pret", id: id, retrouve: !!lie.retrouve, google: google, haut: true };
-    guide.etape = 0; guide.pour = ""; etat.compte = id; etat.vue = "ajouter"; montrer();
+    guide.etape = 0; guide.pour = ""; etat.compte = id; etat.vue = "ajouter";
+    if (FENETRE === "tickets") { parcours = { phase: "" }; etat.vue = vueTk(id); if (TK_SEUL) garder("origami_tk_choisi", id); }
+    montrer();
     if (aNommer) moteurAppel(id, "compte.regler", { nom: nomGoogle }, { sans: true }).then(function () { relever(id); }, function () { relever(id); });
     else relever(id);
   }
@@ -3772,7 +3829,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : c0 && vue === "compta" && comptaDe(c0.id) ? cleCadre(c0, vue) : "";
-    if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "desinstaller" && desinst.phase) && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0)) { vue = etat.vue = "accueil"; cadre = ""; }
+    if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "desinstaller" && desinst.phase) && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0) && !(FENETRE === "tickets" && vue === "tickets0" && c0)) { vue = etat.vue = "accueil"; cadre = ""; }
     if (cadre) ouvrirCadre(cadre);
     if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
     for (var id in cadres) cadres[id].hidden = id !== cadre;
@@ -3794,8 +3851,8 @@ button.tuile:hover { border-color: var(--ligne); }
       // Applis : le compte est relu ici aussi (19.11 : sans cela, un compte tout juste relié restait sur « Arrive dès que le compte est relu »).
       if (vue === "applis") (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { if (c) releverSiVieux(c.id); });
     }
-    dessinerMenu();
-    document.title = FENETRE === "tickets0" ? "Tickets" : APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : vue === "reglages" ? "Réglages · Origami" : "Origami";
+    dessinerMenu(); dessinerBarreTk(); tkRetenir();
+    document.title = FENETRE === "tickets0" || FENETRE === "tickets" ? "Tickets" : APPLIS[vue] ? (c0 ? nomAppli(c0, vue) : APPLIS[vue].nom) + " · Origami" : vue === "reglages" ? "Réglages · Origami" : "Origami";
     retenir();
   }
   document.addEventListener("click", function (ev) {
@@ -3824,12 +3881,16 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     // « Continuer avec Google » de l'écran de bienvenue : même geste que dans « Ajouter un compte », dans le clic même.
     if (d.accueilGoogle && PARCOURS_GOOGLE) { parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; montrer(); parcoursLancer(); return; }
+    // Fenêtre Tickets : changer de compte, en ajouter un, relier un compte par Google.
+    if (d.tkCompte && compte(d.tkCompte)) { etat.compte = d.tkCompte; etat.vue = vueTk(d.tkCompte); if (TK_SEUL) garder("origami_tk_choisi", d.tkCompte); if (parcours.phase) parcoursQuitter(); if (barreTk) { var dt = barreTk.querySelector("details"); if (dt) dt.open = false; } montrer(); return; }
+    if (d.tkAjouter) { if (parcours.phase) parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; if (barreTk) { var da = barreTk.querySelector("details"); if (da) da.open = false; } montrer(); return; }
+    if (d.tkGoogle && compte(d.tkGoogle) && PARCOURS_GOOGLE) { parcoursQuitter(); parcours.pour = d.tkGoogle; parcours.souciAccueil = ""; guide.etape = 0; etat.compte = d.tkGoogle; etat.vue = "ajouter"; parcoursLancer(); montrer(); return; }
     if (d.parcours && PARCOURS_GOOGLE) {
       var qp = d.parcours;
       if (qp === "lancer") { parcours.souciAccueil = ""; parcoursLancer(); }
       else if (qp === "installer") parcoursInstaller(true);
       else if (qp === "verifier") parcoursVerifier(false);
-      else if (qp === "annuler") { parcoursQuitter(); guide.etape = 0; montrer(); }
+      else if (qp === "annuler") { parcoursQuitter(); guide.etape = 0; if (FENETRE === "tickets" && compte(etat.compte)) etat.vue = vueTk(etat.compte); montrer(); }
       else if (qp === "applis" || qp === "reglages") { var ip = parcours.id; parcoursQuitter(); if (compte(ip)) etat.compte = ip; etat.vue = qp; montrer(); }
       return;
     }
@@ -3964,7 +4025,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (d.relier !== "compagnie" && estMoteurCompagnie(recu.u)) { document.getElementById("messageCode").textContent = "Ce code est celui du compte de la compagnie. Retire ce compte-ci, puis ajoute la compagnie avec ce code (« Ajouter un compte »)."; return; }
       moteurs[d.relier] = { u: recu.u, c: recu.c }; memoires[d.relier] = { version: 0, listes: {} }; delete etat.noms[d.relier]; retenirMoteurs(); garderMemoire(d.relier); LIEN_RELIER = null;
       guide.etape = 0; guide.pour = "";
-      etat.vue = FENETRE === "tickets0" ? "tickets0" : "reglages"; montrer(); if (FENETRE === "tickets0") relever(d.relier); return;
+      etat.vue = FENETRE === "tickets0" || FENETRE === "tickets" ? "tickets0" : "reglages"; montrer(); if (FENETRE === "tickets0" || FENETRE === "tickets") relever(d.relier); return;
     }
     if (d.delier) { delete etat.noms[d.delier]; oublierCompta(d.delier); delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
@@ -4059,8 +4120,45 @@ button.tuile:hover { border-color: var(--ligne); }
   if (ancre === "reglages") etat.vue = "reglages";
   if (APPLIS[ancre] && compte("compagnie") && COMPTE_COMPAGNIE.applis.indexOf(ancre) >= 0) { etat.compte = "compagnie"; etat.vue = ancre; }
   if (FENETRE === "compta") recevoirComptas(ancre);
+  // Appli Tickets du Mac : comptes transmis par Origami (#tickets=…). Rend le compte à montrer, ou "".
+  function recevoirTickets(a) {
+    var m = /^tickets=([A-Za-z0-9_-]{4,3800})$/.exec(String(a || ""));
+    if (!m) return "";
+    try { history.replaceState(null, "", location.href.split("#")[0]); } catch (e) {}
+    ancre = "";
+    if (!TK_SEUL) return "";
+    var o = null;
+    try { o = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, "+").replace(/_/g, "/"))))); } catch (e) { return ""; }
+    (Array.isArray(o && o.l) ? o.l : []).slice(0, 12).forEach(function (r) {
+      if (!r || !/^c[0-9a-z]{4,12}$/.test(r.id) || typeof r.nom !== "string" || !r.nom.trim() || COULEURS.indexOf(r.couleur) < 0) return;
+      var c = compte(r.id);
+      if (!c) etat.ajoutes.push({ id: r.id, nom: r.nom.slice(0, 40), couleur: r.couleur, applis: ["boite"] });
+      else if (c.id !== "compagnie") { c.nom = r.nom.slice(0, 40); c.couleur = r.couleur; }
+      if (typeof r.g === "string" && /^[^@\s]{1,80}@[^@\s]{1,80}$/.test(r.g) && !googleAdresse(r.id)) garder("origami_google_adresse@" + r.id, r.g);
+    });
+    tkRetenir();
+    var ch = o && typeof o.c === "string" && compte(o.c) ? o.c : "";
+    if (ch) garder("origami_tk_choisi", ch);
+    return ch;
+  }
+  var TK_RECU = FENETRE === "tickets" ? recevoirTickets(ancre) : "";
+  if (TK_SEUL && MAC && MAC.core && MAC.core.invoke) {
+    var relireTickets = function () {
+      if (document.hidden) return;
+      MAC.core.invoke("lire_liaison").then(function (l) {
+        var h = /#(tickets=[A-Za-z0-9_-]{4,3800})$/.exec(String(l || ""));
+        if (!h) return;
+        var ch = recevoirTickets(h[1]);
+        if (ch) { etat.compte = ch; etat.vue = vueTk(ch); }
+        montrer();
+      }, function () {});
+    };
+    window.addEventListener("focus", relireTickets);
+    document.addEventListener("visibilitychange", relireTickets);
+  }
   if (FENETRE === "compta" && DE) prendreComptas();   // appli Compta du Mac : ses comptes viennent de la liste reçue d'Origami
-  if (FENETRE) { etat.compte = "compagnie"; if (DE && compte(DE)) etat.compte = DE; else if (COMPTA_SEULE) { var chx = lire("origami_compta_choisi"); if (chx && compte(chx)) etat.compte = chx; else if (!compte("compagnie")) etat.compte = compteParDefaut(); } etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE; }
+  if (FENETRE) { etat.compte = "compagnie"; if (DE && compte(DE)) etat.compte = DE; else if (COMPTA_SEULE) { var chx = lire("origami_compta_choisi"); if (chx && compte(chx)) etat.compte = chx; else if (!compte("compagnie")) etat.compte = compteParDefaut(); } etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE;
+    if (FENETRE === "tickets") { var tkc = TK_RECU || (DE_TK && compte(DE_TK) ? DE_TK : "") || (TK_SEUL ? lire("origami_tk_choisi") : ""); etat.compte = tkc && compte(tkc) ? tkc : compte("compagnie") ? "compagnie" : compteParDefaut(); etat.vue = etat.compte === "tous" ? "ajouter" : vueTk(etat.compte); } }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (versFrais) location.replace(APPLIS.frais.lien);   // fenêtre Frais avec un lien déjà connu : la page Frais prend la place
