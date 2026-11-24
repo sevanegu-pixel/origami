@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.62">
+<meta name="origami-version" content="2026-11-22.63">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -208,6 +208,7 @@ p.progression .barre-vive { width: 220px; }
 .indice-comptes .actions { margin: 0; }
 .info .note { padding: 8px 12px; border-radius: 10px; background: var(--accent-clair); color: var(--texte); font-size: 13px; }
 html.sombre .info .note { background: #1e2a4a; }
+.info .note.maj-origami { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 12px; }
 .info details ul { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .lien { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 .choix-ajout { display: flex; flex-direction: column; gap: 10px; }
@@ -541,9 +542,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.62"></script>
-<script src="repertoire.js?v=2026-11-22.62"></script>
-<script src="google.js?v=2026-11-22.62"></script>
+<script src="agenda.js?v=2026-11-22.63"></script>
+<script src="repertoire.js?v=2026-11-22.63"></script>
+<script src="google.js?v=2026-11-22.63"></script>
 <script>
 (function () {
   "use strict";
@@ -2877,6 +2878,39 @@ button.tuile:hover { border-color: var(--ligne); }
         : String((e && e.message) || e), true);
     });
   }
+  // ---- Mise à jour de l'Origami d'un compte installé par l'appli (25.11) : un clic dans Applis, sans passer par le Mac ----
+  var origamiEnCours = {};
+  function origamiMettreAJour(id) {
+    var G = window.OrigamiGoogle;
+    if (!G || origamiEnCours[id] || comptaEnCours[id]) return;
+    var sg = G.session(id);
+    if (sg && sg.drive) { origamiMajLancer(id); return; }
+    if (!macSansGoogle()) G.charger().catch(function () {});
+    ouvrirVoile("<h2>Mettre à jour Origami</h2>" + (macSansGoogle() ? noteMacAncien() + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Fermer</button></div>'
+      : "<p>Pour mettre à jour Origami dans le compte <strong>" + texte(nomCompte(id)) + "</strong>, Origami se connecte à Google. Choisis ce compte à la fenêtre de Google et accepte. Tes données et tes réglages ne bougent pas.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Annuler</button><button class="bouton fort" data-origami-maj-go="' + texte(id) + '">Se connecter et mettre à jour</button></div>'));
+  }
+  function origamiMajConnecter(id) {
+    var G = window.OrigamiGoogle;
+    if (!G || origamiEnCours[id]) return;
+    G.connecter(id, { adresse: googleAdresse(id), drive: true }).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); fermerVoile(); origamiMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
+  }
+  function origamiMajLancer(id) {
+    var G = window.OrigamiGoogle;
+    origamiEnCours[id] = "Mise à jour d'Origami dans ce compte…"; montrer();
+    G.mettreAJourOrigami({ cle: id }).then(function (r) {
+      delete origamiEnCours[id];
+      avis("Origami de " + nomCompte(id) + " : " + (r && r.aJour ? "déjà à jour." : "à jour, version " + (r && r.version) + "." + (r && r.droits ? " Google demandera une nouvelle autorisation : accepte-la une fois." : "")));
+      return relireCompte(id).then(montrer);
+    }, function (e) {
+      delete origamiEnCours[id]; montrer();
+      var code = (e && e.code) || "";
+      if (code === "mauvais-compte") G.oublier(id);
+      avis(code === "pas-par-appli" ? "Origami de " + nomCompte(id) + " a été installé depuis le Mac : il se met à jour depuis le Mac."
+        : code === "api-eteinte" ? "L'interrupteur « API Google Apps Script » de ce compte est éteint : allume-le sur script.google.com/home/usersettings, puis relance."
+        : code === "expire" || code === "connexion" ? "La connexion à Google a expiré : relance la mise à jour."
+        : String((e && e.message) || e), true);
+    });
+  }
   // ---- Boîte mail installée dans le compte par Origami (23.11, Sévane : « vas-y ») ----
   // Avant : une copie du modèle faite à la main, posée à la racine du Drive. Maintenant, comme la Compta : quatre étapes dans un guide,
   // le classeur dans « Origami › Boîte mail › Données » (dossier rouge), puis l'appli Boîte mail du Mac reliée toute seule.
@@ -3045,10 +3079,11 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   function dessinerApplis() {
     var l = !comptes().length ? [null] : etat.compte === "tous" ? affiches() : [compte(etat.compte)];
-    var h = '<div class="entete entete-applis"><h1>Applis</h1>' + (comptes().length ? '<div class="actions"><button class="bouton" data-applis-actualiser="1">Actualiser</button></div>' : "") + "</div><p>Installer, ouvrir et mettre à jour les applis d'Origami. Ce qu'elles contiennent est dans le tableau de bord.</p>" + (MAC ? dessinerSurCeMac() : "") + '<section class="sur-ce-mac"><h2>' + (l.length === 1 && l[0] ? "Dans le compte " + texte(l[0].nom) : "Dans tes comptes") + "</h2>";
+    var h = '<div class="entete entete-applis"><h1>Applis</h1>' + ('<div class="actions">' + (comptes().length ? '<button class="bouton" data-applis-actualiser="1" title="Relire l\'état des applis de tes comptes">Actualiser</button>' : "") + '<button class="bouton" data-recharger="1" title="Recharger Origami, avec sa dernière version">Recharger</button></div>') + "</div><p>Installer, ouvrir et mettre à jour les applis d'Origami. Ce qu'elles contiennent est dans le tableau de bord.</p>" + (MAC ? dessinerSurCeMac() : "") + '<section class="sur-ce-mac"><h2>' + (l.length === 1 && l[0] ? "Dans le compte " + texte(l[0].nom) : "Dans tes comptes") + "</h2>";
     l.forEach(function (c) {
       if (c && l.length > 1) h += '<h2 class="du-compte-applis"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</h2>";
       if (c && c.id !== "compagnie" && !moteurs[c.id]) h += '<p class="note">' + texte(c.nom) + ' n\'est pas encore relié sur cet appareil. <button class="lien" data-vue="relier" data-de="' + c.id + '">Le relier</button></p>';
+      if (c && moteurAncien(c.id)) h += '<div class="note maj-origami">' + (origamiEnCours[c.id] ? roue() + texte(origamiEnCours[c.id]) : 'Une nouvelle version d\'Origami est prête pour ce compte. Tes données et tes réglages ne bougent pas. <button class="bouton fort" data-origami-maj="' + texte(c.id) + '">Mettre à jour</button>') + "</div>";
       h += '<div class="liste-mac applis-grille">' + ORDRE_APPLIS.filter(function (id) { return !(id === "boite" && SUR_MAC && !FENETRE && (!c || c.id === "compagnie")); }).map(function (id) { return tuileAppli(c, id); }).join("") + "</div>";
     });
     if (!comptes().length) h += '<p><button class="bouton fort" data-vue="ajouter">Ajouter un compte</button></p>';
@@ -3995,6 +4030,8 @@ button.tuile:hover { border-color: var(--ligne); }
       return;
     }
     if (d.comptaMajGo) { comptaMajConnecter(d.comptaMajGo); return; }
+    if (d.origamiMajGo) { origamiMajConnecter(d.origamiMajGo); return; }
+    if (d.origamiMaj) { origamiMettreAJour(d.origamiMaj); return; }
     if (d.comptaGuide) { comptaGuide(d.comptaGuide); return; }
     if (d.guideComptaVerifier) { comptaGuide(guideC.id); return; }
     if (d.guideComptaInstaller) { guideComptaInstaller(); return; }
