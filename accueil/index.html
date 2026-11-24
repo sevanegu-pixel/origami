@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.61">
+<meta name="origami-version" content="2026-11-22.62">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -541,9 +541,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.61"></script>
-<script src="repertoire.js?v=2026-11-22.61"></script>
-<script src="google.js?v=2026-11-22.61"></script>
+<script src="agenda.js?v=2026-11-22.62"></script>
+<script src="repertoire.js?v=2026-11-22.62"></script>
+<script src="google.js?v=2026-11-22.62"></script>
 <script>
 (function () {
   "use strict";
@@ -1427,6 +1427,10 @@ button.tuile:hover { border-color: var(--ligne); }
   var file = [], enVol = 0, masquees = {}, retouches = {};   // tickets en cours d'enregistrement ; lignes cachées ou retouchées en attendant le moteur
   var voile = document.getElementById("voile"), zoneAvis = document.getElementById("avis");
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
+  // Version du moteur modèle en ligne (25.11 : v12, la Compta porte l'appli du personnel). Un compte installé par l'appli avec un
+  // moteur plus ancien se met à jour avec sa Compta (bouton « Mettre à jour » de la tuile Compta) ; la compagnie, depuis le Mac.
+  var MOTEUR_ACTUEL = 12;
+  function moteurAncien(id) { var e = id !== "compagnie" && etatMoteur(id), v = e && e.moteur ? Number(e.moteur.version) || 0 : 0; return v > 0 && v < MOTEUR_ACTUEL; }
   function offre(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.installables) && e.installables.some(function (a) { return a && a.id === appli; })); }
   function installee(id, appli) { var e = etatMoteur(id); return (e && Array.isArray(e.applis) ? e.applis : []).filter(function (a) { return a && a.id === appli; })[0] || null; }
   function applisDe(c) { var l = c.applis.slice(); if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets") || (c.applis.indexOf("tickets") >= 0 && !etatMoteur(c.id))) l.push("tickets0");   /* sans moteur relié sur cet appareil : la ligne reste, l'écran dit comment relier */ if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
@@ -2839,7 +2843,8 @@ button.tuile:hover { border-color: var(--ligne); }
   function comptaMettreAJour(id) {
     var G = window.OrigamiGoogle;
     if (comptaEnCours[id] || !G) return;
-    if (G.session(id)) { comptaMajLancer(id); return; }
+    var sg = G.session(id);
+    if (sg && (sg.drive || !moteurAncien(id))) { comptaMajLancer(id); return; }   // le moteur se retrouve par le Drive : il faut ce droit
     if (!macSansGoogle()) G.charger().catch(function () {});
     ouvrirVoile("<h2>Mettre à jour la Compta</h2>" + (macSansGoogle() ? noteMacAncien() + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Fermer</button></div>'
       : "<p>Pour mettre à jour la Compta de <strong>" + texte(nomCompte(id)) + "</strong>, Origami se connecte à Google. Choisis ce compte à la fenêtre de Google et accepte. Tes données et tes réglages ne bougent pas.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Annuler</button><button class="bouton fort" data-compta-maj-go="' + texte(id) + '">Se connecter et mettre à jour</button></div>'));
@@ -2847,14 +2852,20 @@ button.tuile:hover { border-color: var(--ligne); }
   function comptaMajConnecter(id) {
     var G = window.OrigamiGoogle;
     if (!G || comptaEnCours[id]) return;
-    G.connecter(id, { adresse: googleAdresse(id) }).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); fermerVoile(); comptaMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
+    G.connecter(id, { adresse: googleAdresse(id), drive: moteurAncien(id) }).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); fermerVoile(); comptaMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
   }
   function comptaMajLancer(id) {
     var G = window.OrigamiGoogle;
     comptaEnCours[id] = "Mise à jour de la Compta…";
     montrer();
-    G.mettreAJourCompta({ cle: id, moteur: appelMoteurCompta(id), dire: function (e) { comptaEnCours[id] = "Mise à jour : " + String(SOUS_COMPTA[e] || "en cours").toLowerCase() + "…"; comptaDireTuile(id); } }).then(function () {
-      delete comptaEnCours[id]; avis("Compta de " + nomCompte(id) + " à jour. Si Google redemande une autorisation, accepte-la une fois.");
+    var droits = false;
+    // D'abord le moteur du compte (il porte le code de la Compta), s'il est plus ancien que le modèle ; puis la Compta elle-même.
+    var avantCompta = !moteurAncien(id) ? Promise.resolve() : G.mettreAJourOrigami({ cle: id, dire: function () { comptaEnCours[id] = "Mise à jour : Origami de ce compte…"; comptaDireTuile(id); } })
+      .then(function (r) { droits = !!(r && r.droits); return relireCompte(id); }, function (e) { if (e && e.code === "pas-par-appli") return null; throw e; });
+    avantCompta.then(function () {
+      return G.mettreAJourCompta({ cle: id, moteur: appelMoteurCompta(id), dire: function (e) { comptaEnCours[id] = "Mise à jour : " + String(SOUS_COMPTA[e] || "en cours").toLowerCase() + "…"; comptaDireTuile(id); } });
+    }).then(function () {
+      delete comptaEnCours[id]; avis("Compta de " + nomCompte(id) + " à jour." + (droits ? " Origami de ce compte demande une nouvelle autorisation de Google : accepte-la une fois." : " Si Google redemande une autorisation, accepte-la une fois."));
       return relireCompte(id).then(montrer);
     }, function (e) {
       delete comptaEnCours[id]; montrer();
@@ -3001,9 +3012,10 @@ button.tuile:hover { border-color: var(--ligne); }
       if (comptaEnCours[c.id]) { etatT = roue() + "En cours. Ne ferme pas Origami."; act = occupeHtml(comptaEnCours[c.id], false, ' data-compta-cours="' + texte(c.id) + '"'); }
       else if (cm && cm.adresse && !comptaAutorisee(c.id)) { etatT = "Installée. Dernière étape : l'autoriser."; act = b('data-compta-guide="' + c.id + '"', "Continuer", true); }
       else if (c.id === "compagnie" || comptaDe(c.id)) {
-        ok = true; etatT = cm && cm.miseAJour ? "Une nouvelle version est prête." : "Installée.";
+        var maj = !!(cm && (cm.miseAJour || moteurAncien(c.id)));
+        ok = true; etatT = maj ? "Une nouvelle version est prête." : "Installée.";
         var appliC = c.id !== "compagnie" && !FENETRE && INSTALLEUR && MAC_APPLIS && MAC_APPLIS.compta && MAC_APPLIS.compta.presente;   // l'appli Compta du Mac, sur ce compte
-        act = (cm && cm.miseAJour ? b('data-compta-maj="' + c.id + '"', "Mettre à jour", true) + " " : "") + (appliC ? b('data-mac-ouvrir="compta" data-de="' + c.id + '"', "Ouvrir", !(cm && cm.miseAJour)) : b('data-vue="compta" data-de="' + c.id + '"', "Ouvrir", !(cm && cm.miseAJour)));
+        act = (maj ? b('data-compta-maj="' + c.id + '"', "Mettre à jour", true) + " " : "") + (appliC ? b('data-mac-ouvrir="compta" data-de="' + c.id + '"', "Ouvrir", !maj) : b('data-vue="compta" data-de="' + c.id + '"', "Ouvrir", !maj));
       }
       else if (cm && cm.possible) { etatT = cm.enCours ? "Installation commencée : reprends-la." : "Pas encore installée. Une minute environ."; act = b('data-compta-guide="' + c.id + '"', cm.enCours ? "Reprendre" : "Installer", true); }
       // Moteur relié mais pas encore relu depuis sa mise à jour (à autoriser de nouveau, souvent) : le guide dit quoi faire, étape 1.
