@@ -103,14 +103,94 @@ fn ouvrir_fichier(etat: tauri::State<'_, Enregistres>, chemin: String) -> Result
     std::process::Command::new("open").arg(&chemin).spawn().map(|_| ()).map_err(|e| e.to_string())
 }
 
+/* ---------- Écran de chaque boîte gardé sur ce Mac (version 22) ----------
+   La coquille confie l'écran d'un compte (page HTML venue de son moteur) ; il est servi à l'adresse boite://<compte>/,
+   une origine par compte (chacun garde sa propre mémoire), sans passer par Google à l'ouverture. */
+fn compte_sur(c: &str) -> bool {
+    !c.is_empty() && c.len() <= 40 && c.chars().all(|x| x.is_ascii_lowercase() || x.is_ascii_digit())
+}
+
+fn dossier_ecrans<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
+    let d = app.path().app_data_dir().map_err(|e| e.to_string())?.join("ecrans");
+    std::fs::create_dir_all(&d).map_err(|e| e.to_string())?;
+    Ok(d)
+}
+
+#[tauri::command]
+fn ecran_garder(app: tauri::AppHandle, compte: String, html: String) -> Result<(), String> {
+    if !compte_sur(&compte) || html.len() > 30_000_000 {
+        return Err("écran refusé".to_string());
+    }
+    let d = dossier_ecrans(&app)?;
+    let provisoire = d.join(format!("{}.tmp", compte));
+    std::fs::write(&provisoire, html.as_bytes()).map_err(|e| e.to_string())?;
+    std::fs::rename(&provisoire, d.join(format!("{}.html", compte))).map_err(|e| e.to_string())
+}
+
+/// « Imprimer » un mail (24.11) : la page à imprimer est gardée comme un écran (« impression »), ouverte dans une petite fenêtre
+/// de l'appli, puis la fenêtre d'impression du Mac s'ouvre dès que la page est chargée.
+#[tauri::command]
+async fn imprimer(app: tauri::AppHandle, html: String, titre: String) -> Result<(), String> {
+    if html.len() > 30_000_000 {
+        return Err("mail trop lourd pour l'impression".to_string());
+    }
+    let d = dossier_ecrans(&app)?;
+    std::fs::write(d.join("impression.html"), html.as_bytes()).map_err(|e| e.to_string())?;
+    let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|x| x.as_millis()).unwrap_or(0);
+    let url = tauri::Url::parse("boite://impression/index.html").map_err(|e| e.to_string())?;
+    let titre: String = titre.chars().take(120).collect();
+    tauri::WebviewWindowBuilder::new(&app, format!("impression-{}", ms), tauri::WebviewUrl::CustomProtocol(url))
+        .title(if titre.is_empty() { "Imprimer".to_string() } else { titre })
+        .inner_size(820.0, 900.0)
+        .on_page_load(|w, p| {
+            if matches!(p.event(), tauri::webview::PageLoadEvent::Finished) {
+                let _ = w.print();
+            }
+        })
+        .build()
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn ecran_oublier(app: tauri::AppHandle, compte: String) -> Result<(), String> {
+    if !compte_sur(&compte) {
+        return Err("compte inconnu".to_string());
+    }
+    let d = dossier_ecrans(&app)?;
+    let _ = std::fs::remove_file(d.join(format!("{}.html", compte)));
+    Ok(())
+}
+
+fn reponse(code: u16, sorte: &str, corps: Vec<u8>) -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(code)
+        .header("Content-Type", sorte)
+        .header("Cache-Control", "no-store")
+        .body(corps)
+        .unwrap_or_else(|_| tauri::http::Response::new(Vec::new()))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(Enregistres::default())
-        .invoke_handler(tauri::generate_handler![dossier_telechargements, enregistrer_fichier, montrer_fichier, ouvrir_fichier])
+        .register_uri_scheme_protocol("boite", |ctx, requete| {
+            let compte = requete.uri().host().unwrap_or("").to_ascii_lowercase();
+            let chemin = requete.uri().path().to_string();
+            if !compte_sur(&compte) || !(chemin == "/" || chemin == "/index.html") {
+                return reponse(404, "text/plain; charset=utf-8", b"introuvable".to_vec());
+            }
+            match dossier_ecrans(ctx.app_handle()).and_then(|d| std::fs::read(d.join(format!("{}.html", compte))).map_err(|e| e.to_string())) {
+                Ok(octets) => reponse(200, "text/html; charset=utf-8", octets),
+                Err(_) => reponse(404, "text/plain; charset=utf-8", b"pas encore garde".to_vec()),
+            }
+        })
+        .invoke_handler(tauri::generate_handler![dossier_telechargements, enregistrer_fichier, montrer_fichier, ouvrir_fichier, ecran_garder, ecran_oublier, imprimer])
         .run(tauri::generate_context!())
         .expect("Boîte mail n'a pas pu démarrer");
 }

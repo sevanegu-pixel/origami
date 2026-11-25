@@ -646,9 +646,9 @@
     m.innerHTML = '<button type="button" role="menuitem" data-vue="ajouter">＋ Ajouter un compte</button>' + (comptes.length ? '<button type="button" role="menuitem" data-vue="comptes">Comptes reliés</button>' : '') +
       '<div class="taille"><span class="nom">Taille de l\'affichage</span><button type="button" data-taille="-1" aria-label="Plus petit" title="Plus petit">−</button><b id="taille-valeur">' + Math.round(taille * 100) + ' %</b><button type="button" data-taille="1" aria-label="Plus grand" title="Plus grand">+</button></div>' +
       '<div class="taille" style="border-top:0;margin-top:0;padding-top:2px"><span class="nom">Texte des mails</span><button type="button" data-texte="-1" aria-label="Texte plus petit" title="Plus petit">−</button><b id="texte-valeur">' + Math.round(texte * 100) + ' %</b><button type="button" data-texte="1" aria-label="Texte plus grand" title="Plus grand">+</button></div>' +
-      (T ? htmlTele() : '') + htmlGarde() +
+      (T ? htmlTele() : '') + htmlGarde() + htmlNotif() +
       (/^\d+$/.test(VERSION) ? '<div class="version">Appli Boîte mail · version ' + VERSION + '</div>' : '');
-    m.classList.add('visible'); majGarde();
+    m.classList.add('visible'); majGarde(); majNotifMenu();
     var haut = r.top > window.innerHeight / 2;
     m.style.left = Math.max(8, Math.min(r.left, window.innerWidth - m.offsetWidth - 8)) + 'px';
     m.style.top = (haut ? Math.max(8, r.top - m.offsetHeight - 6) : r.bottom + 6) + 'px';
@@ -768,10 +768,63 @@
     var c = comptes.filter(function (x) { return x.id === id; })[0];
     var f = document.createElement('iframe');
     f.className = 'cadre'; f.title = 'Boîte ' + nomCourt(c); f.setAttribute('allow', 'clipboard-write');
-    f.src = c.url + '?fenetre=boite&cadre=1&jeton=' + encodeURIComponent(c.jeton);
+    var distante = c.url + '?fenetre=boite&cadre=1&jeton=' + encodeURIComponent(c.jeton);
+    if (ecranLocal(c)) {
+      /* Écran gardé sur ce Mac : il s'affiche aussitôt (et sans connexion) ; sans signe de vie en 12 secondes, on reprend celui de Google. */
+      f.src = 'boite://' + c.id.toLowerCase() + '/index.html?fenetre=boite&cadre=1';
+      locaux[id] = true;
+      setTimeout(function () { if (cadres[id] === f && locaux[id] && !sources[id]) { ecranRate(c, 'muet'); locaux[id] = false; f.src = distante; } }, 12000);
+    } else { locaux[id] = false; f.src = distante; }
+    setTimeout(function () { rafraichirEcran(c); }, locaux[id] ? 8000 : 15000);
     $('main').appendChild(f);
     cadres[id] = f;
     return f;
+  }
+  /* ---------- Écran de la boîte gardé sur ce Mac (version 22, 24.11) ----------
+     Avant, l'écran de chaque boîte était redemandé à Google à chaque ouverture (« mise à jour » pendant plusieurs secondes, rien sans
+     connexion). L'appli garde maintenant l'écran (fichier de l'appli, un par compte, servi à l'adresse boite://<compte>/ : chaque compte
+     garde ainsi sa propre mémoire) ; il parle au moteur par sa porte (comme « Toutes les boîtes ») au lieu de google.script.run.
+     La dernière version est redemandée en arrière-plan à chaque ouverture et servira à la suivante. */
+  var locaux = {}, rafraichis = {}, ecrans = (function () { try { return JSON.parse(localStorage.getItem('boite-mail-ecrans') || '{}') || {}; } catch (e) { return {}; } })();
+  function garderEcrans() { try { localStorage.setItem('boite-mail-ecrans', JSON.stringify(ecrans)); } catch (e) { /* sans mémoire */ } }
+  function ecranLocal(c) { var e = ecrans[c.id]; return !!(T && T.core && e && e.url === c.url && e.jeton === c.jeton && !e.rate && (e.echecs || 0) < 2); }
+  function ecranRate(c, pourquoi) { if (ecrans[c.id]) { ecrans[c.id].rate = pourquoi || 'rate'; garderEcrans(); } }
+  function ecranOublier(id) { delete ecrans[id]; garderEcrans(); try { if (T && T.core) T.core.invoke('ecran_oublier', { compte: String(id).toLowerCase() }); } catch (e) { /* rien */ } }
+  function cale(c) {
+    var j = function (x) { return JSON.stringify(String(x || '')).replace(/</g, '\\u003c'); };
+    return '<script>/* Boîte mail (appli Mac 22) : écran gardé sur ce Mac, il parle au moteur par sa porte. */(function () {\n' +
+      'var U = ' + j(c.url) + ', J = ' + j(c.jeton) + ';\n' +
+      'try { if (!localStorage.getItem("diffusion_jeton")) localStorage.setItem("diffusion_jeton", J); } catch (e) { /* sans mémoire */ }\n' +
+      'function appel(nom, args, ok, ko, uo) {\n' +
+      '  var corps = nom === "appelProtege" ? { f: String(args[1] || ""), jeton: args[0] || J, args: args[2] || [] } : { f: nom, jeton: J, args: args };\n' +
+      '  fetch(U, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(corps), redirect: "follow" })\n' +
+      '    .then(function (r) { if (!r.ok) throw new Error("Le serveur de la boîte ne répond pas (" + r.status + ")."); return r.json(); })\n' +
+      '    .then(function (x) { if (x && x.ok) { if (ok) ok(x.r, uo); } else if (ko) ko(new Error((x && x.erreur) || "Réponse vide."), uo); },\n' +
+      '      function (e) { var m = String(e && e.message || e); if (navigator.onLine === false || /load failed|networkerror|failed to fetch|network connection|internet/i.test(m)) m = "Pas de connexion à Internet : ce qui est gardé sur ce Mac reste lisible."; if (ko) ko(new Error(m), uo); });\n' +
+      '}\n' +
+      'function coureur(ok, ko, uo) { return new Proxy({}, { get: function (c, nom) {\n' +
+      '  if (typeof nom !== "string" || nom === "then") return undefined;\n' +
+      '  if (nom === "withSuccessHandler") return function (f) { return coureur(f, ko, uo); };\n' +
+      '  if (nom === "withFailureHandler") return function (f) { return coureur(ok, f, uo); };\n' +
+      '  if (nom === "withUserObject") return function (o) { return coureur(ok, ko, o); };\n' +
+      '  return function () { appel(nom, [].slice.call(arguments), ok, ko, uo); };\n' +
+      '} }); }\n' +
+      'function lieu(f) { var p = {}, ps = {}; location.search.slice(1).split("&").forEach(function (x) { if (!x) return; var k = decodeURIComponent(x.split("=")[0]), v = decodeURIComponent(x.split("=").slice(1).join("=")); p[k] = v; (ps[k] = ps[k] || []).push(v); }); f({ hash: "", parameter: p, parameters: ps }); }\n' +
+      'window.google = { script: { run: coureur(null, null, undefined), host: { close: function () {}, setHeight: function () {}, setWidth: function () {}, editor: {} }, url: { getLocation: lieu } } };\n' +
+      'window.__ecranLocal = true;\n' +
+      '})();</' + 'script>';
+  }
+  function rafraichirEcran(c) {
+    if (!T || !T.core || FEN || rafraichis[c.id]) return;
+    rafraichis[c.id] = true;
+    porte(c, 'page', []).then(function (r) {
+      var h = r && r.html;
+      if (typeof h !== 'string' || h.length < 20000 || !/<\/html>\s*$/i.test(h) || !/<head[^>]*>/i.test(h)) throw new Error('écran incomplet');
+      h = h.replace(/<head[^>]*>/i, function (t) { return t + cale(c); });
+      return T.core.invoke('ecran_garder', { compte: c.id.toLowerCase(), html: h }).then(function () {
+        var avant = ecrans[c.id] || {}; ecrans[c.id] = { le: Date.now(), url: c.url, jeton: c.jeton, taille: h.length, echecs: (avant.echecs || 0) + (avant.rate ? 1 : 0) }; garderEcrans();
+      });
+    }).catch(function (e) { rafraichis[c.id] = false; if (window.console) console.warn('Écran de ' + nomCourt(c) + ' pas gardé : ' + (e && e.message || e)); });
   }
   /* ---------- Copie sur l'ordinateur ----------
      Chaque boîte confie à l'appli la copie de ses listes et de ses mails déjà lus : elle est rangée ici (base locale de l'appli, sur
@@ -895,12 +948,88 @@
       [].forEach.call(document.querySelectorAll('#garde-menu [data-garde]'), function (b) { var s = b.getAttribute('data-garde'); b.disabled = !r[s].n; b.textContent = 'Effacer'; b.removeAttribute('data-sur'); });
     });
   }
+  /* ---------- Notifications des nouveaux mails (24.11) ----------
+     La fenêtre principale demande à chaque moteur, toutes les 90 s, ce qui est arrivé dans la boîte de réception depuis le dernier repère
+     (historique Gmail, très léger). Le premier passage pose seulement le repère. Une case par boîte dans le menu pour les couper. */
+  var NOTIF_CLE = 'boite-mail-notif', notifEtat = {}, notifT = null, notifPermis = null;
+  function lireNotif() { try { var o = JSON.parse(localStorage.getItem(NOTIF_CLE) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } }
+  function garderNotif(o) { try { localStorage.setItem(NOTIF_CLE, JSON.stringify(o)); } catch (e) { /* plein */ } }
+  function notifActive(id) { var o = lireNotif(); return !(o[id] && o[id].coupe); }
+  function notifApi() { return T && T.notification ? T.notification : null; }
+  function notifPermission() {
+    var n = notifApi(); if (!n) return Promise.resolve(false);
+    if (notifPermis === true) return Promise.resolve(true);
+    return Promise.resolve(n.isPermissionGranted()).then(function (ok) {
+      if (ok) return (notifPermis = true);
+      return Promise.resolve(n.requestPermission()).then(function (r) { return (notifPermis = r === 'granted'); });
+    }).catch(function () { return false; });
+  }
+  function notifMontrer(titre, texte) {
+    var n = notifApi(); if (!n) return;
+    try { n.sendNotification({ title: String(titre).slice(0, 120), body: String(texte || '').slice(0, 200) }); } catch (e) { /* refusée */ }
+  }
+  function notifSonder(c) {
+    if (!c || !c.url || !c.jeton || !notifActive(c.id)) return Promise.resolve();
+    var o = lireNotif(), r = o[c.id] || {};
+    return porte(c, 'nouveauxMails', [r.h || '']).then(function (x) {
+      notifEtat[c.id] = 'ok';
+      o = lireNotif(); var q = o[c.id] || {}; var avait = q.h; q.h = String(x && x.historyId || q.h || ''); o[c.id] = q; garderNotif(o);
+      if (!avait || !x || !x.mails || !x.mails.length) return;
+      var vus = q.vus || [], neufs = x.mails.filter(function (m) { return vus.indexOf(m.id) < 0; });
+      q.vus = vus.concat(neufs.map(function (m) { return m.id; })).slice(-60); o[c.id] = q; garderNotif(o);
+      if (!neufs.length) return;
+      return notifPermission().then(function (ok) {
+        if (!ok) return;
+        if (neufs.length > 3) return notifMontrer(nomCourt(c), neufs.length + ' nouveaux mails');
+        neufs.forEach(function (m) { notifMontrer(nomCourt(c) + ' · ' + (m.de || 'Nouveau mail'), m.objet || m.extrait || ''); });
+      });
+    }, function (e) {
+      notifEtat[c.id] = /inconnue|non autoris|pas permise/i.test(String(e && e.message)) ? 'ancien' : 'rate';
+    });
+  }
+  function notifTour() {
+    if (FEN || !notifApi() || (navigator.onLine === false)) return;
+    comptes.reduce(function (p, c) { return p.then(function () { return notifSonder(c); }); }, Promise.resolve()).then(majNotifMenu, majNotifMenu);
+  }
+  function notifDemarrer() {
+    if (FEN || !notifApi() || notifT) return;
+    setTimeout(notifTour, 20000); notifT = setInterval(notifTour, 90000);
+  }
+  function htmlNotif() {
+    if (!notifApi() || !comptes.length) return '';
+    return '<div class="tele" id="notif-menu"><span>Notifications des nouveaux mails</span>' + comptes.map(function (c) {
+      return '<label title="' + esc(c.email || nomCourt(c)) + '"><input type="checkbox" data-notif="' + esc(c.id) + '"' + (notifActive(c.id) ? ' checked' : '') + '> ' + esc(nomCourt(c)) +
+        '<small class="doux" data-notif-etat="' + esc(c.id) + '"></small></label>';
+    }).join('') + '</div>';
+  }
+  function majNotifMenu() {
+    comptes.forEach(function (c) {
+      var e = document.querySelector('[data-notif-etat="' + c.id + '"]'); if (!e) return;
+      e.textContent = !notifActive(c.id) ? '' : notifEtat[c.id] === 'ancien' ? ' · moteur à mettre à jour' : notifEtat[c.id] === 'rate' ? ' · pas joignable' : '';
+    });
+  }
+  $('menu-roue').addEventListener('change', function (e) {
+    var b = e.target.closest('[data-notif]'); if (!b) return;
+    var o = lireNotif(), id = b.getAttribute('data-notif'), q = o[id] || {};
+    q.coupe = !b.checked; if (b.checked) delete q.h; o[id] = q; garderNotif(o); // rallumée : on repart d'un repère neuf, sans rattrapage
+    if (b.checked) notifPermission(); majNotifMenu();
+  });
+  function notifOublier(id) { var o = lireNotif(); delete o[id]; garderNotif(o); delete notifEtat[id]; }
+  notifDemarrer();
+  window.__notif = { tour: notifTour, cale: cale };
   function compteDuCadre(source) {
     return Object.keys(cadres).filter(function (k) { try { return source && cadres[k].contentWindow && estDans(source, cadres[k].contentWindow); } catch (e) { return false; } })[0] || '';
   }
   // Messages des écrans de boîte : prêt (on garde sa fenêtre pour lui parler), liens vers l'extérieur.
   window.addEventListener('message', function (ev) {
     var d = ev.data || {};
+    if (d.boiteMail === 'imprimer' && typeof d.html === 'string') { // « Imprimer » un mail (24.11) : petite fenêtre et fenêtre d'impression du Mac
+      if (!compteDuCadre(ev.source)) return;
+      appelMac('imprimer', { html: d.html, titre: String(d.titre || '') }).catch(function () {
+        var w = window.open('', '_blank'); if (!w) return; w.document.open(); w.document.write(d.html); w.document.close(); setTimeout(function () { try { w.print(); } catch (x) { /* rien */ } }, 400);
+      });
+      return;
+    }
     if (d.boiteMail === 'cache-lire') {
       var qc = compteDuCadre(ev.source), src = ev.source; if (!qc) return;
       copieLire('boite|' + qc, function (t) { try { src.postMessage({ boiteMail: 'cache', texte: typeof t === 'string' ? t : '' }, '*'); } catch (e) { /* cadre fermé */ } });
@@ -1141,6 +1270,10 @@
     var pret = !/__MODELE__/.test(MODELE);
     $('ajouter').innerHTML =
       '<h2>Ajouter un compte</h2><p class="sous">Chaque compte Google a sa propre Boîte mail, dans son Drive. Ça prend une minute, dans votre navigateur, avec le compte à relier.</p>' +
+      '<div class="boite" style="margin-bottom:12px"><b>Le plus simple</b><p class="doux">Connectez le compte à Google : tout s\'installe dans son Drive (dossier « Origami »), puis le compte apparaît ici.</p>' +
+        '<input type="text" id="aj-google-email" inputmode="email" autocomplete="email" placeholder="Adresse Gmail du compte (facultatif)" style="margin-bottom:8px">' +
+        '<button type="button" class="prim" id="aj-google">Continuer avec Google</button></div>' +
+      '<p class="doux" style="margin:0 0 8px">Ou, à la main :</p>' +
       '<div class="boite">' +
       '<div class="etape"><span class="num">1</span><div><b>Créer la Boîte mail du compte</b><p class="doux">Une copie vierge s\'ouvre dans le navigateur. Indiquez l\'adresse Gmail du compte : la copie se fait avec ce compte-là. Puis « Créer une copie ».</p>' +
         '<input type="text" id="aj-email" inputmode="email" autocomplete="email" placeholder="Adresse Gmail du compte à relier" style="margin-bottom:8px">' +
@@ -1156,7 +1289,14 @@
       ouvrirDehors(MODELE + (em ? '?authuser=' + encodeURIComponent(em) : ''));
     };
     $('aj-ok').onclick = function () { relier($('aj-code').value); };
+    // « Continuer avec Google » (25.11, page d'Origami) : connexion, installation dans le compte, puis retour ici par boitemail://relier.
+    $('aj-google').onclick = function () {
+      var em = String($('aj-google-email').value || '').trim();
+      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { dire('Adresse incomplète.'); return; }
+      ouvrirDehors(ORIGAMI_GOOGLE + (em ? '&email=' + encodeURIComponent(em) : ''));
+    };
   }
+  var ORIGAMI_GOOGLE = 'https://sevanegu-pixel.github.io/origami/accueil/?fenetre=boite-google';
   function decoder(code) {
     var s = String(code || '').trim().replace(/^.*[?&]c=/, '').replace(/&.*$/, '');
     s = decodeURIComponent(s).replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
@@ -1226,7 +1366,7 @@
     }
     if (e.target.classList.contains('cp-retirer')) {
       comptes = comptes.filter(function (x) { return x.id !== id; });
-      copieEcrire('boite|' + id, null); gardeOublierCompte(id); delete reperes[id]; garderToutes();
+      copieEcrire('boite|' + id, null); gardeOublierCompte(id); ecranOublier(id); notifOublier(id); delete reperes[id]; garderToutes();
       if (cadres[id]) { cadres[id].remove(); delete cadres[id]; delete sources[id]; }
       delete demarre[id]; delete affiches[id]; delete aDire[id]; delete recus[id]; delete infos[id]; delete apercus[id]; garderInfos();
       garderComptes(); dessinerComptes(); dessinerNav();
