@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.63">
+<meta name="origami-version" content="2026-11-22.65">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -208,6 +208,13 @@ p.progression .barre-vive { width: 220px; }
 .indice-comptes .actions { margin: 0; }
 .info .note { padding: 8px 12px; border-radius: 10px; background: var(--accent-clair); color: var(--texte); font-size: 13px; }
 html.sombre .info .note { background: #1e2a4a; }
+.famille { max-width: 1080px; margin: 12px auto; padding: 14px 16px; border-radius: 14px; background: var(--accent-clair); }
+html.sombre .famille { background: #1e2a4a; }
+.famille h2 { margin: 0 0 4px; font-size: 16px; }
+.famille p { margin: 0 0 10px; font-size: 13px; color: var(--doux); }
+.rang-f { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 0; border-top: 1px solid var(--trait, rgba(0, 0, 0, 0.08)); }
+.rang-f .nom { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; font-weight: 600; }
+.rang-f .nom small { font-weight: 400; color: var(--doux); overflow-wrap: anywhere; }
 .info .note.maj-origami { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 12px; }
 .info details ul { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .lien { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
@@ -542,9 +549,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.63"></script>
-<script src="repertoire.js?v=2026-11-22.63"></script>
-<script src="google.js?v=2026-11-22.63"></script>
+<script src="agenda.js?v=2026-11-22.65"></script>
+<script src="repertoire.js?v=2026-11-22.65"></script>
+<script src="google.js?v=2026-11-22.65"></script>
 <script>
 (function () {
   "use strict";
@@ -1287,9 +1294,22 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   // Chaque demande dit la version que l'appareil a en mémoire : le moteur joint à sa réponse ce qui a changé depuis.
   // options.sans : ne pas demander ces corrections ; options.lent : envoi d'un fichier ou d'un mail, délai plus long.
+  // Écritures en route vers un moteur (25.11, « vérifier ce qui se passe quand on quitte une appli pendant un enregistrement ») :
+  // tant qu'il y en a, fermer la fenêtre ou recharger demande confirmation. Les lectures ne comptent pas.
+  var LECTURES = /^(etat|tableauDeBord|changements|empreinte|compta\.(recette|etat)|compte\.inventaire|agenda\.(lire|calendriers|prospection|evenements|evenement|chercher)|jeton\.appli|paiement\.lire|appareils\.lister|tickets\.fichier)$/;
+  var ecrituresEnVol = 0;
   function moteurBrut(id, fn, args, options) {
     var m = moteurs[id];
     if (!m) return Promise.reject(new Error("Ce compte n'est pas relié à son moteur."));
+    if (!LECTURES.test(String(fn))) {
+      ecrituresEnVol++;
+      var fin = function () { ecrituresEnVol = Math.max(0, ecrituresEnVol - 1); };
+      return moteurBrutSeul(id, fn, args, options).then(function (o) { fin(); return o; }, function (e) { fin(); throw e; });
+    }
+    return moteurBrutSeul(id, fn, args, options);
+  }
+  function moteurBrutSeul(id, fn, args, options) {
+    var m = moteurs[id];
     return lireMemoire(id).then(function (me) {
       var q = { prise: 1, cle: m.c, fn: fn, args: args || {} }, envoi = { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" } }, minuterie = 0;
       if (!(options && options.sans)) q.depuis = me.version || 0;
@@ -1330,6 +1350,7 @@ button.tuile:hover { border-color: var(--ligne); }
         m.etat = r[0].r || null; m.tableau = r[1] || null; m.releve = Date.now(); m.panne = "";
         if (memoires[id] === m) accorderNom(id);
         if (moteurs[id] && memoires[id] === m) garderMemoire(id);
+        if (memoires[id] === m) setTimeout(function () { familleSynchro(id); }, 0);
       }, function (e) { m.panne = String((e && e.message) || e); });
     }).then(function () {
       delete releves[id]; dessinerMenu(); rafraichir(id); comptaVerifierSeule(id);
@@ -1430,7 +1451,41 @@ button.tuile:hover { border-color: var(--ligne); }
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
   // Version du moteur modèle en ligne (25.11 : v12, la Compta porte l'appli du personnel). Un compte installé par l'appli avec un
   // moteur plus ancien se met à jour avec sa Compta (bouton « Mettre à jour » de la tuile Compta) ; la compagnie, depuis le Mac.
-  var MOTEUR_ACTUEL = 12;
+  var MOTEUR_ACTUEL = 13;
+  // ---- La famille (25.11, moteur v13) : un nouvel appareil retrouve tes autres comptes ----
+  // Chaque moteur relié garde la liste des AUTRES comptes Google de la personne (adresse, nom, couleur ; jamais de clé ni d'adresse
+  // de moteur). Un appareil neuf, relié à un seul compte par « Continuer avec Google », lit cette liste et propose les autres :
+  // chacun se relie par sa propre connexion à Google.
+  function adresseDe(id) { var e = etatMoteur(id), g = String(googleAdresse(id) || (e && e.compte && e.compte.g) || "").trim().toLowerCase(); return /^[^\s@]+@[^\s@]+$/.test(g) ? g : ""; }
+  function familleIci() { return comptes().map(function (c) { var g = adresseDe(c.id); return g ? { g: g, nom: c.nom, couleur: c.couleur } : null; }).filter(Boolean); }
+  function familleDe(id) { var e = etatMoteur(id), l = e && e.compte && Array.isArray(e.compte.famille) ? e.compte.famille : []; return l.filter(function (o) { return o && /^[^\s@]+@[^\s@]+$/.test(String(o.g || "")); }); }
+  var familleEnvoi = {};
+  function familleSynchro(id) {
+    var e = etatMoteur(id), moi = adresseDe(id);
+    if (!e || !e.moteur || Number(e.moteur.version) < 13 || familleEnvoi[id]) return;
+    var parG = {}, ordre = [];
+    familleDe(id).concat(familleIci()).forEach(function (o) { var g = String(o.g).toLowerCase(); if (g === moi) return; if (!parG[g]) ordre.push(g); parG[g] = { g: g, nom: String(o.nom || "").slice(0, 40), couleur: COULEURS.indexOf(o.couleur) >= 0 ? o.couleur : "" }; });
+    var voulu = ordre.slice(0, 12).map(function (g) { return parG[g]; });
+    if (!voulu.length || JSON.stringify(voulu) === JSON.stringify(familleDe(id))) return;
+    familleEnvoi[id] = true;
+    moteurAppel(id, "compte.regler", { famille: voulu }, { sans: true }).then(function () { delete familleEnvoi[id]; relever(id); }, function () { setTimeout(function () { delete familleEnvoi[id]; }, 600000); });
+  }
+  function familleVus() { try { return JSON.parse(lire("origami_famille_vus") || "[]") || []; } catch (e) { return []; } }
+  /** Les comptes que les moteurs reliés connaissent et que cet appareil n'a pas encore. */
+  function familleAProposer() {
+    var ici = {}, vus = familleVus(), out = [], deja = {};
+    comptes().forEach(function (c) { var g = adresseDe(c.id); if (g) ici[g] = 1; });
+    Object.keys(moteurs).forEach(function (id) {
+      familleDe(id).forEach(function (o) { var g = String(o.g).toLowerCase(); if (ici[g] || deja[g] || vus.indexOf(g) >= 0) return; deja[g] = 1; out.push({ g: g, nom: String(o.nom || g.split("@")[0]).slice(0, 40), couleur: COULEURS.indexOf(o.couleur) >= 0 ? o.couleur : COULEURS[1] }); });
+    });
+    return PARCOURS_GOOGLE && window.OrigamiGoogle && !macSansGoogle() ? out : [];
+  }
+  function carteFamille() {
+    var l = familleAProposer();
+    if (!l.length) return "";
+    return '<div class="famille" data-famille="1"><h2>Tes autres comptes</h2><p>Origami les connaît, mais ils ne sont pas encore sur cet appareil. Chacun se relie avec sa propre connexion à Google.</p>' +
+      l.map(function (o) { return '<div class="rang-f"><span class="point" style="background:' + o.couleur + '"></span><span class="nom">' + texte(o.nom) + "<small>" + texte(o.g) + '</small></span><button class="bouton fort" data-famille-ajouter="' + texte(o.g) + '">Continuer avec Google</button><button class="lien" data-famille-non="' + texte(o.g) + '">Pas ici</button></div>'; }).join("") + "</div>";
+  }
   function moteurAncien(id) { var e = id !== "compagnie" && etatMoteur(id), v = e && e.moteur ? Number(e.moteur.version) || 0 : 0; return v > 0 && v < MOTEUR_ACTUEL; }
   function offre(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.installables) && e.installables.some(function (a) { return a && a.id === appli; })); }
   function installee(id, appli) { var e = etatMoteur(id); return (e && Array.isArray(e.applis) ? e.applis : []).filter(function (a) { return a && a.id === appli; })[0] || null; }
@@ -2047,8 +2102,8 @@ button.tuile:hover { border-color: var(--ligne); }
     }).then(function () { enVol--; rafraichir(x.compte); pomper(); });
   }
   window.addEventListener("beforeunload", function (e) {
-    if (!file.length) return;
-    e.preventDefault(); e.returnValue = "Des tickets sont encore en cours d'enregistrement."; return e.returnValue;
+    if (!file.length && !ecrituresEnVol) return;   // le Répertoire garde ses fiches sur l'appareil : rien à perdre en quittant
+    e.preventDefault(); e.returnValue = file.length ? "Des tickets sont encore en cours d'enregistrement." : "Un enregistrement est en cours."; return e.returnValue;
   });
 
   // Un geste sur des lignes : elles disparaissent tout de suite, et reviennent si le moteur refuse.
@@ -3087,6 +3142,7 @@ button.tuile:hover { border-color: var(--ligne); }
       h += '<div class="liste-mac applis-grille">' + ORDRE_APPLIS.filter(function (id) { return !(id === "boite" && SUR_MAC && !FENETRE && (!c || c.id === "compagnie")); }).map(function (id) { return tuileAppli(c, id); }).join("") + "</div>";
     });
     if (!comptes().length) h += '<p><button class="bouton fort" data-vue="ajouter">Ajouter un compte</button></p>';
+    else h += carteFamille();
     // Dans un navigateur, les applis des comptes d'abord : les fichiers « Télécharger pour Mac » passent en dessous
     // (19.11, Sévane cherchait « Installer » de la Compta et tombait sur « Télécharger pour Mac »).
     return h + "</section>" + (MAC ? "" : dessinerSurCeMac());
@@ -3122,6 +3178,7 @@ button.tuile:hover { border-color: var(--ligne); }
     h += '<div class="choix tel" role="group" aria-label="Comptes"><button class="puce" data-compte="tous" aria-pressed="' + (tous ? "true" : "false") + '"><span class="point tous"></span>Tous</button>';
     comptes().forEach(function (c) { h += '<button class="puce" data-compte="' + c.id + '" aria-pressed="' + (etat.compte === c.id ? "true" : "false") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
     h += '<button class="puce" data-vue="ajouter">+ Compte</button></div>';
+    h += carteFamille();
     if (tous) {
       h += '<div class="choix" role="group" aria-label="Comptes affichés"><span>Comptes affichés</span>';
       comptes().forEach(function (c) { h += '<button class="puce" data-cocher="' + c.id + '" aria-pressed="' + (etat.masques[c.id] ? "false" : "true") + '"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</button>"; });
@@ -3579,12 +3636,15 @@ button.tuile:hover { border-color: var(--ligne); }
     parcoursPhase("souci", { souci: m, brut: String((e && e.brut) || "").slice(0, 320), reconnecter: re });
   }
   // Le clic « Continuer avec Google » : la fenêtre de Google doit s'ouvrir dans le clic même.
-  function parcoursLancer() {
+  function parcoursLancer(attendu) {
     var G = window.OrigamiGoogle;
     if (!G) return;
-    if (G.session("ajout") && G.session("ajout").drive) { parcoursPhase("travail", { installe: false, occupe: ETAPES_PARCOURS.chercher }); parcoursSuite(); return; }
-    var p = G.connecter("ajout", { drive: true });
-    parcoursPhase("travail", { installe: false, occupe: MAC ? "En attente de ton navigateur : choisis le compte et accepte…" : "La fenêtre de Google est ouverte : choisis le compte et accepte…" });
+    attendu = attendu && attendu.g ? attendu : null;
+    var sa = G.session("ajout");
+    if (sa && sa.drive && (!attendu || String(sa.adresse || "").toLowerCase() === attendu.g)) { parcoursPhase("travail", { installe: false, attendu: attendu, occupe: ETAPES_PARCOURS.chercher }); parcoursSuite(); return; }
+    if (sa) G.oublier("ajout");
+    var p = G.connecter("ajout", attendu ? { drive: true, adresse: attendu.g } : { drive: true });
+    parcoursPhase("travail", { installe: false, attendu: attendu, occupe: MAC ? "En attente de ton navigateur : choisis le compte et accepte…" : "La fenêtre de Google est ouverte : choisis le compte et accepte…" });
     p.then(function (s) { if (parcours.phase !== "travail") return; parcours.google = s.adresse || ""; parcoursSuite(); }, function (e) { if (parcours.phase === "travail") parcoursSouci(e); });
   }
   // Connectée : Origami est-il déjà dans ce compte ? Oui : on relie cet appareil. Non : on propose de l'installer.
@@ -3689,7 +3749,7 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   // Le compte entre dans l'appli, comme avec un code de liaison, mais sans rien coller.
   function parcoursFinir(lie) {
-    var G = window.OrigamiGoogle, id = "", google = parcours.google || "";
+    var G = window.OrigamiGoogle, id = "", google = parcours.google || "", attendu = parcours.attendu && google && parcours.attendu.g === google.toLowerCase() ? parcours.attendu : null;
     garder("origami_installation", "");
     if (estMoteurCompagnie(lie.u)) { id = "compagnie"; etat.sansCompagnie = false; delete etat.noms.compagnie; }
     else id = Object.keys(moteurs).filter(function (k) { return k !== "compagnie" && moteurs[k].u === lie.u && compte(k); })[0] || "";
@@ -3700,7 +3760,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var sansNom = !lie.nom || lie.nom === "Mon compte", nomGoogle = google ? google.split("@")[0].slice(0, 40) : "", aNommer = false;
     if (!id) {
       id = "c" + Date.now().toString(36); aNommer = sansNom && !!nomGoogle;
-      etat.ajoutes.push({ id: id, nom: (sansNom ? nomGoogle : lie.nom) || lie.nom || "Mon compte", couleur: COULEURS.indexOf(lie.couleur) >= 0 ? lie.couleur : COULEURS[1], applis: ["boite"] });
+      etat.ajoutes.push({ id: id, nom: (sansNom ? (attendu && attendu.nom) || nomGoogle : lie.nom) || lie.nom || "Mon compte", couleur: COULEURS.indexOf(lie.couleur) >= 0 ? lie.couleur : attendu && COULEURS.indexOf(attendu.couleur) >= 0 ? attendu.couleur : COULEURS[1], applis: ["boite"] });
     }
     moteurs[id] = { u: lie.u, c: lie.c }; memoires[id] = { version: 0, listes: {} }; retenirMoteurs(); garderMemoire(id); LIEN_RELIER = null;
     if (google) garder("origami_google_adresse@" + id, google);
@@ -3710,7 +3770,9 @@ button.tuile:hover { border-color: var(--ligne); }
     guide.etape = 0; guide.pour = ""; etat.compte = id; etat.vue = "ajouter";
     if (FENETRE === "tickets") { parcours = { phase: "" }; etat.vue = vueTk(id); if (TK_SEUL) garder("origami_tk_choisi", id); }
     montrer();
-    if (aNommer) moteurAppel(id, "compte.regler", { nom: nomGoogle }, { sans: true }).then(function () { relever(id); }, function () { relever(id); });
+    // Les autres comptes de cet appareil apprennent celui-ci (famille, moteur v13).
+    setTimeout(function () { Object.keys(moteurs).forEach(function (k) { if (k !== id) familleSynchro(k); }); }, 0);
+    if (aNommer) moteurAppel(id, "compte.regler", { nom: (attendu && attendu.nom) || nomGoogle }, { sans: true }).then(function () { relever(id); }, function () { relever(id); });
     else relever(id);
   }
   function dessinerAjout() {
@@ -3934,6 +3996,8 @@ button.tuile:hover { border-color: var(--ligne); }
       return;
     }
     // « Continuer avec Google » de l'écran de bienvenue : même geste que dans « Ajouter un compte », dans le clic même.
+    if (d.familleAjouter && PARCOURS_GOOGLE) { var fa = familleAProposer().filter(function (o) { return o.g === d.familleAjouter; })[0]; if (!fa) return; parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; montrer(); parcoursLancer(fa); return; }
+    if (d.familleNon) { var vu = familleVus(); if (vu.indexOf(d.familleNon) < 0) vu.push(d.familleNon); garder("origami_famille_vus", JSON.stringify(vu.slice(-30))); montrer(); return; }
     if (d.accueilGoogle && PARCOURS_GOOGLE) { parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; montrer(); parcoursLancer(); return; }
     if (d.comptaAjout && COMPTA_SEULE) { if (d.comptaAjout === "ok") comptaAjouter(); else { etat.vue = "compta"; montrer(); } return; }
     if (d.comptaRetirer && COMPTA_SEULE) { comptaRetirer(d.comptaRetirer); return; }
