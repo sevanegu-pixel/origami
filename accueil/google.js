@@ -548,6 +548,26 @@
     }, Promise.resolve()).then(function () { return { reste: reste, vu: vu }; });
   }
 
+  /**
+   * Effacement total (25.11.2026) : la Boîte mail installée par Origami dans ce compte. Son classeur a été créé par la page : le moteur
+   * ne peut pas jeter un dossier qui le contient. La page le ressort donc du dossier « Origami » avant, et le jette après.
+   * Rend { classeur, projet, deploiement } ou null (pas de Boîte mail installée par Origami, ou pas visible avec ce compte Google).
+   */
+  function sortirBoite(o) {
+    var s = session(o.cle);
+    if (!s || !s.drive) return Promise.resolve(null);
+    return chercherBoite(s).then(function (b) {
+      if (!b || !b.classeur) return null;
+      return sortirClasseur({ cle: o.cle, id: b.classeur }).then(function () { return b; });
+    }).catch(function (e) { if (e && e.code === "expire") throw e; return null; });
+  }
+  /** Après le retrait : la Boîte mail de ce compte cesse de répondre (sa publication est retirée). Ne bloque jamais : rend oui ou non. */
+  function arreterBoite(o) {
+    var s = session(o.cle), b = o.boite;
+    if (!s || !b || !/^[\w-]{20,120}$/.test(String(b.projet || "")) || !/^[\w-]{20,120}$/.test(String(b.deploiement || ""))) return Promise.resolve(false);
+    return api(s, "DELETE", "projects/" + enc(b.projet) + "/deployments/" + enc(b.deploiement)).then(function () { return true; }, function () { return false; });
+  }
+
   /** Retire à Origami l'accès donné chez Google pour ce compte (il sera redemandé à la prochaine connexion). Ne bloque jamais : rend oui ou non. */
   function retirerAcces(cle) {
     var s = session(cle); delete sessions[cle];
@@ -719,7 +739,7 @@
 
   var sortie = { charger: charger, installerBoite: installerBoite, pingBoite: pingBoite, relierBoite: relierBoite, _fichierPremierBoite: fichierPremierBoite, _appelBoite: APPEL_BOITE, mettreAJourOrigami: mettreAJourOrigami, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
-    parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, jeterReste: jeterReste, retirerAcces: retirerAcces,
+    parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, sortirBoite: sortirBoite, arreterBoite: arreterBoite, jeterReste: jeterReste, retirerAcces: retirerAcces,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
   if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;
 })(typeof window !== "undefined" ? window : this);
