@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.68">
+<meta name="origami-version" content="2026-11-22.69">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -116,6 +116,8 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .guide-compta li.attente strong { color: var(--doux); font-weight: 500; }
 .guide-compta li.fait strong { font-weight: 500; }
 .souci-guide { color: #b42318; margin: 4px 0; }
+.droits-modules { margin: 4px 0 10px; padding-left: 18px; line-height: 1.45; }
+.guide-compta .droits-modules li { display: list-item; margin: 4px 0; }
 .etapes-compta li { margin: 6px 0; line-height: 1.45; }
 .progression { display: inline-flex; flex-direction: column; gap: 3px; min-width: 150px; font-size: 12px; color: var(--doux); }
 .progression progress { width: 150px; height: 6px; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
@@ -549,9 +551,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.68"></script>
-<script src="repertoire.js?v=2026-11-22.68"></script>
-<script src="google.js?v=2026-11-22.68"></script>
+<script src="agenda.js?v=2026-11-22.69"></script>
+<script src="repertoire.js?v=2026-11-22.69"></script>
+<script src="google.js?v=2026-11-22.69"></script>
 <script>
 (function () {
   "use strict";
@@ -688,7 +690,15 @@ button.tuile:hover { border-color: var(--ligne); }
     return (d && COMPTAS_DES_MOTEURS[empreinte(d[1])]) || (typeof COMPTAS_RECUES !== "undefined" && COMPTAS_RECUES[id]) || "";
   }
   function comptaMoteur(id) { var m = typeof memoires !== "undefined" && typeof moteurs !== "undefined" && moteurs[id] && memoires[id]; return (m && m.etat && m.etat.compta && typeof m.etat.compta === "object") ? m.etat.compta : null; }
-  function cleCadre(c, vue) { return vue === "compta" && c && c.id !== "compagnie" ? "compta@" + c.id : vue; }
+  // ---- Modules Spectacle et Prospection d'un autre compte que la compagnie (25.11, moteur v15) : installés par Origami dans le
+  // compte (classeur « Origami - Diffusion »), ouverts dans un cadre « modules@<compte> » avec un jeton donné par le moteur du compte.
+  var VUES_MODULES = { spectacle: 1, prospection: 1 };
+  function modulesMoteur(id) { var m = typeof memoires !== "undefined" && typeof moteurs !== "undefined" && moteurs[id] && memoires[id]; return (m && m.etat && m.etat.modules && typeof m.etat.modules === "object") ? m.etat.modules : null; }
+  function modulesAdresse(id) { var mm = id !== "compagnie" && modulesMoteur(id); return mm && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(mm.adresse || "") ? mm.adresse : ""; }
+  // Autorisés par leur propriétaire (dernière étape du guide) : cet appareil retient pour QUELLE adresse, une réinstallation repart de zéro.
+  function modulesAutorises(id) { var a = modulesAdresse(id); return !!a && lire("origami_modules_autorises@" + id) === a; }
+  function modulesPrets(id) { return modulesAutorises(id); }
+  function cleCadre(c, vue) { return vue === "compta" && c && c.id !== "compagnie" ? "compta@" + c.id : VUES_MODULES[vue] && c && c.id !== "compagnie" ? "modules@" + c.id : vue; }
   function cleJetonCompta(id) { return id === "compagnie" ? "origami_jeton" : "origami_jeton@" + id; }
   if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
   function retenir() { if (FENETRE) return; garder("origami_appli_etat", JSON.stringify({ compte: etat.compte, vue: etat.vue, ajoutes: etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }), masques: etat.masques, compagnie: { nom: COMPTE_COMPAGNIE.nom, couleur: COMPTE_COMPAGNIE.couleur }, noms: etat.noms, ouverture: etat.ouverture, sansCompagnie: !!etat.sansCompagnie })); }
@@ -733,6 +743,7 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   function ouvrirCadre(id, discret) {
     if (cadres[id]) return cadres[id];
+    if (id.indexOf("modules@") === 0) return ouvrirModules(id.slice(8));
     var a = APPLIS[id.split("@")[0]], f = document.createElement("iframe");
     f.title = a.titre; f.setAttribute("allow", a.droits);
     if (a.sansCompte) f.setAttribute("credentialless", "");
@@ -746,6 +757,55 @@ button.tuile:hover { border-color: var(--ligne); }
     cadres[id] = f;
     return f;
   }
+  // Le cadre des modules d'un compte : il apparaît tout de suite (avec l'attente), son adresse arrive avec le jeton du moteur.
+  // Le jeton vaut quelques heures et ne reste qu'en mémoire ; quand les modules disent qu'il ne vaut plus, Origami en redemande un.
+  var jetonsModules = {}, fenModules = {}, modulesVoulu = {}, modulesRefaits = {};
+  function jetonModules(cid, neuf) {
+    var j = jetonsModules[cid];
+    if (!neuf && j && j.fin - Date.now() > 600000) return Promise.resolve(j);
+    return moteurAppel(cid, "jeton.appli", { app: "modules" }, { sans: true }).then(function (r) {
+      if (!r || !/^[a-f0-9]{48}$/.test(r.jeton) || r.adresse !== modulesAdresse(cid)) throw new Error("Le moteur du compte n'a pas ouvert ces modules.");
+      return (jetonsModules[cid] = { jeton: r.jeton, fin: Number(r.fin) || 0, adresse: r.adresse });
+    });
+  }
+  function ouvrirModules(cid, neuf) {
+    var k = "modules@" + cid, f = cadres[k];
+    if (f && !neuf) return f;
+    if (!f) {
+      f = document.createElement("iframe");
+      f.title = "Spectacle et Prospection"; f.setAttribute("allow", APPLIS.diffusion.droits); f.setAttribute("credentialless", "");
+      f.hidden = true;
+      f.addEventListener("load", function () { setTimeout(function () { attente.hidden = true; }, 1200); });
+      scene.appendChild(f);
+      cadres[k] = f;
+    }
+    attente.hidden = false;
+    jetonModules(cid, neuf).then(function (j) {
+      if (cadres[k] !== f) return;   // fermé entre-temps
+      var ap = null, param = "";
+      try { ap = JSON.parse(lire("diffusion_apparence@" + cid) || "null"); } catch (e) { ap = null; }
+      if (ap && ap.apparence) param = "&apparence=" + encodeURIComponent(JSON.stringify(ap.apparence));
+      f.src = j.adresse + "?jeton=" + j.jeton + param;
+    }, function (e) {
+      if (cadres[k] !== f) return;
+      fermerModules(cid); attente.hidden = true;
+      avis("Spectacle et Prospection de " + nomCompte(cid) + " ne s'ouvrent pas : " + String((e && e.message) || e), true);
+      if (etat.compte === cid && VUES_MODULES[etat.vue]) { etat.vue = "applis"; montrer(); }
+    });
+    return f;
+  }
+  function fermerModules(cid) { var k = "modules@" + cid; if (cadres[k]) { cadres[k].remove(); delete cadres[k]; } delete fenModules[cid]; delete jetonsModules[cid]; }
+  // Les modules d'un compte reçoivent la rubrique à montrer, comme la Diffusion de la compagnie (pas de Boîte mail liée pour l'instant).
+  function direModuleCompte(cid) { var w = fenModules[cid]; if (!w) return; try { w.w.postMessage({ origami: "module", vue: modulesVoulu[cid] || "", boite: false, repertoire: !!window.OrigamiRepertoire }, w.o); } catch (e) {} }
+  // Les modules disent que leur accès ne vaut plus (jeton fini, appareil retiré) : un jeton neuf et le cadre se recharge, une fois par minute au plus.
+  function modulesAccesPerdu(cid) {
+    var t = Date.now();
+    if (modulesRefaits[cid] && t - modulesRefaits[cid] < 60000) { avis("Spectacle et Prospection de " + nomCompte(cid) + " ne s'ouvrent pas sur cet appareil. Vérifie dans Réglages que ce compte est bien relié.", true); return; }
+    modulesRefaits[cid] = t; delete fenModules[cid];
+    if (cadres["modules@" + cid]) ouvrirModules(cid, true);
+  }
+  // Un compte retiré, délié ou réinstallé : ses modules se ferment et cet appareil oublie ce qu'il en gardait.
+  function oublierModules(id) { if (id === "compagnie") return; fermerModules(id); delete modulesVoulu[id]; delete modulesRefaits[id]; garder("origami_modules_autorises@" + id, ""); garder("diffusion_apparence@" + id, ""); ecrireCache("", id); }
   // Les Compta ouvertes reçoivent la liste des comptes ; elle leur est redite quand un compte change de nom ou de couleur.
   var fenComptes = {};
   function listeComptes(cid) {
@@ -767,8 +827,9 @@ button.tuile:hover { border-color: var(--ligne); }
     return "";
   }
   function base(ok) { try { var r = indexedDB.open("diffusion-coquille", 1); r.onupgradeneeded = function () { r.result.createObjectStore("c"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
-  function lireCache(ok) { base(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get("diffusion_jeton_donnees"); q.onsuccess = function () { ok(q.result || ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
-  function ecrireCache(t) { base(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, "diffusion_jeton_donnees"); else s.delete("diffusion_jeton_donnees"); } catch (e) {} }); }
+  function cleCache(cid) { return cid && cid !== "compagnie" ? "diffusion_jeton_donnees@" + cid : "diffusion_jeton_donnees"; }   // la copie des modules d'un autre compte a sa propre case
+  function lireCache(ok, cid) { base(function (db) { if (!db) return ok(""); try { var q = db.transaction("c").objectStore("c").get(cleCache(cid)); q.onsuccess = function () { ok(q.result || ""); }; q.onerror = function () { ok(""); }; } catch (e) { ok(""); } }); }
+  function ecrireCache(t, cid) { base(function (db) { if (!db) return; try { var s = db.transaction("c", "readwrite").objectStore("c"); if (t) s.put(t, cleCache(cid)); else s.delete(cleCache(cid)); } catch (e) {} }); }
   // Copie des dernières données de la Compta (18.11) : la même que celle de la page Compta (même adresse, même mémoire).
   // Rendue seulement à un appareil qui a le jeton de la Compta ; effacée quand la Compta redemande le code PIN.
   function baseCompta(ok) { try { var r = indexedDB.open("compta-coquille", 1); r.onupgradeneeded = function () { r.result.createObjectStore("c"); }; r.onsuccess = function () { ok(r.result); }; r.onerror = function () { ok(null); }; } catch (e) { ok(null); } }
@@ -1203,6 +1264,20 @@ button.tuile:hover { border-color: var(--ligne); }
       if (d.origami === "jeton" || d.diffusion === "jeton") garder("diffusion_jeton", FORME_DIFFUSION.test(d.jeton || "") ? d.jeton : "");
       return;
     }
+    if (id.indexOf("modules@") === 0) {
+      // Les modules Spectacle et Prospection d'un autre compte : mêmes messages que Diffusion, chacun sa copie et son apparence.
+      var mc = id.slice(8);
+      if (d.diffusion === "acces") { modulesAccesPerdu(mc); return; }
+      fenModules[mc] = { w: ev.source, o: ev.origin };
+      if (d.diffusion === "pret") { direModuleCompte(mc); return; }
+      // Pas encore de Boîte mail liée aux modules d'un autre compte : ils écrivent leurs mails eux-mêmes.
+      if (d.diffusion === "mail") { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} return; }
+      if (d.diffusion === "repertoire") { recevoirRepertoire(d, "Diffusion", ev.source, ev.origin, mc); return; }
+      if (d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }, mc); return; }
+      if (d.diffusion === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCache(d.texte, mc); return; }
+      if (d.diffusion === "apparence" && d.apparence) { garder("diffusion_apparence@" + mc, JSON.stringify({ apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} })); attente.hidden = true; return; }
+      return;
+    }
     if (id === "compta" || id.indexOf("compta@") === 0) {
       // La Compta de la compagnie, ou celle d'un autre compte (« compta@<compte> ») : chacune son jeton et sa copie.
       var cid = id === "compta" ? "compagnie" : id.slice(7), autre = cid !== "compagnie";
@@ -1359,7 +1434,7 @@ button.tuile:hover { border-color: var(--ligne); }
         if (memoires[id] === m) setTimeout(function () { familleSynchro(id); }, 0);
       }, function (e) { m.panne = String((e && e.message) || e); });
     }).then(function () {
-      delete releves[id]; dessinerMenu(); rafraichir(id); comptaVerifierSeule(id);
+      delete releves[id]; dessinerMenu(); rafraichir(id); comptaVerifierSeule(id); modulesVerifierSeuls(id);
       if ((etat.vue === "accueil" || etat.vue === "reglages") && grosse(id, "diffusion")) releverDiffusionSiVieux(id, 600000);   // Diffusion vient d'apparaître : ses chiffres
     });
     return releves[id];
@@ -1457,7 +1532,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
   // Version du moteur modèle en ligne (25.11 : v12, la Compta porte l'appli du personnel). Un compte installé par l'appli avec un
   // moteur plus ancien se met à jour avec sa Compta (bouton « Mettre à jour » de la tuile Compta) ; la compagnie, depuis le Mac.
-  var MOTEUR_ACTUEL = 14;
+  var MOTEUR_ACTUEL = 15;
   // ---- La famille (25.11, moteur v13) : un nouvel appareil retrouve tes autres comptes ----
   // Chaque moteur relié garde la liste des AUTRES comptes Google de la personne (adresse, nom, couleur ; jamais de clé ni d'adresse
   // de moteur). Un appareil neuf, relié à un seul compte par « Continuer avec Google », lit cette liste et propose les autres :
@@ -1498,7 +1573,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function applisDe(c) { var l = c.applis.slice(); if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets") || (c.applis.indexOf("tickets") >= 0 && !etatMoteur(c.id))) l.push("tickets0");   /* sans moteur relié sur cet appareil : la ligne reste, l'écran dit comment relier */ if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
   // Les modules d'un compte : pour l'instant ceux de la Diffusion du compte compagnie (son appli s'ouvre dans un cadre).
   var MODULES = ["spectacle", "prospection", "agenda"];
-  function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) m.push("agenda"); return m; }   // l'Agenda vient du moteur du compte
+  function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) { if (modulesPrets(c.id)) m.push("spectacle", "prospection"); m.push("agenda"); } return m; }   // l'Agenda vient du moteur du compte ; Spectacle et Prospection, de ses modules installés (v15)
   function vuesDe(c) { var l = modulesDe(c).concat(applisDe(c)); if (c && c.id === "compagnie" && l.indexOf("diffusion") >= 0) l.push("agendaDiff"); return l; }
   // Dans le volet : les modules d'abord ; Diffusion elle-même n'y est plus (elle reste sur le tableau de bord).
   function voletDe(c) { var m = modulesDe(c); return { modules: m, applis: applisDe(c).filter(function (id) { return !(m.length && id === "diffusion"); }) }; }
@@ -2939,6 +3014,156 @@ button.tuile:hover { border-color: var(--ligne); }
         : String((e && e.message) || e), true);
     });
   }
+  // ---- Spectacle et Prospection dans un autre compte que la compagnie (25.11, moteur v15) ----
+  // Même chemin que la Compta : le moteur du compte porte le code des modules et prépare le classeur « Origami - Diffusion » ;
+  // Origami, connecté à Google, crée l'appli dans le compte et la met en ligne ; la personne l'autorise elle-même, une fois.
+  var MOTEUR_MODULES = 15;
+  var modulesEnCours = {}, modulesSous = {}, modulesPings = {};
+  var SOUS_MODULES = { recette: "Vérification du compte", code: "Lecture du code des modules", classeur: "Dossier et classeur dans ton Drive", projet: "Création de l'appli dans ton compte", contenu: "Envoi du code", version: "Enregistrement de la version", ligne: "Mise en ligne" };
+  function modulesDireTuile(id) { try { [].forEach.call(document.querySelectorAll('[data-modules-cours="' + id + '"] > span:last-child'), function (z) { z.textContent = modulesEnCours[id] || ""; }); } catch (e) {} }
+  function modulesMoteurPret(id) { var m = memoires[id]; return !!(moteurs[id] && m && !m.panne && m.etat && m.etat.moteur && m.etat.moteur.version >= MOTEUR_MODULES); }
+  function modulesNoterAutorises(id) { var a = modulesAdresse(id); if (a) garder("origami_modules_autorises@" + id, a); }
+  // Modules installés et autorisés depuis un autre appareil : dès que le moteur donne leur adresse, cet appareil vérifie seul qu'ils répondent.
+  function modulesVerifierSeuls(id) {
+    var a = modulesAdresse(id), G = window.OrigamiGoogle;
+    if (!a || modulesAutorises(id) || !G || !G.pingModules || modulesPings[id] || modulesEnCours[id] || guideM.id === id) return;
+    modulesPings[id] = 1;
+    G.pingModules(a).then(function (ok) {
+      delete modulesPings[id];
+      if (!ok || modulesAutorises(id) || modulesAdresse(id) !== a) return;
+      modulesNoterAutorises(id); dessinerMenu(); rafraichir(id);
+    });
+  }
+  var guideM = { id: "", occupe: "", souci: "", code: "", brut: "" };
+  function modulesGuide(id) {
+    guideM = { id: id, occupe: modulesEnCours[id] || "Je regarde où en est ce compte…", souci: "", code: "", brut: "" };
+    dessinerGuideModules();
+    if (window.OrigamiGoogle && !macSansGoogle()) OrigamiGoogle.charger().catch(function () {});   // prêt avant le clic « Se connecter »
+    relireCompte(id).then(function () { if (guideM.id !== id) return; guideM.occupe = modulesEnCours[id] || ""; dessinerGuideModules(); });
+  }
+  // Ce que Google va demander d'accepter, dit avant, avec des mots simples (les mêmes droits que l'appli Diffusion).
+  var DROITS_MODULES = "<ul class=\"droits-modules\"><li><strong>Tes mails Gmail</strong> : les lire, en écrire et en envoyer, pour suivre tes échanges avec les lieux. Rien ne part sans ton geste.</li>" +
+    "<li><strong>Tes feuilles Google Sheets</strong> : pour tenir le classeur « Origami - Diffusion » (contacts, lieux, spectacles).</li>" +
+    "<li><strong>Ton Drive</strong> : voir tes fichiers pour joindre un dossier à un mail, et ranger ceux que les modules créent.</li>" +
+    "<li><strong>Travailler quand tu n'es pas là</strong> et <strong>se connecter à un service extérieur</strong> : pour les envois programmés, et pour vérifier auprès d'Origami que c'est bien ton appareil.</li></ul>";
+  function dessinerGuideModules() {
+    var id = guideM.id;
+    if (!id) return;
+    if (!voile.hidden && !voile.querySelector("[data-guide-modules]")) return;   // une autre fenêtre est ouverte : on ne l'écrase pas
+    var m = memoires[id] || {}, mm = modulesMoteur(id) || {}, nom = texte(nomCompte(id)), G = window.OrigamiGoogle;
+    var pret = modulesMoteurPret(id), connecte = !!(G && G.session(id)), adr = modulesAdresse(id);
+    var f2 = !!adr, f1 = f2 || (pret && connecte), f3 = f2 && modulesAutorises(id);
+    var faits = [f1, f2, f3], actif = faits.indexOf(false);
+    var installe = !!modulesEnCours[id], sous = installe ? sousEtapes(ORDRE_COMPTA, SOUS_MODULES, modulesSous[id]) : "";
+    var travail = !guideM.occupe ? "" : sous ? sous + '<p class="progression" role="status">' + barreVive() + "<span>Deux minutes environ. Tu peux fermer cette fenêtre, l'installation continue. Ne quitte pas Origami.</span></p>" : occupeHtml(guideM.occupe, true);
+    function etape(i, titre, corps) {
+      var cl = faits[i] ? "fait" : i === actif ? "actif" : "attente";
+      var travaille = i === actif && !!guideM.occupe;
+      return '<li class="' + cl + '"><span class="pastille" aria-hidden="true">' + (faits[i] ? "✓" : travaille ? roue() : i + 1) + '</span><div><strong>' + titre + "</strong>" + (travaille ? travail : i === actif ? corps : "") + "</div></li>";
+    }
+    var brutGoogle = guideM.brut ? '<p class="aide-fine">Réponse de Google, telle quelle : « ' + texte(guideM.brut) + " »</p>" : "";
+    var e1 = !pret ? "<p>" + (m.panne ? "Le moteur de ce compte ne répond pas pour l'instant." : "L'Origami de ce compte n'a pas encore la version qui porte ces modules. Ferme ce guide : dans « Applis », au-dessus des applis de ce compte, clique « Mettre à jour », puis reviens ici.") + "</p>" + '<div class="actions"><button class="bouton" data-guide-modules-verifier="1">Vérifier à nouveau</button></div>'
+      : macSansGoogle() ? noteMacAncien() + '<div class="actions"><button class="bouton" data-guide-modules-verifier="1">C\'est installé, vérifier</button></div>'
+      : !G ? "<p>La connexion à Google n'est pas chargée. Recharge Origami et reviens ici.</p>"
+      : "<p>" + ouvreGoogle() + " Choisis le compte <strong>" + nom + "</strong> et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami de la compagnie. Elle sert seulement à créer tes modules dans ton propre compte.</p>" + '<div class="actions"><button class="bouton fort" data-guide-modules-connecter="1">Se connecter à Google</button></div>';
+    var e2 = guideM.code === "api-eteinte" ? "<p>Google demande d'allumer un interrupteur du compte, une seule fois. Sur la page qui s'ouvre, vérifie en haut à droite que c'est bien <strong>" + nom + "</strong>, puis allume « API Google Apps Script ».</p>" +
+        '<div class="actions"><a class="bouton" href="' + REGLAGES_API + (googleAdresse(id) ? "?authuser=" + encodeURIComponent(googleAdresse(id)) : "") + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-guide-modules-installer="1">C\'est allumé, continuer</button></div>' + brutGoogle
+      : "<p>Origami crée Spectacle et Prospection dans ton Drive (dossier Origami, Diffusion), vides, et les met en ligne. Deux minutes environ.</p>" + '<div class="actions"><button class="bouton fort" data-guide-modules-installer="1">' + (mm.enCours ? "Reprendre l'installation" : "Installer Spectacle et Prospection") + "</button></div>" + brutGoogle;
+    var lienA = (G && G.lienAutorisation(mm.projet, googleAdresse(id))) || adr || "";
+    var e3 = "<p>Dernier geste : Google te demande d'autoriser ces modules dans le compte <strong>" + nom + "</strong>. La liste de Google est longue, parce que ces modules font le même travail que l'appli Diffusion. Voici ce qu'elle dit, en clair :</p>" + DROITS_MODULES +
+      "<p>C'est ta propre appli, installée dans ton compte : elle ne s'ouvre que depuis un appareil relié à ce compte dans Origami. Si Google dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Origami - Diffusion ».</p>" +
+      '<div class="actions">' + (lienA ? '<a class="bouton" href="' + texte(lienA) + '" target="_blank" rel="noopener">Autoriser mes modules</a>' : "") + '<button class="bouton fort" data-guide-modules-ping="1">C\'est fait, vérifier</button></div>' +
+      aidePlusieursComptes(lienA, "<strong>" + nom + "</strong>") +
+      '<p class="aide-fine">À leur première ouverture, les modules préparent leur classeur (une minute environ).</p>';
+    var h = '<div data-guide-modules="1"><h2>Installer Spectacle et Prospection</h2><p class="aide-fine">Dans le compte ' + nom + ". Trois étapes, une seule fois, pour les deux modules. Tu peux fermer et revenir : le guide reprend où tu en étais.</p>" +
+      '<ol class="guide-compta">' + etape(0, "Connecter Origami à Google", e1) + etape(1, "Installer les modules", e2) + etape(2, "Autoriser tes modules", e3) + "</ol>" +
+      (guideM.occupe && actif < 0 ? occupeHtml(guideM.occupe, true) : "") +
+      (guideM.souci ? '<p class="souci-guide" role="alert">' + texte(guideM.souci) + "</p>" : "") +
+      '<div class="actions">' + (actif < 0 ? '<button class="bouton fort" data-guide-modules-ouvrir="1">Ouvrir Spectacle</button>' : '<button class="bouton" data-guide-modules-fermer="1">Fermer</button>') + "</div></div>";
+    ouvrirVoile(h);
+  }
+  function guideModulesConnecter() {
+    var id = guideM.id, G = window.OrigamiGoogle;
+    if (!id || !G || guideM.occupe) return;
+    var p = G.connecter(id, { adresse: googleAdresse(id) });   // dans le clic même : la fenêtre de Google doit pouvoir s'ouvrir
+    guideM.souci = ""; guideM.code = ""; guideM.brut = ""; guideM.occupe = "La fenêtre de Google est ouverte : choisis le compte et accepte…"; dessinerGuideModules();
+    p.then(function (s) {
+      if (s.adresse) garder("origami_google_adresse@" + id, s.adresse);
+      if (guideM.id !== id) return;
+      guideM.occupe = "";
+      if (modulesAdresse(id)) dessinerGuideModules(); else guideModulesInstaller();   // connectée : l'installation part toute seule
+    }, function (e) { if (guideM.id !== id) return; guideM.occupe = ""; guideM.souci = String((e && e.message) || e); guideM.code = (e && e.code) || ""; dessinerGuideModules(); });
+  }
+  function guideModulesInstaller() {
+    var id = guideM.id, G = window.OrigamiGoogle;
+    if (!id || !G || !G.installerModules || modulesEnCours[id]) return;
+    guideM.souci = ""; guideM.code = ""; guideM.brut = "";
+    if (!G.session(id)) { guideM.souci = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprendra où elle en était."; dessinerGuideModules(); return; }
+    function dire(e) { modulesEnCours[id] = (SOUS_MODULES[e] || "Installation des modules") + "…"; modulesSous[id] = e; modulesDireTuile(id); if (guideM.id === id) { guideM.occupe = modulesEnCours[id]; dessinerGuideModules(); } }
+    dire("recette"); montrer();
+    G.installerModules({ cle: id, moteur: appelMoteurCompta(id), dire: dire }).then(function (r) {
+      delete modulesEnCours[id]; delete modulesSous[id];
+      // Modules neufs : ce que cet appareil gardait d'anciens modules de ce compte (autorisation, copie hors ligne) ne vaut plus.
+      if (r && r.premiere) oublierModules(id);
+      return relireCompte(id);
+    }, function (e) {
+      delete modulesEnCours[id]; delete modulesSous[id];
+      var code = (e && e.code) || "", t = String((e && e.message) || e);
+      if (code === "mauvais-compte") { G.oublier(id); t = "Ce n'est pas le bon compte Google. Reconnecte-toi et, à la fenêtre de Google, choisis celui de « " + nomCompte(id) + " »."; }
+      else if (code === "expire" || code === "connexion") t = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprendra où elle en était.";
+      else if (code === "api-eteinte") t = "";
+      else if (code === "projet-compagnie") t = "Le projet Google de la compagnie refuse cette demande. Ce n'est pas de ton fait : préviens la personne qui s'occupe d'Origami.";
+      else t += " Ce qui est fait est gardé : tu peux reprendre.";
+      if (guideM.id !== id) { if (t) avis("Spectacle et Prospection de " + nomCompte(id) + " : " + t, true); return; }
+      guideM.souci = t; guideM.code = code; guideM.brut = String((e && e.brut) || "").slice(0, 320);
+      return relireCompte(id);   // ce qui a été créé avant l'arrêt se voit (« Reprendre l'installation »)
+    }).then(function () { if (guideM.id === id) guideM.occupe = ""; montrer(); if (guideM.id === id) dessinerGuideModules(); });
+  }
+  // Dernière étape : les modules autorisés répondent à un petit appel ; pas encore autorisés, ils ne répondent rien de lisible.
+  function guideModulesPing() {
+    var id = guideM.id, a = modulesAdresse(id), G = window.OrigamiGoogle;
+    if (!id || !G || !G.pingModules || !a || guideM.occupe) return;
+    guideM.occupe = "Je vérifie que tes modules répondent…"; guideM.souci = ""; guideM.code = ""; guideM.brut = ""; dessinerGuideModules();
+    G.pingModules(a).then(function (ok) {
+      if (ok) modulesNoterAutorises(id);
+      if (guideM.id !== id) { if (ok) montrer(); return; }
+      guideM.occupe = "";
+      if (ok) montrer(); else { guideM.code = "ping"; guideM.souci = "Tes modules ne répondent pas encore. Si tu viens d'accepter l'écran de Google, attends dix secondes et recommence."; }
+      dessinerGuideModules();
+    });
+  }
+  // Mise à jour des modules d'un compte : connexion à Google, puis nouveau code, nouvelle version, même adresse. Les données ne bougent pas.
+  function modulesMettreAJour(id) {
+    var G = window.OrigamiGoogle;
+    if (modulesEnCours[id] || !G || !G.mettreAJourModules) return;
+    if (G.session(id)) { modulesMajLancer(id); return; }
+    if (!macSansGoogle()) G.charger().catch(function () {});
+    ouvrirVoile("<h2>Mettre à jour Spectacle et Prospection</h2>" + (macSansGoogle() ? noteMacAncien() + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Fermer</button></div>'
+      : "<p>Pour mettre à jour les modules de <strong>" + texte(nomCompte(id)) + "</strong>, Origami se connecte à Google. Choisis ce compte à la fenêtre de Google et accepte. Tes données et tes réglages ne bougent pas.</p>" + '<div class="actions"><button class="bouton" data-guide-compta-fermer="1">Annuler</button><button class="bouton fort" data-modules-maj-go="' + texte(id) + '">Se connecter et mettre à jour</button></div>'));
+  }
+  function modulesMajConnecter(id) {
+    var G = window.OrigamiGoogle;
+    if (!G || modulesEnCours[id]) return;
+    G.connecter(id, { adresse: googleAdresse(id) }).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); fermerVoile(); modulesMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
+  }
+  function modulesMajLancer(id) {
+    var G = window.OrigamiGoogle;
+    modulesEnCours[id] = "Mise à jour des modules…";
+    montrer();
+    G.mettreAJourModules({ cle: id, moteur: appelMoteurCompta(id), dire: function (e) { modulesEnCours[id] = "Mise à jour : " + String(SOUS_MODULES[e] || "en cours").toLowerCase() + "…"; modulesDireTuile(id); } }).then(function () {
+      delete modulesEnCours[id]; fermerModules(id);   // le cadre ouvert montrait l'ancienne version : il se rouvrira avec la nouvelle
+      avis("Spectacle et Prospection de " + nomCompte(id) + " à jour.");
+      return relireCompte(id).then(montrer);
+    }, function (e) {
+      delete modulesEnCours[id]; montrer();
+      var code = (e && e.code) || "";
+      if (code === "mauvais-compte") G.oublier(id);
+      avis(code === "mauvais-compte" ? "Ce n'est pas le bon compte Google : relance la mise à jour et choisis celui de « " + nomCompte(id) + " »."
+        : code === "api-eteinte" ? "L'interrupteur « API Google Apps Script » de ce compte est éteint : allume-le sur script.google.com/home/usersettings, puis relance."
+        : code === "expire" || code === "connexion" ? "La connexion à Google a expiré : relance la mise à jour."
+        : String((e && e.message) || e), true);
+    });
+  }
   // ---- Mise à jour de l'Origami d'un compte installé par l'appli (25.11) : un clic dans Applis, sans passer par le Mac ----
   var origamiEnCours = {};
   function origamiMettreAJour(id) {
@@ -3131,7 +3356,22 @@ button.tuile:hover { border-color: var(--ligne); }
     var relie = !!(c && (c.id === "compagnie" || moteurs[c.id])), mac = !FENETRE && boitePossible(), etatT = "", ok = false, act = "", eteinte = false;
     function b(attrs, texte, fort) { return '<button class="bouton' + (fort ? " fort" : "") + '" ' + attrs + ">" + texte + "</button>"; }
     if (!c) { etatT = "Ajoute d'abord un compte."; eteinte = true; }
-    else if (id === "spectacle" || id === "prospection") { etatT = "En construction : bientôt ici, vierge."; eteinte = true; }
+    else if (id === "spectacle" || id === "prospection") {
+      // Compagnie : les écrans de son appli Diffusion. Autre compte : les modules installés dans son Drive par Origami (v15), les deux ensemble.
+      var mm = c.id === "compagnie" ? null : modulesMoteur(c.id);
+      if (c.id === "compagnie") { if (modulesDe(c).indexOf(id) >= 0) { ok = true; etatT = "Prêt."; act = b('data-vue="' + id + '" data-de="compagnie"', "Ouvrir", true); } else { etatT = "Vient avec l'appli Diffusion de ce compte."; eteinte = true; } }
+      else if (modulesEnCours[c.id]) { etatT = roue() + "En cours. Ne ferme pas Origami."; act = occupeHtml(modulesEnCours[c.id], false, ' data-modules-cours="' + texte(c.id) + '"'); }
+      else if (modulesPrets(c.id)) {
+        var majM = !!(mm && mm.miseAJour);
+        ok = true; etatT = majM ? "Une nouvelle version est prête." : "Installé.";
+        act = (majM ? b('data-modules-maj="' + c.id + '"', "Mettre à jour", true) + " " : "") + b('data-vue="' + id + '" data-de="' + c.id + '"', "Ouvrir", !majM);
+      }
+      else if (modulesAdresse(c.id)) { etatT = "Installé. Dernière étape : l'autoriser."; act = b('data-modules-guide="' + c.id + '"', "Continuer", true); }
+      else if (relie && moteurAncien(c.id)) { etatT = "Mets d'abord Origami à jour dans ce compte (bouton « Mettre à jour » ci-dessus)."; eteinte = true; }
+      else if (mm && mm.possible) { etatT = mm.enCours ? "Installation commencée : reprends-la." : "Pas encore installé. S'installe avec " + (id === "spectacle" ? "Prospection" : "Spectacle") + ", en deux minutes."; act = b('data-modules-guide="' + c.id + '"', mm.enCours ? "Reprendre" : "Installer", true); }
+      else if (relie && etatMoteur(c.id)) { etatT = "Pas encore installé. Le guide t'accompagne."; act = b('data-modules-guide="' + c.id + '"', "Installer", true); }
+      else { etatT = relie ? "Arrive dès que le compte est relu." : "Relie d'abord ce compte."; eteinte = true; }
+    }
     else if (id === "agenda") { if (relie) { ok = true; etatT = "Prêt."; act = b('data-vue="agenda" data-de="' + c.id + '"', "Ouvrir", true); } else { etatT = "Arrive dès que le compte est relié."; eteinte = true; } }
     else if (id === "compta") {
       var cm = c.id === "compagnie" ? null : comptaMoteur(c.id);
@@ -3391,7 +3631,7 @@ button.tuile:hover { border-color: var(--ligne); }
       try { localStorage.removeItem(CLE_FRAIS); } catch (e) {}
       garderResume(null);
       // Les contacts du répertoire pas encore partis restent sur l'appareil : ils repartiront à la prochaine liaison du compte.
-      Object.keys(moteurs).forEach(function (id) { delete etat.noms[id]; oublierCompta(id); delete moteurs[id]; delete memoires[id]; oublierDiff(id); garderMemoire(id); });
+      Object.keys(moteurs).forEach(function (id) { delete etat.noms[id]; oublierCompta(id); oublierModules(id); delete moteurs[id]; delete memoires[id]; oublierDiff(id); garderMemoire(id); });
       fenComptes = {}; retenirMoteurs(); retenir();
       avis("Tout est déconnecté sur cet appareil."); redessinerBord(); dessinerMenu(); dessinerReglages(); return true;
     }
@@ -3997,10 +4237,11 @@ button.tuile:hover { border-color: var(--ligne); }
     if (BOITE_SEULE) return;   // l'onglet « Boîte mail : continuer avec Google » ne montre que son guide
     if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
     var vue = etat.vue, c0 = compte(etat.compte);
-    var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : c0 && vue === "compta" && comptaDe(c0.id) ? cleCadre(c0, vue) : "";
+    var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : c0 && vue === "compta" && comptaDe(c0.id) ? cleCadre(c0, vue) : c0 && VUES_MODULES[vue] && modulesPrets(c0.id) ? cleCadre(c0, vue) : "";
     if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "desinstaller" && desinst.phase) && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0) && !(FENETRE === "tickets" && vue === "tickets0" && c0) && !(COMPTA_SEULE && vue === "comptaAjout")) { vue = etat.vue = "accueil"; cadre = ""; }
     if (cadre) ouvrirCadre(cadre);
     if (cadre === "diffusion") { moduleVoulu = APPLIS[vue].rubrique || ""; direModule(); }
+    if (cadre.indexOf("modules@") === 0) { modulesVoulu[c0.id] = APPLIS[vue].rubrique || ""; direModuleCompte(c0.id); }
     for (var id in cadres) cadres[id].hidden = id !== cadre;
     if (cadre) cadres[cadre].classList.remove("fond");
     accueil.hidden = vue !== "accueil";
@@ -4149,6 +4390,15 @@ button.tuile:hover { border-color: var(--ligne); }
       return;
     }
     if (d.comptaMajGo) { comptaMajConnecter(d.comptaMajGo); return; }
+    if (d.modulesGuide) { modulesGuide(d.modulesGuide); return; }
+    if (d.guideModulesConnecter) { guideModulesConnecter(); return; }
+    if (d.guideModulesInstaller) { guideModulesInstaller(); return; }
+    if (d.guideModulesPing) { guideModulesPing(); return; }
+    if (d.guideModulesVerifier) { modulesGuide(guideM.id); return; }
+    if (d.guideModulesOuvrir) { var gm = guideM.id; fermerVoile(); guideM.id = ""; etat.compte = gm; etat.vue = "spectacle"; montrer(); return; }
+    if (d.guideModulesFermer) { fermerVoile(); guideM.id = ""; return; }
+    if (d.modulesMajGo) { modulesMajConnecter(d.modulesMajGo); return; }
+    if (d.modulesMaj) { modulesMettreAJour(d.modulesMaj); return; }
     if (d.origamiMajGo) { origamiMajConnecter(d.origamiMajGo); return; }
     if (d.origamiMaj) { origamiMettreAJour(d.origamiMaj); return; }
     if (d.comptaGuide) { comptaGuide(d.comptaGuide); return; }
@@ -4204,7 +4454,7 @@ button.tuile:hover { border-color: var(--ligne); }
       guide.etape = 0; guide.pour = "";
       etat.vue = FENETRE === "tickets0" || FENETRE === "tickets" ? "tickets0" : "reglages"; montrer(); if (FENETRE === "tickets0" || FENETRE === "tickets") relever(d.relier); return;
     }
-    if (d.delier) { delete etat.noms[d.delier]; oublierCompta(d.delier); delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
+    if (d.delier) { delete etat.noms[d.delier]; oublierCompta(d.delier); oublierModules(d.delier); delete moteurs[d.delier]; delete memoires[d.delier]; oublierDiff(d.delier); file = file.filter(function (x) { return x.compte !== d.delier; }); retenirMoteurs(); garderMemoire(d.delier); etat.vue = "reglages"; montrer(); return; }
     if (d.relever) { relever(d.relever); rafraichir(d.relever); return; }
     if (d.recharger) { b.disabled = true; fetch(location.href.split("#")[0], { cache: "reload" }).catch(function () {}).then(function () { location.reload(); }); return; }
     if (d.plusTard) { bandeauVersion.hidden = true; return; }
@@ -4218,7 +4468,7 @@ button.tuile:hover { border-color: var(--ligne); }
   });
   // Un compte ajouté disparaît de cet appareil : sa liaison, sa mémoire, ses applis ouvertes. Rien ne change chez Google.
   function oublierCompte(id) {
-    delete etat.noms[id]; delete fenComptes[id]; oublierCompta(id); garder("origami_boite@" + id, ""); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== id; }); delete etat.masques[id];
+    delete etat.noms[id]; delete fenComptes[id]; oublierCompta(id); oublierModules(id); garder("origami_boite@" + id, ""); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== id; }); delete etat.masques[id];
     delete moteurs[id]; delete memoires[id]; oublierDiff(id); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(id); file = file.filter(function (x) { return x.compte !== id; }); retenirMoteurs(); garderMemoire(id);
   }
   // Retirer la compagnie : tout ce qui la relie à cet appareil est oublié, puis elle disparaît des comptes.
