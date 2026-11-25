@@ -274,7 +274,14 @@
         if (r.status === 429 || r.status >= 500) throw souci("Google ne répond pas pour l'instant. Réessaie dans une minute.", "occupe", r.status, brut);
         throw souci("Google a refusé (" + r.status + ") : " + m, "", r.status, brut);
       });
-    }, function () { throw souci("Pas de réponse de Google. Vérifie ta connexion à Internet.", "reseau"); });
+    }, function () {
+      // Coupure pendant l'appel (25.11, vue en vrai pendant une mise à jour) : on recommence ce qui peut l'être sans rien créer en double
+      // (lire, remplacer, enregistrer une version) ; créer un projet ou une publication ne se rejoue jamais tout seul.
+      if ((methode === "GET" || methode === "PUT" || /\/versions$/.test(chemin)) && (tour || 0) < ATTENTES.length) {
+        return new Promise(function (ok) { setTimeout(ok, ATTENTES[tour || 0] * (racine.__sansAttente ? 0 : 1)); }).then(function () { return appel(base, s, methode, chemin, corps, (tour || 0) + 1); });
+      }
+      throw souci("Pas de réponse de Google. Vérifie ta connexion à Internet.", "reseau");
+    });
   }
 
   function lireMoteur(s, r, sorte) {
@@ -489,9 +496,11 @@
    * propres au compte (99_…, dont l'empreinte du premier contact) sont gardés. o = { cle, dire(etape) }.
    * Étapes dites : chercher, code, contenu, version, ligne. Rend { aJour, version, avant, droits } (droits : le manifeste a changé,
    * le propriétaire devra accepter un nouvel écran de Google).
+   * o.enLigne = la version que le moteur du compte annonce lui-même. Une mise à jour arrêtée après l'envoi du code (25.11, Sévane) laissait
+   * le code neuf dans le projet et l'ancien en ligne, et répondait ensuite « déjà à jour » : on finit alors la version et la mise en ligne.
    */
   function mettreAJourOrigami(o) {
-    var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, avant = 0, droits = false;
+    var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, avant = 0, droits = false, reprise = false;
     if (!s || !s.drive) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
     dire("chercher");
     return chercherOrigami(s).then(function (x) {
@@ -505,20 +514,28 @@
       var files = ((c && c.files) || []).filter(function (f) { return f && TYPES[f.type] && typeof f.source === "string"; });
       var socle = files.filter(function (f) { return f.name === "00_Socle"; })[0], v = socle ? /version:\s*(\d+)/.exec(socle.source) : null;
       avant = v ? Number(v[1]) : 0;
-      if (!(modele.version > avant)) return null;
+      var publier = function (texte) {
+        dire("version");
+        return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: texte }).then(function (ver) {
+          var n = Number(ver.versionNumber) || 0; if (!n) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe");
+          dire("ligne");
+          return api(s, "PUT", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement), { deploymentConfig: { scriptId: r.projet, versionNumber: n, manifestFileName: "appsscript", description: "Origami de ce compte" } });
+        });
+      };
+      if (!(modele.version > avant)) {
+        var enLigne = Number(o.enLigne) || 0;
+        if (!(enLigne > 0 && enLigne < avant)) return null;
+        reprise = true;
+        return publier("Origami mis à jour depuis l'appli (v" + avant + ", reprise)");
+      }
       var garde = files.filter(function (f) { return /^99_[\w .-]{1,76}$/.test(String(f.name)); }).map(function (f) { return { name: f.name, type: f.type, source: f.source }; });
       if (!garde.some(function (f) { return f.name === "99_Installation"; })) throw souci("Cet Origami n'a pas la forme attendue : sa mise à jour se fait depuis le Mac.", "pas-par-appli");
       var portee = function (l) { var a = l.filter(function (f) { return f.name === "appsscript"; })[0]; try { return JSON.stringify((JSON.parse(a.source).oauthScopes || []).slice().sort()); } catch (e) { return ""; } };
       droits = portee(files) !== portee(modele.fichiers);
       dire("contenu");
       return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: modele.fichiers.concat(garde) })
-        .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Origami mis à jour depuis l'appli (v" + modele.version + ")" }); })
-        .then(function (ver) {
-          var n = Number(ver.versionNumber) || 0; if (!n) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe");
-          dire("ligne");
-          return api(s, "PUT", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement), { deploymentConfig: { scriptId: r.projet, versionNumber: n, manifestFileName: "appsscript", description: "Origami de ce compte" } });
-        });
-    }).then(function (fait) { return { aJour: !fait, version: fait ? modele.version : avant, avant: avant, droits: droits }; });
+        .then(function () { return publier("Origami mis à jour depuis l'appli (v" + modele.version + ")"); });
+    }).then(function (fait) { return { aJour: !fait, version: fait && !reprise ? modele.version : avant, avant: reprise ? Number(o.enLigne) || 0 : avant, droits: droits, reprise: reprise }; });
   }
 
   /**
