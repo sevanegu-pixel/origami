@@ -14,6 +14,17 @@ fn main() {
         "pont_google",
         "pont_annuler",
         "fenetre_privee",
+        "fichiers_dossier",
+        "fichiers_choisir_dossier",
+        "fichiers_dossier_defaut",
+        "fichiers_etat",
+        "fichiers_ecrire",
+        "fichiers_lire",
+        "fichiers_ouvrir",
+        "fichiers_montrer",
+        "fichiers_retirer",
+        "fichiers_deplacer",
+        "fichiers_copier",
     ])))
     .expect("préparation de l'appli");
 }

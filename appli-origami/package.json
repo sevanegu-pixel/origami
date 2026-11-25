@@ -1,7 +1,7 @@
 {
   "name": "origami-appli",
   "private": true,
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Coquille de l'appli Origami pour Mac : une fenêtre qui affiche la page Origami en ligne. Aucune appli dedans.",
   "scripts": { "tauri": "tauri" },
   "devDependencies": { "@tauri-apps/cli": "^2.0.0" }
