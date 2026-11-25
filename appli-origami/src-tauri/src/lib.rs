@@ -13,6 +13,11 @@
 // connexion à l'intérieur d'une appli : l'appli ouvre donc le navigateur du Mac sur une page d'Origami, la personne y
 // choisit son compte, et la page ramène la connexion ici par une passerelle qui n'existe que sur ce Mac (127.0.0.1),
 // le temps de cette connexion, et qui n'accepte que le secret tiré pour elle. Rien ne passe par un autre serveur.
+//
+// Depuis la version 0.5 (25.11.2026), la page peut garder les fichiers des spectacles dans un vrai dossier du Finder
+// (Documents › Origami › Fichiers, ou celui que la personne choisit dans la fenêtre du Mac) : les écrire, les relire,
+// les ouvrir, les montrer, en enregistrer une copie ailleurs, les mettre à la Corbeille un par un. Rien hors de ce dossier
+// (voir fichiers.rs).
 
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -23,6 +28,7 @@ use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
+mod fichiers;
 mod pont;
 
 const ORIGAMI: &str = "ch.origami.origami";
@@ -344,6 +350,179 @@ fn desinstaller_appli(app: AppHandle, appli: String) -> Result<(), String> {
     Ok(())
 }
 
+// ---------- Fichiers gardés sur ce Mac (0.5) : un vrai dossier du Finder, voir fichiers.rs ----------
+#[derive(Serialize)]
+struct DossierFichiers {
+    chemin: String,
+    affichage: String,
+    defaut: bool,
+}
+
+#[derive(Serialize)]
+struct ChoixDossier {
+    dossier: DossierFichiers,
+    deplaces: u32,
+    restes: u32,
+}
+
+#[derive(Serialize)]
+struct MorceauFichier {
+    base64: String,
+    taille: u64,
+}
+
+fn reglage_fichiers() -> PathBuf {
+    maison().join("Library/Application Support").join(ORIGAMI).join("fichiers-dossier.txt")
+}
+
+fn racine_fichiers() -> PathBuf {
+    fichiers::racine(&reglage_fichiers(), &maison())
+}
+
+fn dire_dossier(racine: &Path) -> DossierFichiers {
+    DossierFichiers {
+        chemin: racine.to_string_lossy().into_owned(),
+        affichage: fichiers::affichage(racine, &maison()),
+        defaut: racine == fichiers::dossier_par_defaut(&maison()),
+    }
+}
+
+// Où sont gardés les fichiers (pour l'afficher). Ne crée rien.
+#[tauri::command]
+fn fichiers_dossier() -> DossierFichiers {
+    dire_dossier(&racine_fichiers())
+}
+
+// La personne choisit elle-même un autre dossier, dans la fenêtre habituelle du Mac : la page ne peut pas en imposer un.
+// Ce qui était déjà gardé suit quand c'est possible. Rien choisi : rien ne change.
+#[tauri::command]
+async fn fichiers_choisir_dossier(app: AppHandle) -> Result<Option<ChoixDossier>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let ancienne = racine_fichiers();
+    let mut d = app.dialog().file().set_title("Dossier où garder les fichiers d'Origami").set_can_create_directories(true);
+    if let Some(p) = ancienne.parent().filter(|p| p.is_dir()) {
+        d = d.set_directory(p);
+    }
+    let choix = match d.blocking_pick_folder().and_then(|f| f.into_path().ok()) {
+        Some(p) => p,
+        None => return Ok(None),
+    };
+    if choix == ancienne {
+        return Ok(Some(ChoixDossier { dossier: dire_dossier(&ancienne), deplaces: 0, restes: 0 }));
+    }
+    if choix.starts_with(&ancienne) {
+        return Err("Choisis un dossier qui n'est pas à l'intérieur du dossier actuel.".into());
+    }
+    std::fs::create_dir_all(&choix).map_err(|e| format!("Ce dossier n'est pas utilisable : {}", e))?;
+    let (deplaces, restes) = fichiers::suivre(&ancienne, &choix);
+    fichiers::noter_racine(&reglage_fichiers(), &choix)?;
+    Ok(Some(ChoixDossier { dossier: dire_dossier(&choix), deplaces, restes }))
+}
+
+// Retour au dossier d'origine (Documents › Origami › Fichiers).
+#[tauri::command]
+fn fichiers_dossier_defaut() -> Result<ChoixDossier, String> {
+    let ancienne = racine_fichiers();
+    let nouvelle = fichiers::dossier_par_defaut(&maison());
+    if ancienne == nouvelle {
+        return Ok(ChoixDossier { dossier: dire_dossier(&nouvelle), deplaces: 0, restes: 0 });
+    }
+    std::fs::create_dir_all(&nouvelle).map_err(|e| e.to_string())?;
+    let (deplaces, restes) = fichiers::suivre(&ancienne, &nouvelle);
+    fichiers::noter_racine(&reglage_fichiers(), &nouvelle)?;
+    Ok(ChoixDossier { dossier: dire_dossier(&nouvelle), deplaces, restes })
+}
+
+// Quels fichiers sont là, et leur poids (rien pour un fichier absent, déplacé ou renommé à la main).
+#[tauri::command]
+fn fichiers_etat(chemins: Vec<String>) -> Vec<Option<u64>> {
+    fichiers::etat(&racine_fichiers(), &chemins)
+}
+
+// Reçoit un fichier, morceau par morceau. Rend la taille reçue.
+#[tauri::command]
+async fn fichiers_ecrire(chemin: String, base64: String, debut: u64, fin: bool) -> Result<u64, String> {
+    tauri::async_runtime::spawn_blocking(move || fichiers::ecrire(&racine_fichiers(), &chemin, &base64, debut, fin))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+// Un morceau d'un fichier gardé, pour son aperçu dans l'appli.
+#[tauri::command]
+async fn fichiers_lire(chemin: String, debut: u64, longueur: u64) -> Result<MorceauFichier, String> {
+    tauri::async_runtime::spawn_blocking(move || fichiers::lire(&racine_fichiers(), &chemin, debut, longueur).map(|(base64, taille)| MorceauFichier { base64, taille }))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+// Ouvre un fichier gardé avec l'appli habituelle du Mac (Aperçu, etc.) : des documents seulement, jamais un programme.
+#[tauri::command]
+fn fichiers_ouvrir(chemin: String) -> Result<(), String> {
+    let p = fichiers::present(&racine_fichiers(), &chemin)?;
+    if !fichiers::ouvrable(&p) {
+        return Err("Ce type de fichier ne s'ouvre pas d'ici : montre-le dans le Finder.".into());
+    }
+    commande("/usr/bin/open", &[&p.to_string_lossy()]).map(|_| ())
+}
+
+// Montre un fichier gardé dans le Finder (sélectionné), ou, sans chemin, ouvre le dossier des fichiers.
+#[tauri::command]
+fn fichiers_montrer(chemin: Option<String>) -> Result<(), String> {
+    let racine = racine_fichiers();
+    match chemin {
+        Some(c) => {
+            let p = fichiers::present(&racine, &c)?;
+            commande("/usr/bin/open", &["-R", &p.to_string_lossy()]).map(|_| ())
+        }
+        None => {
+            std::fs::create_dir_all(&racine).map_err(|e| format!("Le dossier n'a pas pu être créé : {}", e))?;
+            commande("/usr/bin/open", &[&racine.to_string_lossy()]).map(|_| ())
+        }
+    }
+}
+
+// Retire un fichier de ce Mac : il va à la Corbeille (on peut l'en sortir). La copie en ligne n'est pas touchée.
+#[tauri::command]
+fn fichiers_retirer(chemin: String) -> Result<(), String> {
+    let racine = racine_fichiers();
+    let p = fichiers::present(&racine, &chemin)?;
+    a_la_corbeille(&p).map_err(|_| "Ce fichier n'a pas pu aller à la Corbeille.".to_string())?;
+    fichiers::ranger_vides(&racine, &chemin);
+    Ok(())
+}
+
+// Range un fichier gardé sous un autre nom ou dans un autre dossier (toujours dans le dossier des fichiers).
+#[tauri::command]
+fn fichiers_deplacer(de: String, vers: String) -> Result<(), String> {
+    let racine = racine_fichiers();
+    fichiers::deplacer(&racine, &de, &vers)?;
+    fichiers::ranger_vides(&racine, &de);
+    Ok(())
+}
+
+// « Enregistrer une copie ailleurs » : la personne choisit l'endroit dans la fenêtre du Mac. Rend l'endroit, ou rien si elle renonce.
+#[tauri::command]
+async fn fichiers_copier(app: AppHandle, chemin: String) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let p = fichiers::present(&racine_fichiers(), &chemin)?;
+    let nom = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut d = app.dialog().file().set_title("Enregistrer une copie").set_file_name(nom);
+    let bureau = maison().join("Desktop");
+    if bureau.is_dir() {
+        d = d.set_directory(bureau);
+    }
+    let vers = match d.blocking_save_file().and_then(|f| f.into_path().ok()) {
+        Some(v) => v,
+        None => return Ok(None),
+    };
+    if vers == p {
+        return Ok(Some(vers.to_string_lossy().into_owned()));
+    }
+    std::fs::copy(&p, &vers).map_err(|e| format!("La copie n'a pas pu être enregistrée : {}", e))?;
+    let _ = commande("/usr/bin/open", &["-R", &vers.to_string_lossy()]);
+    Ok(Some(vers.to_string_lossy().into_owned()))
+}
+
 fn dossier_liaison() -> PathBuf {
     maison().join("Library/Application Support/ch.origami.liaison")
 }
@@ -545,7 +724,7 @@ pub fn run() {
     let contexte = tauri::generate_context!();
     barres_discretes(&contexte.config().identifier);
     let est_origami = contexte.config().identifier == ORIGAMI;
-    let mut b = tauri::Builder::default().plugin(tauri_plugin_opener::init()).manage(Barre::default());
+    let mut b = tauri::Builder::default().plugin(tauri_plugin_opener::init()).plugin(tauri_plugin_dialog::init()).manage(Barre::default());
     if est_origami {
         b = b.plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--barre"])));
     }
@@ -562,7 +741,18 @@ pub fn run() {
             demarrage_auto,
             pont_google,
             pont_annuler,
-            fenetre_privee
+            fenetre_privee,
+            fichiers_dossier,
+            fichiers_choisir_dossier,
+            fichiers_dossier_defaut,
+            fichiers_etat,
+            fichiers_ecrire,
+            fichiers_lire,
+            fichiers_ouvrir,
+            fichiers_montrer,
+            fichiers_retirer,
+            fichiers_deplacer,
+            fichiers_copier
         ])
         .setup(move |app| {
             // La fenêtre part cachée (réglage) et s'affiche ici, sauf pour Origami ouverte au démarrage de la session :

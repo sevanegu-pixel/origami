@@ -4,5 +4,11 @@
 <dict>
   <key>NSCameraUsageDescription</key>
   <string>La caméra sert à photographier un ticket ou un reçu pour le scanner.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Origami garde les fichiers de tes spectacles dans le dossier Documents › Origami › Fichiers, pour les ouvrir sans connexion.</string>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>Pour enregistrer la copie d'un fichier à l'endroit que tu choisis.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>Pour enregistrer la copie d'un fichier à l'endroit que tu choisis.</string>
 </dict>
 </plist>

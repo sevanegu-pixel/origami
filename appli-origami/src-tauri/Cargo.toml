@@ -1,7 +1,7 @@
 [package]
 name = "origami-appli"
-version = "0.4.2"
-description = "Appli Origami (toutes les applis dans une fenêtre, installateur des applis, icône dans la barre des menus, connexion à Google par le navigateur)"
+version = "0.5.0"
+description = "Appli Origami (toutes les applis dans une fenêtre, installateur des applis, icône dans la barre des menus, connexion à Google par le navigateur, fichiers des spectacles gardés dans un dossier du Finder)"
 edition = "2021"
 
 [lib]
@@ -20,3 +20,4 @@ serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "native-tls"] }
 plist = "1"
 trash = "5"
+tauri-plugin-dialog = "2"
