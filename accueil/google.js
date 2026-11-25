@@ -739,6 +739,8 @@
 
   var sortie = { charger: charger, installerBoite: installerBoite, pingBoite: pingBoite, relierBoite: relierBoite, _fichierPremierBoite: fichierPremierBoite, _appelBoite: APPEL_BOITE, mettreAJourOrigami: mettreAJourOrigami, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
+    // La Boîte mail déjà installée dans le compte connecté (par Origami ou par l'appli Boîte mail seule), ou null. Ne crée rien.
+    chercherBoite: function (cle) { var s = session(cle); return s && s.drive ? chercherBoite(s).catch(function () { return null; }) : Promise.resolve(null); },
     parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, sortirBoite: sortirBoite, arreterBoite: arreterBoite, jeterReste: jeterReste, retirerAcces: retirerAcces,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
   if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;

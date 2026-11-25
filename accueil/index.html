@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.67">
+<meta name="origami-version" content="2026-11-22.68">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -549,9 +549,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.67"></script>
-<script src="repertoire.js?v=2026-11-22.67"></script>
-<script src="google.js?v=2026-11-22.67"></script>
+<script src="agenda.js?v=2026-11-22.68"></script>
+<script src="repertoire.js?v=2026-11-22.68"></script>
+<script src="google.js?v=2026-11-22.68"></script>
 <script>
 (function () {
   "use strict";
@@ -2953,7 +2953,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function origamiMajConnecter(id) {
     var G = window.OrigamiGoogle;
     if (!G || origamiEnCours[id]) return;
-    G.connecter(id, { adresse: googleAdresse(id), drive: true }).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); fermerVoile(); origamiMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
+    G.connecter(id, { adresse: googleAdresse(id), drive: true }).then(function (s) { if (s.adresse) garder("origami_google_adresse@" + id, s.adresse); boiteReconnaitre(id); fermerVoile(); origamiMajLancer(id); }, function (e) { avis(String((e && e.message) || e), true); });
   }
   function origamiMajLancer(id) {
     var G = window.OrigamiGoogle;
@@ -3022,12 +3022,26 @@ button.tuile:hover { border-color: var(--ligne); }
     var dossierL = b && b.dossier ? '<p class="aide-fine">Ses fichiers : <a href="https://drive.google.com/drive/folders/' + texte(b.dossier) + '" target="_blank" rel="noopener">dossier Origami › Boîte mail › Données</a>, dans le Drive de ce compte. Tes mails, eux, restent dans Gmail.</p>' : "";
     var h = '<div data-guide-boite="1"' + (seule ? ' data-boite-seule="1"' : "") + "><h2>" + (seule ? "Boîte mail : continuer avec Google" : "Installer la Boîte mail") + '</h2><p class="aide-fine">' + (connu ? "Dans le compte " + nom + ". " : "") + "Quatre étapes, une seule fois. " + (seule ? "Garde cet onglet ouvert jusqu'à la fin." : "Tu peux fermer et revenir : le guide reprend où tu en étais.") + "</p>" +
       '<ol class="guide-compta">' + etape(0, seule ? "Se connecter à Google" : "Connecter Origami à Google", e1) + etape(1, "Installer la Boîte mail", e2) + etape(2, "Autoriser ta Boîte mail", e3) + etape(3, seule ? "Relier l'appli Boîte mail" : "Relier l'appli Boîte mail du Mac", e4) + "</ol>" +
-      (actif < 0 ? "<p><strong>C'est fait.</strong> " + (seule ? "Clique « Ouvrir dans l'appli Boîte mail » : ton compte y apparaît. Ensuite tu peux fermer cet onglet." : "La Boîte mail de ce compte est reliée à l'appli Boîte mail du Mac.") + "</p>" + blocCode : "") + dossierL +
+      (actif < 0 ? "<p><strong>C'est fait.</strong> " + (seule ? "Clique « Ouvrir dans l'appli Boîte mail » : ton compte y apparaît. Ensuite tu peux fermer cet onglet." : b.relie === "ailleurs" && !guideB.codeAppli ? "La Boîte mail de ce compte est déjà installée : Origami l'a retrouvée dans ton Drive. Si elle n'apparaît pas dans l'appli Boîte mail de ce Mac, clique « Relier à l'appli de ce Mac »." : "La Boîte mail de ce compte est reliée à l'appli Boîte mail du Mac.") + "</p>" + blocCode : "") + dossierL +
       (guideB.souci ? '<p class="souci-guide" role="alert">' + texte(guideB.souci) + "</p>" : "") +
       (actif < 0 ? '<p class="aide-fine">Un autre Mac, ou la Boîte mail à remettre au niveau de la dernière version : <button class="lien" data-boite-refaire="1">Mettre à jour et relier de nouveau</button>.' + (seule ? ' Un autre compte Google : <button class="lien" data-boite-autre="1">relier un autre compte</button>.' : "") + "</p>" : "") +
       (seule && connu && actif >= 0 && !guideB.occupe ? '<p class="aide-fine">Pas le bon compte ? <button class="lien" data-boite-autre="1">Changer de compte</button>.</p>' : "") +
-      (seule ? "" : '<div class="actions">' + (actif < 0 && appliMac ? '<button class="bouton fort" data-mac-ouvrir="boite">Ouvrir la Boîte mail</button>' : "") + '<button class="bouton" data-boite-fermer="1">Fermer</button></div>') + "</div>";
+      (seule ? "" : '<div class="actions">' + (actif < 0 && appliMac ? '<button class="bouton fort" data-mac-ouvrir="boite">Ouvrir la Boîte mail</button>' : "") + (actif < 0 && b.relie === "ailleurs" && !guideB.codeAppli ? '<button class="bouton' + (appliMac ? "" : " fort") + '" data-boite-refaire="1">Relier à l\'appli de ce Mac</button>' : "") + '<button class="bouton" data-boite-fermer="1">Fermer</button></div>') + "</div>";
     ouvrirVoile(h);
+  }
+  // Une Boîte mail déjà installée dans ce compte (par l'appli Boîte mail seule, ou depuis un autre appareil) : Origami la reconnaît
+  // dès qu'il est connecté à Google pour ce compte, sans rien créer ni changer. « ailleurs » : reliée à l'appli du Mac, ou pas, on ne sait pas.
+  function boiteReconnaitre(id) {
+    var G = window.OrigamiGoogle;
+    if (!G || !G.chercherBoite || !id || id === "compagnie" || id === ID_BOITE_SEULE || boiteDe(id)) return;
+    G.chercherBoite(id).then(function (b) {
+      if (!b || !b.adresse || !b.deploiement || boiteDe(id) || !compte(id)) return null;
+      return G.pingBoite(b.adresse).then(function (ok) {
+        if (boiteDe(id) || !compte(id)) return;
+        boiteGarder(id, { classeur: b.classeur, projet: b.projet, adresse: b.adresse, dossier: "", autorisee: !!ok, relie: ok ? "ailleurs" : "" });
+        if (etat.vue === "applis" || etat.vue === "accueil") montrer();
+      });
+    }).catch(function () {});
   }
   // Boîte mail seule : ce que l'onglet retient (compte, installation en cours) est oublié pour repartir avec un autre compte.
   function boiteSeuleOublier() { boiteGarder(ID_BOITE_SEULE, null); garder("origami_google_adresse@" + ID_BOITE_SEULE, ""); try { if (window.OrigamiGoogle) OrigamiGoogle.oublier(ID_BOITE_SEULE); } catch (e) {} }
@@ -3803,6 +3817,7 @@ button.tuile:hover { border-color: var(--ligne); }
     moteurs[id] = { u: lie.u, c: lie.c }; memoires[id] = { version: 0, listes: {} }; retenirMoteurs(); garderMemoire(id); LIEN_RELIER = null;
     if (google) garder("origami_google_adresse@" + id, google);
     G.adopter("ajout", id);
+    boiteReconnaitre(id);
     clearInterval(parcours.minuteur);
     parcours = { phase: "pret", id: id, retrouve: !!lie.retrouve, google: google, haut: true };
     guide.etape = 0; guide.pour = ""; etat.compte = id; etat.vue = "ajouter";
