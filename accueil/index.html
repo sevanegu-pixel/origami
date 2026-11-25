@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.69">
+<meta name="origami-version" content="2026-11-25.70">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -507,6 +507,7 @@ button.tuile:hover { border-color: var(--ligne); }
     <section id="page" hidden></section>
     <section id="agenda" hidden></section>
     <section id="repertoire" hidden></section>
+    <section id="fichiers" hidden></section>
   </main>
   <nav id="barre" aria-label="Applis"></nav>
 </div>
@@ -551,9 +552,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.69"></script>
-<script src="repertoire.js?v=2026-11-22.69"></script>
-<script src="google.js?v=2026-11-22.69"></script>
+<script src="agenda.js?v=2026-11-25.70"></script>
+<script src="repertoire.js?v=2026-11-25.70"></script>
+<script src="fichiers.js?v=2026-11-25.70"></script>
+<script src="google.js?v=2026-11-25.70"></script>
 <script>
 (function () {
   "use strict";
@@ -580,6 +582,7 @@ button.tuile:hover { border-color: var(--ligne); }
   ICONES.tickets0 = ICONES.tickets; ICONES.diffusion0 = ICONES.diffusion;
   ICONES.spectacle = '<path d="M12 3l2.6 5.6 6 .7-4.4 4.2 1.1 6-5.3-3-5.3 3 1.1-6L3.4 9.3l6-.7z"/>';
   ICONES.prospection = '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.5-3.6 2.8-5.5 6-5.5s5.5 1.9 6 5.5"/><circle cx="17.5" cy="9.5" r="2.3"/><path d="M17 14.6c2.3.2 3.7 1.7 4 4.4"/>';
+  ICONES.fichiers = '<path d="M3.5 7A1.5 1.5 0 015 5.5h4.2l2 2.2H19A1.5 1.5 0 0120.5 9.2v8.3A1.5 1.5 0 0119 19H5a1.5 1.5 0 01-1.5-1.5z"/>';
   ICONES.agenda = '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/>';
   ICONES.applis = '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M17 13.5v7M13.5 17h7"/>';
   ICONES.repertoire = '<path d="M6 3.5h11.5A1.5 1.5 0 0119 5v14a1.5 1.5 0 01-1.5 1.5H6z"/><path d="M4 7.5h3M4 12h3M4 16.5h3"/><circle cx="12.5" cy="10" r="2.2"/><path d="M8.9 16.2c.5-2 1.8-3 3.6-3s3.1 1 3.6 3"/>';
@@ -595,6 +598,8 @@ button.tuile:hover { border-color: var(--ligne); }
     prospection: { nom: "Prospection", genre: "module", cadre: "diffusion", rubrique: "contacts" },
     // Agenda d'Origami (18.11) : vrais agendas Google de chaque compte + dates de la prospection (agenda.js, moteur v4).
     agenda: { nom: "Agenda", genre: "agenda" },
+    // Fichiers (25.11, fichiers.js) : les fichiers des spectacles du compte, gardés sur l'appareil (dossier du Finder dans l'appli du Mac).
+    fichiers: { nom: "Fichiers", texte: "Les fichiers de tes spectacles, gardés sur l'appareil.", genre: "fichiers" },
     // Répertoire commun (repertoire.js) : les contacts envoyés exprès aux applis d'un même compte ; chaque appli garde son carnet.
     repertoire: { nom: "Répertoire", genre: "repertoire" },
     // Écran « Applis » (18.11, demande de Sévane) : toutes les applis d'un compte, avec leur logo, à installer ou ouvrir.
@@ -805,7 +810,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (cadres["modules@" + cid]) ouvrirModules(cid, true);
   }
   // Un compte retiré, délié ou réinstallé : ses modules se ferment et cet appareil oublie ce qu'il en gardait.
-  function oublierModules(id) { if (id === "compagnie") return; fermerModules(id); delete modulesVoulu[id]; delete modulesRefaits[id]; garder("origami_modules_autorises@" + id, ""); garder("diffusion_apparence@" + id, ""); ecrireCache("", id); }
+  function oublierModules(id) { if (id === "compagnie") return; if (window.OrigamiFichiers) window.OrigamiFichiers.oublier(id); fermerModules(id); delete modulesVoulu[id]; delete modulesRefaits[id]; garder("origami_modules_autorises@" + id, ""); garder("diffusion_apparence@" + id, ""); ecrireCache("", id); }
   // Les Compta ouvertes reçoivent la liste des comptes ; elle leur est redite quand un compte change de nom ou de couleur.
   var fenComptes = {};
   function listeComptes(cid) {
@@ -935,9 +940,9 @@ button.tuile:hover { border-color: var(--ligne); }
   function nomMac(id) { return id === "origami" ? "Origami" : APPLIS[id].nom; }
   // Versions publiées des applis du Mac (à changer à chaque nouvelle version) et leurs notes de version.
   // Boîte mail : numérotée par ses fichiers (appli-boite-NN), pas de comparaison possible ; « Réinstaller » prend la dernière.
-  var VERSIONS_MAC = { origami: "0.4.2", compta: "0.4.2", tickets: "0.4.2", frais: "0.4.2" };
+  var VERSIONS_MAC = { origami: "0.5.0", compta: "0.4.2", tickets: "0.4.2", frais: "0.4.2" };
   var NOTES_MAC = {
-    origami: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.1", "Autoriser Origami ou la Compta dans une fenêtre privée, quand plusieurs comptes Google sont connectés dans le navigateur. Une installation interrompue ne bloque plus les suivantes."], ["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    origami: [["0.5.0", "Les fichiers de tes spectacles sont gardés dans un vrai dossier du Finder (Documents, Origami, Fichiers) : les montrer, les ouvrir, en enregistrer une copie, les retirer un par un."], ["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.1", "Autoriser Origami ou la Compta dans une fenêtre privée, quand plusieurs comptes Google sont connectés dans le navigateur. Une installation interrompue ne bloque plus les suivantes."], ["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     compta: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Connexion à Google par le navigateur du Mac, pour installer ou mettre à jour la Compta d'ici."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     tickets: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     frais: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami."]],
@@ -1258,6 +1263,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (d.diffusion === "cache-ecrire") {
         ecrireCache(typeof d.texte === "string" ? d.texte : "");
         diffBord = lireTexteDiff(typeof d.texte === "string" ? d.texte : ""); diffLu = true; redessinerBord();   // le tableau de bord suit
+        if (window.OrigamiFichiers) window.OrigamiFichiers.rafraichir("compagnie");
         return;
       }
       if (d.diffusion === "apparence" && d.apparence) { garder("diffusion_apparence", JSON.stringify({ apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} })); attente.hidden = true; return; }
@@ -1274,7 +1280,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (d.diffusion === "mail") { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} return; }
       if (d.diffusion === "repertoire") { recevoirRepertoire(d, "Diffusion", ev.source, ev.origin, mc); return; }
       if (d.diffusion === "cache-lire") { lireCache(function (t) { try { ev.source.postMessage({ diffusion: "cache", texte: t || "" }, ev.origin); } catch (e) {} }, mc); return; }
-      if (d.diffusion === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCache(d.texte, mc); return; }
+      if (d.diffusion === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) { ecrireCache(d.texte, mc); if (window.OrigamiFichiers) window.OrigamiFichiers.rafraichir(mc); } return; }
       if (d.diffusion === "apparence" && d.apparence) { garder("diffusion_apparence@" + mc, JSON.stringify({ apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} })); attente.hidden = true; return; }
       return;
     }
@@ -1572,8 +1578,8 @@ button.tuile:hover { border-color: var(--ligne); }
   function installee(id, appli) { var e = etatMoteur(id); return (e && Array.isArray(e.applis) ? e.applis : []).filter(function (a) { return a && a.id === appli; })[0] || null; }
   function applisDe(c) { var l = c.applis.slice(); if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets") || (c.applis.indexOf("tickets") >= 0 && !etatMoteur(c.id))) l.push("tickets0");   /* sans moteur relié sur cet appareil : la ligne reste, l'écran dit comment relier */ if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
   // Les modules d'un compte : pour l'instant ceux de la Diffusion du compte compagnie (son appli s'ouvre dans un cadre).
-  var MODULES = ["spectacle", "prospection", "agenda"];
-  function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) { if (modulesPrets(c.id)) m.push("spectacle", "prospection"); m.push("agenda"); } return m; }   // l'Agenda vient du moteur du compte ; Spectacle et Prospection, de ses modules installés (v15)
+  var MODULES = ["spectacle", "prospection", "fichiers", "agenda"];
+  function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) { if (modulesPrets(c.id)) m.push("spectacle", "prospection", "fichiers"); m.push("agenda"); } return m; }   // l'Agenda vient du moteur du compte ; Spectacle et Prospection, de ses modules installés (v15)
   function vuesDe(c) { var l = modulesDe(c).concat(applisDe(c)); if (c && c.id === "compagnie" && l.indexOf("diffusion") >= 0) l.push("agendaDiff"); return l; }
   // Dans le volet : les modules d'abord ; Diffusion elle-même n'y est plus (elle reste sur le tableau de bord).
   function voletDe(c) { var m = modulesDe(c); return { modules: m, applis: applisDe(c).filter(function (id) { return !(m.length && id === "diffusion"); }) }; }
@@ -2571,7 +2577,7 @@ button.tuile:hover { border-color: var(--ligne); }
   var COMPTE_VIDE = { id: "", nom: "", couleur: "", applis: [] };
   // Appli vierge (18.11, demande de Sévane) : tout est déjà visible, mais grisé tant qu'aucun compte n'est ajouté.
   // Seuls le tableau de bord, « Ajouter un compte » et les Réglages marchent sans compte.
-  var APERCU_MODULES = ["spectacle", "prospection", "agenda", "repertoire"], APERCU_APPLIS = ["compta", "tickets", "frais", "boite"];
+  var APERCU_MODULES = ["spectacle", "prospection", "fichiers", "agenda", "repertoire"], APERCU_APPLIS = ["compta", "tickets", "frais", "boite"];
   var TEXTES_APERCU = { spectacle: "Tes spectacles et leurs étapes.", prospection: "Lieux, contacts et relances.", agenda: "Tes agendas Google et tes dates.", repertoire: "Les contacts partagés entre tes applis." };
   var TITRE_GRISE = "Ajoute d'abord un compte pour l'utiliser";
   function ligneApplis() { return '<button class="ligne" data-vue="applis"' + (etat.vue === "applis" ? ' aria-current="true"' : "") + ">" + icone("applis") + '<span class="nom">Applis</span></button>'; }
@@ -4233,6 +4239,47 @@ button.tuile:hover { border-color: var(--ligne); }
       return true;
     }
   };
+  // Pont vers Fichiers (fichiers.js) : la liste des documents vient de la copie que Spectacle garde sur l'appareil, puis de
+  // l'appli du compte par sa porte habituelle (la même que les applis Mac et Android). Deux demandes seulement, en lecture.
+  var fichiersZone = document.getElementById("fichiers");
+  var PORTE_FICHIERS = { donneesTableauDeBord: 1, apercuMorceau: 1 };
+  function porteSpectacle(cid, f, args, encore) {
+    if (!PORTE_FICHIERS[f]) return Promise.reject(new Error("Demande refusée."));
+    var acces = cid === "compagnie"
+      ? (FORME_DIFFUSION.test(lire("diffusion_jeton")) ? Promise.resolve({ adresse: ADRESSES.diffusion, jeton: lire("diffusion_jeton") }) : Promise.reject(new Error("ACCES_REFUSE")))
+      : (modulesPrets(cid) ? jetonModules(cid, !!encore) : Promise.reject(new Error("ACCES_REFUSE")));
+    return acces.then(function (j) {
+      var envoi = { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ f: f, jeton: j.jeton, args: Array.isArray(args) ? args : [] }) }, minuterie = 0;
+      try { var arret = new AbortController(); envoi.signal = arret.signal; minuterie = setTimeout(function () { arret.abort(); }, 150000); } catch (e) {}
+      return fetch(j.adresse, envoi).then(function (r) { return r.json(); }).catch(function () { return null; }).then(function (o) {
+        clearTimeout(minuterie);
+        if (o && o.ok === true) return o.r;
+        var m = o && typeof o.erreur === "string" ? o.erreur.slice(0, 200) : "";
+        if (/ACCES_REFUSE/.test(m) && cid !== "compagnie" && !encore) return porteSpectacle(cid, f, args, true);   // jeton fini : un neuf, une fois
+        throw new Error(m || "L'appli du compte ne répond pas (connexion ?).");
+      });
+    });
+  }
+  var pontFichiers = {
+    tousComptes: function () { return comptes().map(function (c) { return { id: c.id, nom: c.nom }; }); },
+    nomCompte: function (id) { return nomCompte(id); },
+    copie: function (cid) {
+      return new Promise(function (ok) {
+        if (cid === "compagnie" && !FORME_DIFFUSION.test(lire("diffusion_jeton"))) return ok(null);
+        lireCache(function (t) { var o = lireTexteDiff(t); ok(o && Array.isArray(o.d.projets) ? { le: o.le, projets: o.d.projets } : null); }, cid);
+      });
+    },
+    porte: porteSpectacle,
+    mac: MAC ? function (cmd, args) { return invoquer(cmd, args); } : null,
+    avis: function (t, souci) { avis(t, souci); },
+    apercu: function () { return chargerApercu(); },
+    dehors: function (u) {
+      if (!/^https:\/\/[^\s"<>]+$/.test(String(u || ""))) return;
+      if (boitePossible()) { try { Promise.resolve(MAC.opener.openUrl(u)).catch(function () { avis("Le lien ne s'est pas ouvert.", true); }); return; } catch (e) {} }
+      window.open(u, "_blank", "noopener");
+    },
+    ouvrirVue: function (cid, vue) { if (!compte(cid)) return; etat.compte = cid; etat.vue = vue; montrer(); }
+  };
   function montrer() {
     if (BOITE_SEULE) return;   // l'onglet « Boîte mail : continuer avec Google » ne montre que son guide
     if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
@@ -4248,7 +4295,8 @@ button.tuile:hover { border-color: var(--ligne); }
     zoneReglages.hidden = vue !== "reglages";
     agendaZone.hidden = vue !== "agenda";
     repertoireZone.hidden = vue !== "repertoire" || !window.OrigamiRepertoire;
-    page.hidden = !!cadre || vue === "accueil" || vue === "reglages" || vue === "agenda" || !repertoireZone.hidden;
+    fichiersZone.hidden = vue !== "fichiers" || !window.OrigamiFichiers;
+    page.hidden = !!cadre || vue === "accueil" || vue === "reglages" || vue === "agenda" || !repertoireZone.hidden || !fichiersZone.hidden;
     if (!cadre) attente.hidden = true;
     if (vue === "accueil") { dessinerAccueil(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
     else if (vue === "reglages") { dessinerReglages(); (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); if (grosse(c.id, "diffusion")) releverDiffusionSiVieux(c.id, 600000); }); }
@@ -4256,6 +4304,7 @@ button.tuile:hover { border-color: var(--ligne); }
     else if (vue === "comptaAjout") dessinerComptaAjout();
     else if (vue === "diffusion0") { dessinerDiffusion(); releverSiVieux(c0.id); releverDiffusionSiVieux(c0.id); }
     else if (vue === "agenda") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiAgenda) window.OrigamiAgenda.montrer(agendaZone, pontAgenda); else page.hidden = false, page.innerHTML = '<div class="info"><h1>Agenda</h1><p>L\'agenda n\'a pas pu se charger. Recharge la page.</p></div>'; }
+    else if (vue === "fichiers") { if (window.OrigamiFichiers) window.OrigamiFichiers.montrer(fichiersZone, pontFichiers, c0 ? c0.id : ""); else page.innerHTML = '<div class="info"><h1>Fichiers</h1><p>Les fichiers n\'ont pas pu se charger. Recharge la page.</p></div>'; }
     else if (vue === "repertoire") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiRepertoire) window.OrigamiRepertoire.montrer(repertoireZone, pontRepertoire); else page.innerHTML = '<div class="info"><h1>Répertoire</h1><p>Le répertoire n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (!cadre) {
       dessinerPage(vue);
