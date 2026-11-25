@@ -39,20 +39,31 @@
   var TYPES = { JSON: 1, SERVER_JS: 1, HTML: 1 };
   function nbDoGet(t) { return (String(t).match(DOGET) || []).length; }
 
+  // Les applis dont le code est PORTÉ par le moteur du compte et posées par cette page : la Compta (moteur v9) et, depuis le
+  // moteur v15 (25.11.2026), les modules Spectacle et Prospection. Même chemin pour les deux ; seuls changent les noms des
+  // prises, le fichier des réglages du compte et les contrôles du code porté.
+  var SORTES = {
+    compta: { prise: "compta.", titre: "Origami - Compta", reglages: "99_Compte", forme: /^var APP_COMPTE_ = \{/, la: "la Compta", La: "La Compta", de: "de la Compta", ligne: "Compta de ce compte", installee: "Compta installée depuis Origami", maj: "Compta mise à jour depuis Origami",
+      pasPreparee: "Le moteur de ce compte n'a pas préparé le classeur de la Compta. Réessaie.", pasPubliee: "La Compta a été créée mais pas encore publiée. Réessaie dans un instant.", pasInstallee: "La Compta de ce compte n'est pas encore installée.", sansReglages: "Les réglages de la Compta de ce compte manquent." },
+    modules: { prise: "modules.", titre: "Origami - Diffusion", reglages: "99_Origami", forme: /^var APP_MODULES_ = \{/, la: "les modules", La: "Les modules", de: "des modules", ligne: "Modules de ce compte", installee: "Modules installés depuis Origami", maj: "Modules mis à jour depuis Origami",
+      pasPreparee: "Le moteur de ce compte n'a pas préparé le classeur des modules. Réessaie.", pasPubliee: "Les modules ont été créés mais pas encore publiés. Réessaie dans un instant.", pasInstallee: "Les modules de ce compte ne sont pas encore installés.", sansReglages: "Les réglages des modules de ce compte manquent." }
+  };
+
   /** La recette rendue par le moteur, vérifiée dans sa forme. */
-  function verifierRecette(r) {
+  function verifierRecette(r, sorte) {
     var ident = function (x) { return /^[\w-]{6,120}$/.test(String(x || "")); };
     if (!r || !ident(r.moteur) || typeof r.prefixe !== "string" || !/^[a-z_]{2,20}$/.test(r.prefixe) || !Array.isArray(r.fichiers) || !r.fichiers.length || typeof r.appel !== "string" || !/^[0-9a-f]{16,64}$/.test(String(r.empreinte || "")))
       throw souci("Le moteur de ce compte n'a pas répondu comme prévu. Recharge Origami et réessaie.", "recette");
     r.fichiers.forEach(function (f) { if (!f || !/^\w{1,60}$/.test(String(f.nom || "")) || !TYPES[f.type]) throw souci("Le moteur de ce compte n'a pas répondu comme prévu. Recharge Origami et réessaie.", "recette"); });
     ["classeur", "projet", "deploiement"].forEach(function (k) { if (r[k] && !ident(r[k])) throw souci("Le moteur de ce compte n'a pas répondu comme prévu. Recharge Origami et réessaie.", "recette"); });
     if (r.adresse && !/^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/.test(r.adresse)) throw souci("Le moteur de ce compte n'a pas répondu comme prévu. Recharge Origami et réessaie.", "recette");
-    return { moteur: r.moteur, titre: String(r.titre || "Origami - Compta").slice(0, 80), prefixe: r.prefixe, fichiers: r.fichiers.map(function (f) { return { nom: f.nom, type: f.type }; }), appel: r.appel,
+    return { moteur: r.moteur, titre: String(r.titre || SORTES[sorte || "compta"].titre).slice(0, 80), prefixe: r.prefixe, fichiers: r.fichiers.map(function (f) { return { nom: f.nom, type: f.type }; }), appel: r.appel,
       empreinte: r.empreinte, installee: String(r.installee || ""), classeur: r.classeur || "", projet: r.projet || "", version: Number(r.version) || 0, deploiement: r.deploiement || "", adresse: r.adresse || "", reglages: String(r.reglages || "") };
   }
 
-  /** Le code de la Compta porté par le moteur : { Code: "…", … }, lu dans le contenu de son projet. */
-  function codePorte(contenu, r) {
+  /** Le code porté par le moteur (Compta ou modules) : { Code: "…", … }, lu dans le contenu de son projet. */
+  function codePorte(contenu, r, sorte) {
+    if (sorte === "modules") return codePorteModules(contenu, r);
     var porte = {};
     ((contenu && contenu.files) || []).forEach(function (f) {
       if (f && f.type === "HTML" && String(f.name).indexOf(r.prefixe) === 0) porte[String(f.name).slice(r.prefixe.length)] = String(f.source || "");
@@ -68,17 +79,39 @@
     return porte;
   }
 
-  /** Les fichiers du projet de la Compta de ce compte : code porté (doGet complété) + réglages de ce compte. */
-  function fichiersCompta(porte, r, reglages) {
-    if (!/^var APP_COMPTE_ = \{/.test(String(reglages || ""))) throw souci("Les réglages de la Compta de ce compte manquent.", "code");
+  /**
+   * Les modules Spectacle et Prospection portés par le moteur (v15). Ils ne s'ouvrent qu'avec un jeton d'Origami : la page
+   * refuse de poser un code qui n'aurait pas cette porte (dans doGet, dans doPost et dans les appels de l'écran).
+   */
+  function codePorteModules(contenu, r) {
+    var porte = {};
+    ((contenu && contenu.files) || []).forEach(function (f) {
+      if (f && f.type === "HTML" && String(f.name).indexOf(r.prefixe) === 0) porte[String(f.name).slice(r.prefixe.length)] = String(f.source || "");
+    });
+    var manque = r.fichiers.filter(function (f) { return !porte[f.nom]; }).map(function (f) { return f.nom; });
+    if (manque.length) throw souci("Le code des modules manque dans le moteur de ce compte (" + manque.join(", ") + ").", "code");
+    var doget = 0;
+    r.fichiers.forEach(function (f) { if (f.type === "SERVER_JS") doget += nbDoGet(porte[f.nom]); });
+    if (doget !== 1 || nbDoGet(porte.Code || "") !== 1) throw souci("Les modules portés par le moteur de ce compte ont changé de forme : leur installation doit être adaptée.", "code");
+    if (!/function jetonOrigami_\s*\(/.test(porte.Origami || "") || !/function modulesPorte_\s*\(/.test(porte.Origami || "") || porte.Code.indexOf("modulesPorte_(jeton)") < 0 ||
+        (porte.Acces || "").indexOf("return jetonOrigami_(jeton)") < 0 || (porte.Acces || "").indexOf("if (!jetonValide_(q.jeton)) throw") < 0)
+      throw souci("Les modules portés par le moteur de ce compte n'ont pas leur porte : rien n'est installé.", "code");
+    try { JSON.parse(porte.appsscript); } catch (e) { throw souci("Le manifeste des modules portés par le moteur est illisible.", "code"); }
+    return porte;
+  }
+
+  /** Les fichiers du projet de ce compte : code porté (doGet de la Compta complété) + réglages de ce compte. */
+  function fichiersCompta(porte, r, reglages, sorte) {
+    var S = SORTES[sorte || "compta"];
+    if (!S.forme.test(String(reglages || ""))) throw souci(S.sansReglages, "code");
     var manifeste = JSON.parse(porte.appsscript);
     manifeste.webapp = { access: "ANYONE_ANONYMOUS", executeAs: "USER_DEPLOYING" };
     return r.fichiers.map(function (f) {
       var source = porte[f.nom];
       if (f.nom === "appsscript") source = JSON.stringify(manifeste, null, 2);
-      if (f.nom === "Code") source = source.replace(DOGET, function (m) { return m + r.appel; });
+      if (f.nom === "Code" && r.appel) source = source.replace(DOGET, function (m) { return m + r.appel; });
       return { name: f.nom, type: f.type, source: source };
-    }).concat([{ name: "99_Compte", type: "SERVER_JS", source: String(reglages) }]);
+    }).concat([{ name: S.reglages, type: "SERVER_JS", source: String(reglages) }]);
   }
 
   function adresseDe(dep) {
@@ -244,8 +277,8 @@
     }, function () { throw souci("Pas de réponse de Google. Vérifie ta connexion à Internet.", "reseau"); });
   }
 
-  function lireMoteur(s, r) {
-    return api(s, "GET", "projects/" + enc(r.moteur) + "/content").then(function (c) { return codePorte(c, r); }, function (e) {
+  function lireMoteur(s, r, sorte) {
+    return api(s, "GET", "projects/" + enc(r.moteur) + "/content").then(function (c) { return codePorte(c, r, sorte); }, function (e) {
       // Le moteur du compte n'est lisible que par son propriétaire : un refus ici veut dire qu'un autre compte Google a été choisi.
       if (e.code === "introuvable" || e.code === "refus-google") throw souci("Ce n'est pas le bon compte Google.", "mauvais-compte", e.statut, e.brut);
       throw e;
@@ -253,43 +286,45 @@
   }
 
   /**
-   * Installe (ou reprend) la Compta d'un compte. o = { cle, moteur(prise, args) → promesse, dire(etape) }.
+   * Installe (ou reprend) une appli portée par le moteur d'un compte (« compta » ou « modules »).
+   * o = { cle, moteur(prise, args) → promesse, dire(etape) }.
    * Étapes dites : recette, code, classeur, projet, contenu, version, ligne. Rend { adresse, projet, premiere }.
    */
-  function installerCompta(o) {
+  function installerPortee(sorte, o) {
+    var S = SORTES[sorte], P = S.prise;
     var s = session(o.cle), dire = o.dire || function () {}, r = null, porte = null, notee = false;
     if (!s) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
     dire("recette");
-    return o.moteur("compta.recette").then(function (x) {
-      r = verifierRecette(x);
+    return o.moteur(P + "recette").then(function (x) {
+      r = verifierRecette(x, sorte);
       if (r.adresse) return { adresse: r.adresse, projet: r.projet, premiere: false };
       dire("code");
-      return lireMoteur(s, r).then(function (p) { porte = p; dire("classeur"); return o.moteur("compta.preparer"); })
+      return lireMoteur(s, r, sorte).then(function (p) { porte = p; dire("classeur"); return o.moteur(P + "preparer"); })
         .then(function (x2) {
-          r = verifierRecette(x2);
-          if (!r.classeur || !r.reglages) throw souci("Le moteur de ce compte n'a pas préparé le classeur de la Compta. Réessaie.", "recette");
+          r = verifierRecette(x2, sorte);
+          if (!r.classeur || !r.reglages) throw souci(S.pasPreparee, "recette");
           notee = !!r.adresse;
           if (r.projet) return null;
           dire("projet");
           return api(s, "POST", "projects", { title: r.titre, parentId: r.classeur }).then(function (p) {
             if (!/^[\w-]{6,120}$/.test(String(p.scriptId || ""))) throw souci("Google n'a pas rendu l'identifiant du projet. Réessaie.", "occupe");
-            r.projet = p.scriptId; return o.moteur("compta.noter", { projet: r.projet });
+            r.projet = p.scriptId; return o.moteur(P + "noter", { projet: r.projet });
           });
         })
         .then(function () {
           if (r.version) return null;
           dire("contenu");
-          return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiersCompta(porte, r, r.reglages) })
-            .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Compta installée depuis Origami" }); })
-            .then(function (v) { r.version = Number(v.versionNumber) || 0; if (!r.version) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe"); return o.moteur("compta.noter", { version: r.version, empreinte: r.empreinte }); });
+          return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiersCompta(porte, r, r.reglages, sorte) })
+            .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: S.installee }); })
+            .then(function (v) { r.version = Number(v.versionNumber) || 0; if (!r.version) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe"); return o.moteur(P + "noter", { version: r.version, empreinte: r.empreinte }); });
         })
         .then(function () {
           if (r.deploiement) return null;
           dire("ligne");
-          return api(s, "POST", "projects/" + enc(r.projet) + "/deployments", { versionNumber: r.version, manifestFileName: "appsscript", description: "Compta de ce compte" }).then(function (d) {
+          return api(s, "POST", "projects/" + enc(r.projet) + "/deployments", { versionNumber: r.version, manifestFileName: "appsscript", description: S.ligne }).then(function (d) {
             if (!/^[\w-]{6,120}$/.test(String(d.deploymentId || ""))) throw souci("Google n'a pas rendu l'identifiant de la publication. Réessaie.", "occupe");
             r.deploiement = d.deploymentId; r.adresse = adresseDe(d);
-            return o.moteur("compta.noter", { deploiement: r.deploiement });
+            return o.moteur(P + "noter", { deploiement: r.deploiement });
           });
         })
         .then(function () {
@@ -297,46 +332,52 @@
           dire("ligne");
           return api(s, "GET", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement)).then(function (d) {
             r.adresse = adresseDe(d);
-            if (!r.adresse) throw souci("La Compta a été créée mais pas encore publiée. Réessaie dans un instant.", "occupe");
+            if (!r.adresse) throw souci(S.pasPubliee, "occupe");
           });
         })
-        .then(function () { return notee ? null : o.moteur("compta.noter", { adresse: r.adresse }); })
+        .then(function () { return notee ? null : o.moteur(P + "noter", { adresse: r.adresse }); })
         .then(function () { return { adresse: r.adresse, projet: r.projet, premiere: true }; })
         .catch(function (e) {
           // Projet noté puis supprimé à la main chez Google : on repart d'un projet neuf, une seule fois.
-          if (e && e.code === "introuvable" && !o.refait && r && !notee) return o.moteur("compta.noter", { refaire: true }).then(function () { return installerCompta({ cle: o.cle, moteur: o.moteur, dire: o.dire, refait: true }); });
+          if (e && e.code === "introuvable" && !o.refait && r && !notee) return o.moteur(P + "noter", { refaire: true }).then(function () { return installerPortee(sorte, { cle: o.cle, moteur: o.moteur, dire: o.dire, refait: true }); });
           throw e;
         });
     });
   }
 
-  /** Met la Compta d'un compte au niveau de celle que porte son moteur (même adresse, réglages du compte gardés). */
-  function mettreAJourCompta(o) {
+  function installerCompta(o) { return installerPortee("compta", o); }
+  function installerModules(o) { return installerPortee("modules", o); }
+
+  /** Met une appli portée (« compta » ou « modules ») au niveau de celle que porte le moteur du compte (même adresse, réglages du compte gardés). */
+  function mettreAJourPortee(sorte, o) {
+    var S = SORTES[sorte], P = S.prise;
     var s = session(o.cle), dire = o.dire || function () {}, r = null, porte = null;
     if (!s) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
     dire("recette");
-    return o.moteur("compta.recette").then(function (x) {
-      r = verifierRecette(x);
-      if (!r.adresse || !r.projet || !r.deploiement) throw souci("La Compta de ce compte n'est pas encore installée.", "");
+    return o.moteur(P + "recette").then(function (x) {
+      r = verifierRecette(x, sorte);
+      if (!r.adresse || !r.projet || !r.deploiement) throw souci(S.pasInstallee, "");
       if (r.installee === r.empreinte) return { aJour: true, version: r.version };
       dire("code");
-      return lireMoteur(s, r).then(function (p) { porte = p; return api(s, "GET", "projects/" + enc(r.projet) + "/content"); })
+      return lireMoteur(s, r, sorte).then(function (p) { porte = p; return api(s, "GET", "projects/" + enc(r.projet) + "/content"); })
         .then(function (actuel) {
           var reglages = "";
-          ((actuel && actuel.files) || []).forEach(function (f) { if (f && f.name === "99_Compte" && /^var APP_COMPTE_ = \{/.test(String(f.source || ""))) reglages = String(f.source); });
+          ((actuel && actuel.files) || []).forEach(function (f) { if (f && f.name === S.reglages && S.forme.test(String(f.source || ""))) reglages = String(f.source); });
           dire("contenu");
-          return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiersCompta(porte, r, reglages || r.reglages) });
+          return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiersCompta(porte, r, reglages || r.reglages, sorte) });
         })
-        .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Compta mise à jour depuis Origami" }); })
+        .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: S.maj }); })
         .then(function (v) {
           r.version = Number(v.versionNumber) || 0; if (!r.version) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe");
           dire("ligne");
-          return api(s, "PUT", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement), { deploymentConfig: { scriptId: r.projet, versionNumber: r.version, manifestFileName: "appsscript", description: "Compta de ce compte" } });
+          return api(s, "PUT", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement), { deploymentConfig: { scriptId: r.projet, versionNumber: r.version, manifestFileName: "appsscript", description: S.ligne } });
         })
-        .then(function () { return o.moteur("compta.noter", { version: r.version, empreinte: r.empreinte }); })
+        .then(function () { return o.moteur(P + "noter", { version: r.version, empreinte: r.empreinte }); })
         .then(function () { return { aJour: true, version: r.version }; });
     });
   }
+  function mettreAJourCompta(o) { return mettreAJourPortee("compta", o); }
+  function mettreAJourModules(o) { return mettreAJourPortee("modules", o); }
 
   // ---------- Installer Origami dans un compte, sans classeur à copier ni code à coller (v10) ----------
   function hasard(n) { var o = new Uint8Array(n); racine.crypto.getRandomValues(o); return Array.prototype.map.call(o, function (b) { return ("0" + b.toString(16)).slice(-2); }).join(""); }
@@ -590,6 +631,13 @@
     return fetch(String(adresse) + "?origami=ping", { redirect: "follow" }).then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { return String(t).trim() === "origami-compta:ok"; }, function () { return false; });
   }
 
+  /** Les modules Spectacle et Prospection répondent-ils ? Rend "" (pas encore autorisés), "ok", "origami" ou "racine" (où vont leurs fichiers). */
+  function pingModules(adresse) {
+    if (!ADRESSE_EXEC.test(String(adresse || ""))) return Promise.resolve("");
+    return fetch(String(adresse) + "?origami=ping", { redirect: "follow" }).then(function (r) { return r.ok ? r.text() : ""; })
+      .then(function (t) { var m = /^origami-modules:ok(?::(origami|racine))?$/.exec(String(t).trim()); return m ? (m[1] || "ok") : ""; }, function () { return ""; });
+  }
+
   // ---------- Boîte mail installée dans le compte par Origami (23.11.2026, demande de Sévane : « vas-y ») ----------
   // Avant : une copie du classeur modèle faite à la main, posée à la racine du Drive. Maintenant la page fait tout, comme pour la
   // Compta : le moteur du compte prépare le dossier « Origami/Boîte mail/Données » (prise rangement.preparer, en ligne depuis la v5),
@@ -737,7 +785,7 @@
       });
   }
 
-  var sortie = { charger: charger, installerBoite: installerBoite, pingBoite: pingBoite, relierBoite: relierBoite, _fichierPremierBoite: fichierPremierBoite, _appelBoite: APPEL_BOITE, mettreAJourOrigami: mettreAJourOrigami, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, ping: ping, lienAutorisation: lienAutorisation,
+  var sortie = { charger: charger, installerBoite: installerBoite, pingBoite: pingBoite, relierBoite: relierBoite, _fichierPremierBoite: fichierPremierBoite, _appelBoite: APPEL_BOITE, mettreAJourOrigami: mettreAJourOrigami, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, installerModules: installerModules, mettreAJourModules: mettreAJourModules, pingModules: pingModules, ping: ping, lienAutorisation: lienAutorisation,
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
     // La Boîte mail déjà installée dans le compte connecté (par Origami ou par l'appli Boîte mail seule), ou null. Ne crée rien.
     chercherBoite: function (cle) { var s = session(cle); return s && s.drive ? chercherBoite(s).catch(function () { return null; }) : Promise.resolve(null); },
