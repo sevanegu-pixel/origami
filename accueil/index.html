@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-22.64">
+<meta name="origami-version" content="2026-11-22.65">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -549,9 +549,9 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-22.64"></script>
-<script src="repertoire.js?v=2026-11-22.64"></script>
-<script src="google.js?v=2026-11-22.64"></script>
+<script src="agenda.js?v=2026-11-22.65"></script>
+<script src="repertoire.js?v=2026-11-22.65"></script>
+<script src="google.js?v=2026-11-22.65"></script>
 <script>
 (function () {
   "use strict";
@@ -1294,9 +1294,22 @@ button.tuile:hover { border-color: var(--ligne); }
   }
   // Chaque demande dit la version que l'appareil a en mémoire : le moteur joint à sa réponse ce qui a changé depuis.
   // options.sans : ne pas demander ces corrections ; options.lent : envoi d'un fichier ou d'un mail, délai plus long.
+  // Écritures en route vers un moteur (25.11, « vérifier ce qui se passe quand on quitte une appli pendant un enregistrement ») :
+  // tant qu'il y en a, fermer la fenêtre ou recharger demande confirmation. Les lectures ne comptent pas.
+  var LECTURES = /^(etat|tableauDeBord|changements|empreinte|compta\.(recette|etat)|compte\.inventaire|agenda\.(lire|calendriers|prospection|evenements|evenement|chercher)|jeton\.appli|paiement\.lire|appareils\.lister|tickets\.fichier)$/;
+  var ecrituresEnVol = 0;
   function moteurBrut(id, fn, args, options) {
     var m = moteurs[id];
     if (!m) return Promise.reject(new Error("Ce compte n'est pas relié à son moteur."));
+    if (!LECTURES.test(String(fn))) {
+      ecrituresEnVol++;
+      var fin = function () { ecrituresEnVol = Math.max(0, ecrituresEnVol - 1); };
+      return moteurBrutSeul(id, fn, args, options).then(function (o) { fin(); return o; }, function (e) { fin(); throw e; });
+    }
+    return moteurBrutSeul(id, fn, args, options);
+  }
+  function moteurBrutSeul(id, fn, args, options) {
+    var m = moteurs[id];
     return lireMemoire(id).then(function (me) {
       var q = { prise: 1, cle: m.c, fn: fn, args: args || {} }, envoi = { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" } }, minuterie = 0;
       if (!(options && options.sans)) q.depuis = me.version || 0;
@@ -2089,8 +2102,8 @@ button.tuile:hover { border-color: var(--ligne); }
     }).then(function () { enVol--; rafraichir(x.compte); pomper(); });
   }
   window.addEventListener("beforeunload", function (e) {
-    if (!file.length) return;
-    e.preventDefault(); e.returnValue = "Des tickets sont encore en cours d'enregistrement."; return e.returnValue;
+    if (!file.length && !ecrituresEnVol) return;   // le Répertoire garde ses fiches sur l'appareil : rien à perdre en quittant
+    e.preventDefault(); e.returnValue = file.length ? "Des tickets sont encore en cours d'enregistrement." : "Un enregistrement est en cours."; return e.returnValue;
   });
 
   // Un geste sur des lignes : elles disparaissent tout de suite, et reviennent si le moteur refuse.
