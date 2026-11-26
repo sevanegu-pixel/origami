@@ -1380,6 +1380,7 @@
     if (e.target.getAttribute('data-desinst') === 'annuler') { desinst = null; dessinerComptes(); return; }
     if (e.target.getAttribute('data-desinst') === 'case') { var b = l.querySelector('[data-desinst="go"]'); if (b) b.disabled = !e.target.checked; return; }
     if (e.target.getAttribute('data-desinst') === 'go') { desinstaller(c); return; }
+    if (e.target.getAttribute('data-desinst') === 'oublier') { desinst = null; oublierCompte(c); dire((c.email || nomCourt(c)) + ' est retirée de cette appli.'); return; }
     if (e.target.getAttribute('data-desinst') === 'seulement') { desinst = null; desinstFin = { email: c.email || '', nom: nomCourt(c), ancien: true, jete: false }; oublierCompte(c); return; }
   });
   $('comptes').addEventListener('click', function (e) {
@@ -1407,6 +1408,8 @@
   function htmlDesinst(c) {
     if (!desinst || desinst.id !== c.id) return '';
     var qui = esc(c.email || nomCourt(c));
+    if (desinst.etape === 'oublier') return '<div class="desinst"><p><b>Origami a été retiré du compte ' + qui + '.</b> Retirer aussi cette boîte de l\'appli Boîte mail ?</p>' +
+      '<div class="actions"><button type="button" class="danger" data-desinst="oublier">Retirer de cette appli</button><button type="button" data-desinst="annuler">Garder</button></div></div>';
     if (desinst.etape === 'encours') return '<div class="desinst" role="status">Désinstallation de la Boîte mail de ' + qui + '…</div>';
     if (desinst.etape === 'ancien') return '<div class="desinst"><p>Le moteur de cette boîte ne sait pas encore se désinstaller' + (desinst.detail ? ' (' + esc(desinst.detail) + ')' : '') + '. ' +
       'Il reste deux gestes : « Retirer seulement » ici, puis mettre son classeur à la corbeille (par Google ou à la main).</p>' +
@@ -1471,6 +1474,15 @@
   function demandeDehors(u) {
     // boitemail://ouvrir : seulement mettre l'appli devant (bouton « Ouvrir » d'une autre appli), sans rien changer ni rien dire
     if (/^boitemail:\/\/ouvrir\b/i.test(String(u))) { try { if (T && T.window && T.window.getCurrentWindow) { var w0 = T.window.getCurrentWindow(); w0.show(); if (w0.unminimize) w0.unminimize(); w0.setFocus(); } } catch (e) { /* déjà visible */ } return true; }
+    // boitemail://oublier?email=<adresse> (26.11, Origami après « Retirer Origami de ce compte ») : propose de retirer ce compte de l'appli.
+    if (/^boitemail:\/\/oublier\b/i.test(String(u))) {
+      if (FEN) return true;
+      var em = String(champsLien(u).email || '').trim().toLowerCase(), co = em ? comptes.filter(function (x) { return String(x.email || '').toLowerCase() === em; })[0] : null;
+      if (!co) { dire(em ? 'La boîte ' + em + ' n\'est pas dans cette appli : rien à retirer.' : 'Adresse manquante : rien retiré.'); return true; }
+      desinst = { id: co.id, etape: 'oublier' }; montrer('comptes');
+      try { var cart = $('comptes').querySelector('.compte[data-id="' + co.id + '"]'); if (cart) cart.scrollIntoView({ block: 'center' }); } catch (e) { /* rien */ }
+      return true;
+    }
     if (/^boitemail:\/\/joindre\b/i.test(String(u))) { // le PDF attendu par une fenêtre d'écriture (jeton « attente ») : déposé pour elle
       var j = champsLien(u); if (!/^[0-9A-Za-z_-]{6,40}$/.test(j.attente || '')) return true;
       var dep = { jeton: j.attente, t: Date.now(), encore: j.encore === '1', echec: j.echec === '1', raison: String(j.raison || '').slice(0, 200), fichier: /^[0-9A-Za-z_-]{10,80}$/.test(j.fichier || '') ? j.fichier : '', nom: String(j.nom || '').slice(0, 150) };
