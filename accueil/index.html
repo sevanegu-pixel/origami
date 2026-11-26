@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-26.72">
+<meta name="origami-version" content="2026-11-26.73">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -219,6 +219,7 @@ html.sombre .famille { background: #1e2a4a; }
 .rang-f .nom small { font-weight: 400; color: var(--doux); overflow-wrap: anywhere; }
 .info .note.maj-origami { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 12px; }
 .info .note.maj-origami .maj-souci { flex-basis: 100%; font-size: 13px; }
+.pas-autoriser { margin: 6px 0 8px; padding-left: 20px; } .pas-autoriser li { margin: 3px 0; }
 .info details ul { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .lien { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
 .choix-ajout { display: flex; flex-direction: column; gap: 10px; }
@@ -234,6 +235,11 @@ html.sombre .famille { background: #1e2a4a; }
 .liste-desinst a { white-space: nowrap; }
 .case-desinst { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--ligne); border-radius: 10px; background: var(--carte); cursor: pointer; }
 .case-desinst input { width: 18px; height: 18px; margin: 2px 0 0; flex: none; }
+.aussi-desinst { margin: 0 0 12px; padding: 10px 14px; border: 1px solid var(--ligne); border-radius: 10px; }
+.aussi-desinst legend { padding: 0 6px; font-weight: 600; font-size: 14px; }
+.aussi-desinst label { display: flex; align-items: center; gap: 8px; padding: 3px 0; cursor: pointer; }
+.aussi-desinst input { width: 16px; height: 16px; margin: 0; flex: none; }
+.aussi-desinst .aide-fine { margin: 6px 0 0; }
 .bouton.danger { border-color: #b42318; background: #b42318; color: #ffffff; font-weight: 600; }
 .bouton.danger:disabled { opacity: .45; cursor: default; }
 .info details.autres-facons { margin-top: 6px; border: 0; background: none; padding: 0; }
@@ -557,10 +563,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-26.72"></script>
-<script src="repertoire.js?v=2026-11-26.72"></script>
-<script src="fichiers.js?v=2026-11-26.72"></script>
-<script src="google.js?v=2026-11-26.72"></script>
+<script src="agenda.js?v=2026-11-26.73"></script>
+<script src="repertoire.js?v=2026-11-26.73"></script>
+<script src="fichiers.js?v=2026-11-26.73"></script>
+<script src="google.js?v=2026-11-26.73"></script>
 <script>
 (function () {
   "use strict";
@@ -3557,6 +3563,10 @@ button.tuile:hover { border-color: var(--ligne); }
       h += '<p class="explication">' + (moteurs[c0.id] ? "Le nom et la couleur changent dans le volet, dans le menu des comptes de la Compta et sur tes autres appareils reliés à ce compte." : "Le nom et la couleur changent dans le volet et dans le menu des comptes de la Compta. Relie ce compte à son moteur pour qu'ils suivent aussi sur tes autres appareils.") + "</p></div>";
     }
     if (!tous && c0.id !== "compagnie") h += '<div class="reglage"><div class="rangs"><div class="rang-r"><span class="nom">Retirer Origami de ce compte<small>Met à la corbeille du Drive tout ce qu\'Origami a créé dans ce compte (récupérable 30 jours), puis retire le compte de cette appli.</small></span><button class="bouton" data-desinst="ouvrir" data-de="' + c0.id + '">Désinstaller</button></div></div></div>';
+    // 26.11, Sévane : « un petit guide avec le lien qui m'amène vers la page pour rajouter un compte de quelqu'un », seulement dans le compte de la compagnie.
+    if (!tous && c0.id === "compagnie" && !FENETRE) h += '<div class="reglage" data-autoriser-quelquun="1"><h3>Autoriser quelqu\'un à utiliser Origami</h3><p>Pour que quelqu\'un d\'autre puisse faire « Continuer avec Google » dans Origami, son adresse Gmail doit être inscrite chez Google, dans le projet « Origami » de la compagnie. Sinon Google lui affiche « Accès bloqué ».</p>' +
+      '<ol class="pas-autoriser"><li>Ouvre la page de Google avec le compte de la compagnie.</li><li>Vérifie tout en haut que le projet choisi est bien «&nbsp;Origami&nbsp;».</li><li>Sous «&nbsp;Utilisateurs test&nbsp;», clique «&nbsp;Ajouter des utilisateurs&nbsp;», écris son adresse Gmail, puis «&nbsp;Enregistrer&nbsp;».</li></ol>' +
+      '<p class="aide-fine">Cent adresses au plus. La personne peut ensuite installer Origami tout de suite, sans rien attendre.</p><div class="actions"><a class="bouton" href="' + LIEN_AUTORISER + '" target="_blank" rel="noopener">Ouvrir la page de Google</a></div></div>';
     h += '<h2 class="sous-titre">Affichage</h2>' + blocTaille();
     h += '<div class="reglage"><div class="rangs"><div class="rang-r"><span class="nom">Toujours ouvrir le tableau de bord<small>Allumé : Origami s\'ouvre sur le tableau de bord. Éteint : il reprend le dernier écran.</small></span><button class="inter" role="switch" aria-checked="' + (etat.ouverture === "bord" ? "true" : "false") + '" aria-label="Toujours ouvrir le tableau de bord" data-ouverture="1"></button></div></div></div>';
     h += '<div class="reglage"><h3>Tableau de bord</h3><p>Les blocs affichés et leur ordre. Le même choix s\'ouvre depuis le tableau de bord.</p><div class="rangs" id="bordRangs">' + rangsBlocs() + "</div></div>";
@@ -3741,6 +3751,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // compte (v11) met à la corbeille ses dossiers « Origami » avec leur contenu ; la page jette le classeur, puis retire son accès.
   // Rien n'est effacé pour de bon : Google garde la corbeille 30 jours. Ce que ni l'un ni l'autre ne peut jeter est montré avec un lien.
   var desinst = { phase: "" };
+  var LIEN_AUTORISER = "https://console.cloud.google.com/auth/audience";   // Google Auth Platform › Audience : la liste des utilisateurs test
   var LIEN_DRIVE_ORIGAMI = "https://drive.google.com/drive/search?q=Origami", LIEN_ACCES_GOOGLE = "https://myaccount.google.com/connections";
   function desinstMontrer() { if (etat.vue === "desinstaller") dessinerPage("desinstaller"); }
   function desinstLien(l) { l = String(l || ""); return /^https:\/\/(docs|drive)\.google\.com\/[\w\/.?=&%-]+$/.test(l) ? l : ""; }
@@ -3806,7 +3817,8 @@ button.tuile:hover { border-color: var(--ligne); }
       if (attente && moteurs[id] && attente.adresse === moteurs[id].u) garder("origami_installation", "");
       garder("origami_google_adresse@" + id, ""); garder("origami_compta_autorisee@" + id, "");
       oublierCompte(id);
-      desinst = { phase: "fini", nom: D.nom, reste: fin.reste, acces: fin.acces, boite: !!fin.boite, boiteArretee: !!fin.boiteArretee };
+      var prevenues = desinstPrevenirMac(D.aussi, D.adresseMac || "");
+      desinst = { phase: "fini", nom: D.nom, reste: fin.reste, acces: fin.acces, boite: !!fin.boite, boiteArretee: !!fin.boiteArretee, prevenues: prevenues };
       etat.compte = compteParDefaut(); etat.vue = "desinstaller"; montrer(); try { page.scrollTop = 0; window.scrollTo(0, 0); } catch (e) {}
     }, function (e) {
       if (desinst !== D) return;
@@ -3834,6 +3846,13 @@ button.tuile:hover { border-color: var(--ligne); }
       h += "</ul>";
       h += '<p class="aide-fine">Ce qui ne bouge pas : tes mails, tes agendas Google et tous les fichiers qu\'Origami n\'a pas créés.</p>';
       if (applis.indexOf("Compta") >= 0) h += "<p>La Compta de ce compte part elle aussi à la corbeille, avec ses données et ses documents. C'est elle qui jette le dossier « Origami » : Google ne laisse pas Origami jeter les fichiers d'une autre appli. Pour cela, Origami et la Compta de ce compte sont d'abord mis à jour, si besoin. Si Google refuse malgré tout, Origami te donnera le lien du dossier : tu le mettras à la corbeille toi-même, en un geste.</p>";
+      var gMac = /^[^\s@"<>]{1,64}@[^\s@"<>]{1,120}$/.test(String(googleAdresse(D.id) || "")) ? String(googleAdresse(D.id)) : "", surMac = desinstApplisMac(gMac);
+      if (surMac.length) {
+        if (!D.aussi) { D.aussi = {}; surMac.forEach(function (a) { D.aussi[a] = true; }); }
+        D.adresseMac = gMac;
+        h += '<fieldset class="aussi-desinst"><legend>Sur ce Mac, retirer aussi ce compte de :</legend>' + surMac.map(function (a) { return '<label><input type="checkbox" data-desinst-aussi="' + a + '"' + (D.aussi[a] ? " checked" : "") + (D.encours ? " disabled" : "") + "><span>l'appli " + texte(nomMac(a)) + "</span></label>"; }).join("") +
+          '<p class="aide-fine">À la fin, chaque appli cochée s\'ouvre un instant pour oublier ce compte. Sans cela, elle le garderait dans son menu.' + (surMac.indexOf("boite") >= 0 ? " La Boîte mail te demande de confirmer d\'un clic." : "") + "</p></fieldset>";
+      }
       h += '<label class="case-desinst"><input type="checkbox" id="desinstCoche"' + (D.coche ? " checked" : "") + (D.encours ? " disabled" : "") + "><span>J'ai compris : mets tout à la corbeille du Drive et retire ce compte de l'appli.</span></label>";
       h += '<p class="aide-fine">' + (macSansGoogle() ? "Cette version de l'appli du Mac ne sait pas encore se connecter à Google (mets-la à jour dans « Applis »). S'il reste un fichier qu'Origami n'a pas pu jeter, il te le montrera avec un lien." : MAC ? "Ton navigateur va s'ouvrir pour la connexion à Google : choisis ce même compte et laisse les cases cochées, puis Origami revient devant toi. Elle sert à jeter le classeur des réglages et à retirer l'accès d'Origami à ce compte." : "Google va ouvrir une fenêtre : choisis ce même compte et laisse les cases cochées. Elle sert à jeter le classeur des réglages et à retirer l'accès d'Origami à ce compte.") + "</p>";
       h += occupe + souci;
@@ -3858,6 +3877,7 @@ button.tuile:hover { border-color: var(--ligne); }
         h += "</ul>";
       }
       h += '<p class="aide-fine">Pour vérifier qu\'il ne reste rien : <a href="' + LIEN_DRIVE_ORIGAMI + '" target="_blank" rel="noopener">chercher « Origami » dans le Drive</a> de ce compte. ' + (D.acces ? "L'accès d'Origami à ce compte Google est retiré." : 'Pour retirer aussi l\'accès d\'Origami chez Google : <a href="' + LIEN_ACCES_GOOGLE + '" target="_blank" rel="noopener">les applis connectées à ton compte</a>.') + "</p>";
+      if (D.prevenues && D.prevenues.length) h += "<p>Sur ce Mac, " + (D.prevenues.length > 1 ? "les applis " + texte(D.prevenues.join(" et ")) + " se sont ouvertes pour oublier ce compte : tu peux les refermer." : "l'appli " + texte(D.prevenues[0]) + " s'est ouverte pour oublier ce compte : tu peux la refermer.") + "</p>";
       if (D.boite) h += '<p class="aide-fine">' + (D.boiteArretee ? "La Boîte mail de ce compte ne répond plus : dans l'appli Boîte mail, retire ce compte de la liste." : "La Boîte mail de ce compte n'a pas pu être arrêtée : son classeur est à la corbeille, mais elle répond encore à l'appli Boîte mail.") + "</p>";
       h += '<p class="aide-fine">Chez Google, les applis de ce compte (Origami, Compta, Boîte mail) restent dans la liste des applis autorisées : pour les en retirer, ouvre <a href="' + LIEN_ACCES_GOOGLE + '" target="_blank" rel="noopener">les applis connectées à ton compte</a>.</p>';
       h += '<details class="aide-fine"><summary>Tu as changé d\'avis ?</summary><p>Pendant 30 jours : ouvre la corbeille du Drive de ce compte et remets le dossier « Origami » et le classeur « Origami - Réglages du compte ». Ouvre ensuite ce classeur, menu Origami, « Installer ou réparer », puis « Relier un appareil ».</p></details>';
@@ -3865,7 +3885,25 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     return h + "</div>";
   }
+  /** Les applis du Mac qui gardent leur propre liste de comptes et savent en oublier un quand Origami le leur dit. */
+  function desinstApplisMac(g) { return !MAC || FENETRE || !MAC_APPLIS ? [] : ["compta", "tickets", "boite"].filter(function (a) { return MAC_APPLIS[a] && MAC_APPLIS[a].presente && (a !== "boite" || (!!g && !!MAC.opener && typeof MAC.opener.openUrl === "function")); }); }
+  /** Après le retrait d'un compte : les applis cochées s'ouvrent avec la liste à jour, et l'oublient. Rend les noms des applis prévenues. */
+  function desinstPrevenirMac(aussi, g) {
+    var faites = [];
+    desinstApplisMac(g).forEach(function (a) {
+      if (!aussi || !aussi[a]) return;
+      // Boîte mail (appli 24 et suivantes) : elle ouvre ses comptes et demande « Retirer de cette appli » ; une version plus ancienne ignore le lien.
+      if (a === "boite") { faites.push(nomMac(a)); try { Promise.resolve(MAC.opener.openUrl("boitemail://oublier?email=" + encodeURIComponent(String(g).toLowerCase()))).catch(function () {}); } catch (e) {} return; }
+      var lien = a === "compta" ? lienComptaMac("") : lienTicketsMac("");
+      if (!lien) return;
+      faites.push(nomMac(a));
+      invoquer("ouvrir_appli", { appli: a, lien: lien }).catch(function () {});
+    });
+    return faites;
+  }
   document.addEventListener("change", function (ev) {
+    var ca = ev.target && ev.target.getAttribute ? ev.target.getAttribute("data-desinst-aussi") : "";
+    if (ca && desinst.phase === "liste" && desinst.aussi) { desinst.aussi[ca] = !!ev.target.checked; return; }
     if (!ev.target || ev.target.id !== "desinstCoche" || desinst.phase !== "liste") return;
     desinst.coche = !!ev.target.checked; desinstMontrer();
   });
