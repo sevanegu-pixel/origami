@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-26.79">
+<meta name="origami-version" content="2026-11-26.80">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -116,6 +116,8 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 .guide-compta li.attente strong { color: var(--doux); font-weight: 500; }
 .guide-compta li.fait strong { font-weight: 500; }
 .souci-guide { color: #b42318; margin: 4px 0; }
+.info-guide, .deja-retire { margin: 4px 0; padding: 8px 12px; border-radius: 10px; background: var(--accent-clair); color: var(--texte); font-size: 14px; }
+html.sombre .info-guide, html.sombre .deja-retire { background: #1e2a4a; }
 .droits-modules { margin: 4px 0 10px; padding-left: 18px; line-height: 1.45; }
 .guide-compta .droits-modules li { display: list-item; margin: 4px 0; }
 .etapes-compta li { margin: 6px 0; line-height: 1.45; }
@@ -590,10 +592,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-26.79"></script>
-<script src="repertoire.js?v=2026-11-26.79"></script>
-<script src="fichiers.js?v=2026-11-26.79"></script>
-<script src="google.js?v=2026-11-26.79"></script>
+<script src="agenda.js?v=2026-11-26.80"></script>
+<script src="repertoire.js?v=2026-11-26.80"></script>
+<script src="fichiers.js?v=2026-11-26.80"></script>
+<script src="google.js?v=2026-11-26.80"></script>
 <script>
 (function () {
   "use strict";
@@ -4253,6 +4255,9 @@ button.tuile:hover { border-color: var(--ligne); }
   function parcoursMontrer() { if (typeof COMPTA_SEULE !== "undefined" && COMPTA_SEULE && etat.vue === "ajouter" && !parcours.phase && guide.etape === 0) { montrer(); return; } if (etat.vue === "ajouter") { dessinerPage("ajouter"); try { var z = page.querySelector("[data-parcours-vue]"); if (z && parcours.haut) { page.scrollTop = 0; window.scrollTo(0, 0); parcours.haut = false; } } catch (e) {} } }
   function parcoursPhase(phase, plus) { clearInterval(parcours.minuteur); parcours.minuteur = 0; parcours.phase = phase; parcours.occupe = ""; parcours.sous = ""; parcours.souci = ""; parcours.code = ""; parcours.brut = ""; parcours.haut = true; if (plus) for (var k in plus) parcours[k] = plus[k]; parcoursMontrer(); }
   function parcoursDire(t, sous) { parcours.occupe = t; parcours.sous = sous || ""; parcoursMontrer(); }
+  // Appli Compta seule : les mêmes étapes, dites sans parler d'Origami (il s'installe dans le Drive « en silence »).
+  var SOUS_PARCOURS_COMPTA = { chercher: "Vérification du compte", code: "Lecture du code", classeur: "Classeur des réglages dans ton Drive", projet: "Préparation de ton compte", contenu: "Envoi du code", version: "Enregistrement", ligne: "Mise en ligne" };
+  function etapeParcours(k) { return COMPTA_SEULE && k === "chercher" ? "Je regarde ce qu'il y a déjà dans ce compte…" : COMPTA_SEULE && (k === "code" || k === "projet") ? SOUS_PARCOURS_COMPTA[k] + "…" : ETAPES_PARCOURS[k]; }
   var ORDRE_PARCOURS = ["chercher", "code", "classeur", "projet", "contenu", "version", "ligne"];
   var SOUS_PARCOURS = { chercher: "Vérification du compte", code: "Lecture du code d'Origami", classeur: "Classeur des réglages dans ton Drive", projet: "Création d'Origami dans ton compte", contenu: "Envoi du code", version: "Enregistrement", ligne: "Mise en ligne" };
   function parcoursQuitter() { clearInterval(parcours.minuteur); parcours = { phase: "" }; }
@@ -4267,19 +4272,34 @@ button.tuile:hover { border-color: var(--ligne); }
     var souci = P.souci ? '<p class="souci-guide" role="alert">' + texte(P.souci) + "</p>" : "";
     var occupe = P.occupe ? occupeHtml(P.occupe, true) : "";
     // Origami s'installe : les sous-étapes, cochées une à une.
-    var sousP = P.phase === "travail" && P.installe && P.occupe ? sousEtapes(ORDRE_PARCOURS, SOUS_PARCOURS, P.sous) : "";
+    var sousP = P.phase === "travail" && P.installe && P.occupe ? sousEtapes(ORDRE_PARCOURS, COMPTA_SEULE ? SOUS_PARCOURS_COMPTA : SOUS_PARCOURS, P.sous) : "";
     if (sousP) occupe = sousP + '<p class="progression" role="status">' + barreVive() + "</p>";
     if (P.phase === "travail") {
-      h += parcoursBarre(P.installe ? 2 : 1) + "<h1>" + (P.installe ? "Origami s'installe" : "Connexion à Google") + "</h1>";
-      h += P.installe ? "<p>Dans le compte " + adr + ". Une minute environ : garde cette page ouverte.</p>" : "<p>" + ouvreGoogle() + " Choisis le compte à ajouter et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami.</p>";
+      // Appli Compta seule (26.11, Sévane : « Origami s'installe dans le Drive, mais en silence ») : on ne parle que de la Compta.
+      h += parcoursBarre(P.installe ? 2 : 1) + "<h1>" + (P.installe ? (COMPTA_SEULE ? "Ta Compta s'installe" : "Origami s'installe") : "Connexion à Google") + "</h1>";
+      h += P.installe ? "<p>Dans le compte " + adr + ". " + (COMPTA_SEULE ? "D'abord la préparation de ton Drive, une minute environ, puis la Compta elle-même. Garde cette page ouverte." : "Une minute environ : garde cette page ouverte.") + "</p>" : "<p>" + ouvreGoogle() + " Choisis le compte à ajouter et accepte, en laissant les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est " + (COMPTA_SEULE ? "bien ta Compta (Google l'appelle « Origami »)" : "l'appli Origami") + ".</p>";
       h += occupe + '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Annuler</button></div>';
     } else if (P.phase === "confirmer") {
-      h += parcoursBarre(2) + "<h1>Installer Origami dans ce compte ?</h1><p>Compte Google : " + adr + "</p>";
-      h += "<p>Origami n'y est pas encore. Il va créer un dossier « Origami » dans le Drive de ce compte, pour y ranger ce que tu feras avec tes applis. Une minute environ.</p>";
-      if (COMPTA_SEULE) h += "<p>Ta Compta en a besoin : c'est Origami qui la range dans ton Drive et la tient à jour. Tu n'as pas besoin d'avoir l'appli Origami sur ton ordinateur.</p>";
+      // 26.11, Sévane, depuis l'appli Compta : « ça devrait installer Origami et Compta en une fois, pas que ça m'installe Origami
+      // et qu'ensuite ça me redemande d'installer Compta ». Un seul accord ici ; la Compta s'installe ensuite sans rien redemander.
+      // Origami a été retiré de ce compte : on le dit, sinon la personne croit qu'il y est encore et qu'on va l'installer en double.
+      var jete = P.jete ? '<p class="deja-retire" data-origami-jete="1"><strong>' + (COMPTA_SEULE ? "Il y a déjà eu une installation dans ce compte, puis elle en a été retirée" : "Origami a déjà été dans ce compte, puis il en a été retiré") + (dateCourte(P.jete) ? " le " + dateCourte(P.jete) : "") + "</strong> : ce qui avait été créé est dans la corbeille de ton Drive (Google l'y garde 30 jours). Il n'y a donc plus rien d'installé. Ici, tout s'installe de nouveau, à neuf, sans doublon.</p>" : "";
+      if (COMPTA_SEULE) {
+        h += parcoursBarre(2) + "<h1>Installer ta Compta dans ce compte ?</h1><p>Compte Google : " + adr + "</p>" + jete;
+        h += "<p>" + (P.jete ? "" : "Elle n'y est pas encore. ") + "Elle s'installe dans ton Drive, dans un dossier « Origami » créé pour elle : tout y sera rangé. Tout se fait en une fois, à la suite : tu n'auras rien à redemander.</p>";
+        h += "<p>Quelques minutes. Google te demandera ton accord deux fois en chemin.</p>";
+      } else {
+        h += parcoursBarre(2) + "<h1>Installer Origami dans ce compte ?</h1><p>Compte Google : " + adr + "</p>" + jete;
+        h += "<p>" + (P.jete ? "Il" : "Origami n'y est pas encore. Il") + " va créer un dossier « Origami » dans le Drive de ce compte, pour y ranger ce que tu feras avec tes applis. Une minute environ.</p>";
+      }
       h += "<details><summary>Ce que tu trouveras dans ton Drive</summary>" + arbreDrive() + "</details>";
-      h += '<details><summary>Origami est déjà dans ce compte ?</summary><p>S\'il y a été installé avant (un classeur copié, un code de liaison), ne le réinstalle pas : tu aurais deux Origami dans le même compte. <button class="lien" data-guide="-1">J\'ai un code de liaison</button></p></details>';
-      h += '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Ce n\'est pas le bon compte</button><button class="bouton fort" data-parcours="installer">Installer Origami</button></div>';
+      if (!COMPTA_SEULE) h += '<details><summary>Origami est déjà dans ce compte ?</summary><p>S\'il y a été installé avant (un classeur copié, un code de liaison), ne le réinstalle pas : tu aurais deux Origami dans le même compte. <button class="lien" data-guide="-1">J\'ai un code de liaison</button></p></details>';
+      h += '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Ce n\'est pas le bon compte</button><button class="bouton fort" data-parcours="installer">' + (COMPTA_SEULE ? "Installer la Compta" : "Installer Origami") + '</button></div>';
+    } else if (P.phase === "compagnie") {
+      // Le compte de la compagnie : Origami y a été installé depuis le Mac, la page ne le voit pas. Surtout ne pas l'y installer une deuxième fois.
+      h += "<h1>Origami est déjà dans ce compte</h1><p>Compte Google : " + adr + "</p>";
+      h += "<p>C'est le compte de la compagnie : Origami y est déjà installé, il ne faut pas l'y installer une deuxième fois. Pour l'ajouter sur cet appareil, il faut un code de liaison : sur un appareil où ce compte est déjà dans Origami, va dans Réglages, « Relier un autre appareil ».</p>";
+      h += '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Retour</button><button class="bouton fort" data-guide="-1">J\'ai un code de liaison</button></div>';
     } else if (P.phase === "interrupteur") {
       h += parcoursBarre(2) + "<h1>Un interrupteur à allumer</h1>";
       h += "<p>Google demande d'allumer un interrupteur dans ce compte, une seule fois.</p><ol class=\"pas\"><li>Clique « Ouvrir la page de Google ».</li><li>Vérifie en haut à droite que c'est bien " + adr + ".</li><li>Allume « API Google Apps Script ».</li><li>Reviens ici : la suite part toute seule.</li></ol>";
@@ -4287,7 +4307,8 @@ button.tuile:hover { border-color: var(--ligne); }
       h += occupe + souci + '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Annuler</button></div>';
     } else if (P.phase === "autoriser") {
       var lienA = (G && P.r && G.lienAutorisation(P.r.projet, P.google)) || "";
-      h += parcoursBarre(3) + "<h1>Autorise ton Origami</h1><p>Dernier geste. Origami est installé dans le compte " + adr + " : Google te demande de l'autoriser à y travailler.</p>";
+      h += parcoursBarre(3) + (COMPTA_SEULE ? "<h1>Premier accord de Google</h1><p>Ton Drive est prêt dans le compte " + adr + ". Google te demande d'autoriser ce qui vient d'y être installé à y travailler : il l'appelle « Origami », c'est ce qui range ta Compta. Ta Compta s'installe juste après, sans rien redemander.</p>"
+        : "<h1>Autorise ton Origami</h1><p>Dernier geste. Origami est installé dans le compte " + adr + " : Google te demande de l'autoriser à y travailler.</p>");
       h += "<ol class=\"pas\"><li>Clique « Autoriser Origami ». Une page de Google s'ouvre.</li><li>Choisis le compte " + adr + ".</li>" +
         "<li>Google écrit « <strong>Google n'a pas validé cette application</strong> » : clique sur le petit lien <strong>Paramètres avancés</strong>, puis sur <strong>Accéder à Origami (non sécurisé)</strong>." +
         "<span class=\"aide-fine\">C'est normal et sans danger : cet Origami est le tien, dans ton propre compte. Google affiche cet avertissement pour toute appli qui ne vient pas de son magasin.</span></li>" +
@@ -4328,7 +4349,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!G) return;
     attendu = attendu && attendu.g ? attendu : null;
     var sa = G.session("ajout");
-    if (sa && sa.drive && (!attendu || String(sa.adresse || "").toLowerCase() === attendu.g)) { parcoursPhase("travail", { installe: false, attendu: attendu, occupe: ETAPES_PARCOURS.chercher }); parcoursSuite(); return; }
+    if (sa && sa.drive && (!attendu || String(sa.adresse || "").toLowerCase() === attendu.g)) { parcoursPhase("travail", { installe: false, attendu: attendu, occupe: etapeParcours("chercher") }); parcoursSuite(); return; }
     if (sa) G.oublier("ajout");
     var p = G.connecter("ajout", attendu ? { drive: true, adresse: attendu.g } : { drive: true });
     parcoursPhase("travail", { installe: false, attendu: attendu, occupe: MAC ? "En attente de ton navigateur : choisis le compte et accepte…" : "La fenêtre de Google est ouverte : choisis le compte et accepte…" });
@@ -4343,10 +4364,19 @@ button.tuile:hover { border-color: var(--ligne); }
     // Ce compte Google est déjà relié sur cet appareil : rien à faire.
     var deja = comptes().filter(function (c) { return moteurs[c.id] && s.adresse && String(googleAdresse(c.id) || "").toLowerCase() === s.adresse.toLowerCase(); })[0];
     if (deja) { G.adopter("ajout", deja.id); parcoursPhase("pret", { id: deja.id, retrouve: true }); return; }
-    parcoursDire(ETAPES_PARCOURS.chercher);
+    parcoursDire(etapeParcours("chercher"));
     G.chercherOrigami("ajout").then(function (vu) {
       if (!vivant()) return;
-      if (!vu) { parcoursPhase("confirmer"); return; }
+      if (!vu) {
+        return Promise.all([empreinteAdresse(s.adresse), G.origamiJete ? G.origamiJete("ajout") : ""]).then(function (rr) {
+          var h = rr[0];
+          if (!vivant()) return;
+          if (h !== EMPREINTE_COMPAGNIE) { parcoursPhase("confirmer", { jete: String(rr[1] || "") }); return; }
+          // Appli Compta seule : la Compta de la compagnie est celle de toujours, elle revient avec son code PIN.
+          if (COMPTA_SEULE) { parcoursQuitter(); guide.etape = 0; comptaSuiteGoogle("compagnie"); avis("C'est le compte de la compagnie : sa Compta est déjà là."); return; }
+          parcoursPhase("compagnie");
+        });
+      }
       if (!vu.adresse) { parcoursInstaller(); return; }   // installation interrompue avant la mise en ligne : on la reprend
       return G.pingMoteur(vu.adresse).then(function (repond) {
         if (!vivant()) return;
@@ -4368,28 +4398,45 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!G.session("ajout")) { parcoursSouci({ code: "expire" }); return; }
     var tour = (P.jeton = {}), guet = P.phase === "interrupteur";
     function vivant() { return parcours === P && P.jeton === tour; }
-    if (!guet) parcoursPhase("travail", { installe: true, occupe: ETAPES_PARCOURS.chercher });
+    if (!guet) parcoursPhase("travail", { installe: true, occupe: etapeParcours("chercher") });
     else if (manuel) { P.souci = ""; parcoursDire("Je vérifie l'interrupteur…"); }
     P.installant = true;
-    G.installerOrigami({ cle: "ajout", dire: function (e) {
+    G.installerOrigami({ cle: "ajout", arret: function () { return !!P.arret; }, dire: function (e) {
       if (!vivant()) return;
       // L'interrupteur vient d'être allumé : l'installation est repartie, on quitte l'écran de l'interrupteur.
       if (P.phase === "interrupteur" && e !== "chercher" && e !== "code") parcoursPhase("travail", { installe: true });
-      if (P.phase === "travail") parcoursDire(ETAPES_PARCOURS[e] || "Installation d'Origami…", e);
+      if (P.phase === "travail") parcoursDire(etapeParcours(e) || (COMPTA_SEULE ? "Installation…" : "Installation d'Origami…"), e);
     } }).then(function (r) {
       P.installant = false;
+      if (P.arret) { parcoursNettoyer(r.neuf ? r.classeur : ""); return; }   // annulé pendant la toute dernière étape
       if (!vivant()) return;
       garder("origami_installation", JSON.stringify({ adresse: r.adresse, secret: r.secret, projet: r.projet }));
       parcoursPhase("autoriser", { r: r, contact: false });
       parcoursVerifier(true); parcoursGuetter("autoriser");
     }, function (e) {
       P.installant = false;
+      if (e && e.code === "annule") { parcoursNettoyer(e.classeur); return; }
       if (!vivant()) return;
       if (P.phase === "interrupteur" && e && e.code === "api-eteinte") {   // toujours éteint : on continue de guetter
         P.occupe = ""; if (manuel) P.souci = "L'interrupteur est encore éteint dans ce compte. Après l'avoir allumé, attends une minute : la suite part toute seule."; if (manuel) parcoursMontrer();
         return;
       }
       parcoursSouci(e);
+    });
+  }
+  // 26.11 (Sévane : « j'ai fait annuler. Est-ce qu'il y a des fichiers qui restent ? ») : l'installation annulée s'arrête avant
+  // l'étape suivante ; le classeur qu'elle venait de créer (avec le projet Origami attaché) part à la corbeille du Drive.
+  // Un classeur d'une installation d'avant n'est jamais touché : il sert à reprendre.
+  function parcoursNettoyer(classeur) {
+    var G = window.OrigamiGoogle;
+    var dire = function (t, souci) {   // le message reste sur l'écran de départ, pas seulement trois secondes
+      avis(t, souci);
+      if (!parcours.phase && (etat.vue === "ajouter" || etat.vue === "comptaAjout")) { parcours.infoAccueil = t; montrer(); }
+    };
+    if (!classeur || !G || !G.jeterInstallation) { dire("Installation annulée : rien n'a été créé dans ton Drive."); return; }
+    G.jeterInstallation({ cle: "ajout", id: classeur }).then(function (ok) {
+      if (ok) dire("Installation annulée. Ce qui venait d'être créé est à la corbeille de ton Drive : il ne reste rien d'installé.");
+      else dire("Installation annulée. Un classeur « Origami - Réglages du compte » est resté dans ton Drive : tu peux le mettre à la corbeille.", true);
     });
   }
   // La page guette seule : l'interrupteur allumé, puis l'autorisation donnée. Dix minutes au plus, puis le bouton reste.
@@ -4472,6 +4519,7 @@ button.tuile:hover { border-color: var(--ligne); }
       h += "<h1>Ajouter un compte</h1><p>Un compte, c'est un compte Google avec ses propres applis et son dossier « Origami » dans le Drive.</p>";
       if (PARCOURS_GOOGLE) {
         if (parcours.souciAccueil) h += '<p class="souci-guide" role="alert">' + texte(parcours.souciAccueil) + "</p>";
+        if (parcours.infoAccueil) h += '<p class="info-guide" role="status">' + texte(parcours.infoAccueil) + "</p>";
         if (macSansGoogle()) h += noteMacAncien();
         else if (!window.OrigamiGoogle) h += '<p class="note">La connexion à Google n\'est pas chargée. Recharge Origami et reviens ici.</p>';
         else {
@@ -4749,10 +4797,10 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.tkGoogle && compte(d.tkGoogle) && PARCOURS_GOOGLE) { parcoursQuitter(); parcours.pour = d.tkGoogle; parcours.souciAccueil = ""; guide.etape = 0; etat.compte = d.tkGoogle; etat.vue = "ajouter"; parcoursLancer(); montrer(); return; }
     if (d.parcours && PARCOURS_GOOGLE) {
       var qp = d.parcours;
-      if (qp === "lancer") { parcours.souciAccueil = ""; parcoursLancer(); }
+      if (qp === "lancer") { parcours.souciAccueil = ""; parcours.infoAccueil = ""; parcoursLancer(); }
       else if (qp === "installer") parcoursInstaller(true);
       else if (qp === "verifier") parcoursVerifier(false);
-      else if (qp === "annuler") { parcoursQuitter(); guide.etape = 0; if (FENETRE === "tickets" && compte(etat.compte)) etat.vue = vueTk(etat.compte); if (COMPTA_SEULE) etat.vue = "comptaAjout"; montrer(); }
+      else if (qp === "annuler") { if (parcours.installant) parcours.arret = true; parcoursQuitter(); guide.etape = 0; if (FENETRE === "tickets" && compte(etat.compte)) etat.vue = vueTk(etat.compte); if (COMPTA_SEULE) etat.vue = "comptaAjout"; montrer(); }
       else if (qp === "applis" || qp === "reglages") { var ip = parcours.id; parcoursQuitter(); if (compte(ip)) etat.compte = ip; etat.vue = qp; montrer(); }
       return;
     }
@@ -4970,6 +5018,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var mains = comptasAMain(), vide = !comptes().length, G = window.OrigamiGoogle, h = '<div class="info compta-ajout"><h1>' + (vide ? "Aucune Compta ici pour l'instant" : "Ajouter une Compta") + "</h1>";
     // 26.11 (Sévane : « si j'installe Compta toute seule, sans Origami ») : le chemin principal est « Continuer avec Google », comme dans Origami.
     if (parcours.souciAccueil) h += '<p class="souci-guide" role="alert">' + texte(parcours.souciAccueil) + "</p>";
+    if (parcours.infoAccueil) h += '<p class="info-guide" role="status">' + texte(parcours.infoAccueil) + "</p>";
     if (comptaAttente && compte(comptaAttente)) h += occupeHtml("Je regarde si une Compta existe déjà dans le compte " + nomCompte(comptaAttente) + "…", true);
     if (PARCOURS_GOOGLE && G && !macSansGoogle()) {
       h += '<div class="choix-ajout" data-compta-par-google="1"><button class="carte-choix principal" data-compta-google="1"><strong>Continuer avec Google</strong><span>Tu choisis ton compte Google. Si ta Compta y est déjà, elle s\'ouvre ici. Sinon, elle s\'y installe : quelques minutes, une seule fois, rien à copier.</span></button></div>';
@@ -5066,7 +5115,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var G = window.OrigamiGoogle;
     if (!G || macSansGoogle() || !PARCOURS_GOOGLE) return;
     if (parcours.phase) parcoursQuitter();
-    guide.etape = 0; guide.pour = ""; parcours.souciAccueil = ""; comptaAttente = "";
+    guide.etape = 0; guide.pour = ""; parcours.souciAccueil = ""; parcours.infoAccueil = ""; comptaAttente = "";
     etat.vue = "ajouter"; parcoursLancer(); montrer();   // la fenêtre de Google s'ouvre dans le clic même
   }
   /** Ce que cette appli gardait d'un compte, liaison par Google comprise. Rien ne change chez Google. */
