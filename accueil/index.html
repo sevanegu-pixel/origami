@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-26.81">
+<meta name="origami-version" content="2026-11-26.82">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -594,10 +594,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-26.81"></script>
-<script src="repertoire.js?v=2026-11-26.81"></script>
-<script src="fichiers.js?v=2026-11-26.81"></script>
-<script src="google.js?v=2026-11-26.81"></script>
+<script src="agenda.js?v=2026-11-26.82"></script>
+<script src="repertoire.js?v=2026-11-26.82"></script>
+<script src="fichiers.js?v=2026-11-26.82"></script>
+<script src="google.js?v=2026-11-26.82"></script>
 <script>
 (function () {
   "use strict";
@@ -1234,7 +1234,11 @@ button.tuile:hover { border-color: var(--ligne); }
   // Sinon la Compta garde son chemin par brouillon.
   var BOITE_DIRECT = true;
   var fenCompta = null;
-  function boiteDirecte() { return BOITE_BROUILLON && BOITE_DIRECT && lire("origami_boite20") === "1" && boitePossible(); }
+  // L'adresse Google d'un compte ajouté, pour dire à l'appli Boîte mail dans quelle boîte écrire ("" : la page ne la connaît pas).
+  function adresseCompteBoite(cid) { var a = String(lire("origami_google_adresse@" + cid) || "").trim(); return /^[^\s@"<>]{1,64}@[^\s@"<>]{1,120}$/.test(a) ? a : ""; }
+  // 26.11 : toutes les applis Boîte mail qu'on peut encore télécharger sont au moins en version 20. Le chemin direct est donc
+  // ouvert d'office ; le réglage de l'appareil ne sert plus qu'à le refermer (« 0 »), s'il gêne.
+  function boiteDirecte() { return BOITE_BROUILLON && BOITE_DIRECT && lire("origami_boite20") !== "0" && boitePossible(); }
   function direBoiteCompta() { if (!fenCompta) return; try { fenCompta.w.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible(), directe: boiteDirecte(), liens: boitePossible() }, fenCompta.o); } catch (e) {} }
   // Sur le Mac la Compta vit dans sa propre fenêtre : elle apprend le réglage changé dans la fenêtre d'Origami.
   window.addEventListener("storage", function (ev) { if (ev.key === "origami_boite20") direBoiteCompta(); });
@@ -1402,9 +1406,18 @@ button.tuile:hover { border-color: var(--ligne); }
       if (d.origami === "repertoire") { recevoirRepertoire(d, "Compta", ev.source, ev.origin, cid); return; }
       if (d.origami === "cache-lire") { lireCopieCompta(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }, cid); return; }
       if (d.origami === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCopieCompta(d.texte, cid); return; }
-      // La Boîte mail et les fenêtres à part ne servent que la Compta de la compagnie pour l'instant : l'autre Compta passe par Gmail.
-      if (autre && d.origami === "boite-demande") { try { ev.source.postMessage({ origami: "boite", dispo: false, directe: false, liens: boitePossible() }, ev.origin); } catch (e) {} return; }
-      if (autre && d.origami === "boite-ouvrir") { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} return; }
+      // La Compta d'un autre compte que la compagnie (26.11, Sévane, Compta de son compte : « je trouve pas le bouton pour ouvrir
+      // le mail dans Boîte mail ») : le même bouton. Le brouillon s'ouvre dans la boîte de son expéditeur (dite par la Compta) ;
+      // le chemin direct demande l'adresse Google du compte, que la page connaît s'il a été relié par « Continuer avec Google ».
+      if (autre && d.origami === "boite-demande") { try { ev.source.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible(), directe: boiteDirecte() && !!adresseCompteBoite(cid), liens: boitePossible() }, ev.origin); } catch (e) {} return; }
+      if (autre && d.origami === "boite-ouvrir") {
+        var adrB = adresseCompteBoite(cid), directB = boiteDirecte() && !!adrB;
+        if (BOITE_BROUILLON && d.geste === "brouillon") ouvrirBoite({ n: d.n, geste: "brouillon", boite: /@/.test(String(d.boite || "")) ? d.boite : adrB, id: d.id, conversation: d.conversation }, ev.source, ev.origin);
+        else if (directB && d.geste === "ecrire") ouvrirBoite({ n: d.n, geste: "ecrire", boite: adrB, mode: "nouveau", a: d.a, cc: d.cc, cci: d.cci, objet: d.objet, texte: d.texte, attente: String(d.attente || ""), fenetre: "seule" }, ev.source, ev.origin);
+        else if (directB && d.geste === "joindre") ouvrirBoite({ n: d.n, geste: "joindre", attente: String(d.attente || ""), fichier: d.fichier, nom: d.nom, encore: d.encore === true, echec: d.echec === true, raison: d.raison }, ev.source, ev.origin);
+        else { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} }
+        return;
+      }
       // La Compta demande si un brouillon (PDF joint) peut s'ouvrir dans l'appli Boîte mail, puis le demande.
       if (d.origami === "boite-demande") { fenCompta = { w: ev.source, o: ev.origin }; direBoiteCompta(); return; }
       if (d.origami === "boite-ouvrir") {
@@ -3935,7 +3948,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var liens = Object.keys(moteurs).length, nbCo = connexions().length + (cleFrais() ? 1 : 0);
     h += '<div class="rang-r"><span class="nom">Tout déconnecter sur cet appareil<small>' + (liens || nbCo ? "Déconnecte d'un coup Diffusion, les Compta, Tickets, le lien de Frais et les liaisons aux moteurs des comptes. Les comptes restent dans la liste ; tes données dans Google ne bougent pas. La Boîte mail se déconnecte depuis la Boîte mail elle-même." : "Rien n'est connecté sur cet appareil.") + '</small></span><button class="bouton" data-tout-deco="1"' + (liens || nbCo ? "" : " disabled") + ">Tout déconnecter</button></div>";
     // Seulement dans l'appli Origami du Mac : la fenêtre d'écriture directe demande l'appli Boîte mail version 20 ou plus.
-    if (BOITE_BROUILLON && BOITE_DIRECT && boitePossible()) h += '<div class="rang-r"><span class="nom">Boîte mail version 20 installée sur ce Mac<small>Allumé : depuis la Compta, le mail s\'ouvre tout de suite dans sa petite fenêtre et le PDF le rejoint. Éteint : la Compta passe par un brouillon, comme avant.</small></span><button class="inter" role="switch" aria-checked="' + (lire("origami_boite20") === "1" ? "true" : "false") + '" aria-label="Boîte mail version 20 installée sur ce Mac" data-boite20="1"></button></div>';
+    if (BOITE_BROUILLON && BOITE_DIRECT && boitePossible()) h += '<div class="rang-r"><span class="nom">Depuis la Compta : le mail s\'ouvre tout de suite dans la Boîte mail<small>Allumé : le mail s\'ouvre dans sa petite fenêtre et le PDF le rejoint. Éteint : la Compta passe par un brouillon, plus lent (pour une appli Boîte mail d\'avant la version 20).</small></span><button class="inter" role="switch" aria-checked="' + (lire("origami_boite20") !== "0" ? "true" : "false") + '" aria-label="Depuis la Compta, ouvrir le mail tout de suite dans la Boîte mail" data-boite20="1"></button></div>';
     h += "</div></div></div>";
     // Une relève qui redessine pendant qu'on écrit le nom du compte ne fait perdre ni le texte ni le curseur.
     var actif = document.activeElement, enCours = actif && (actif.id === "nomCompteR" || actif.id === "claudePage") ? { id: actif.id, v: actif.value, d: actif.selectionStart, f: actif.selectionEnd, c: etat.compte } : null;
@@ -4107,7 +4120,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (etat.vue === "reglages") dessinerReglages();
       return true;
     }
-    if (d.boite20) { garder("origami_boite20", lire("origami_boite20") === "1" ? "" : "1"); direBoiteCompta(); if (etat.vue === "reglages") dessinerReglages(); return true; }
+    if (d.boite20) { garder("origami_boite20", lire("origami_boite20") === "0" ? "1" : "0"); direBoiteCompta(); if (etat.vue === "reglages") dessinerReglages(); return true; }
     if (d.fraisR === "changer") {
       ouvrirVoile('<h2>Lien personnel de Frais</h2><p>Colle ici le lien reçu de la compagnie. Tu le trouves dans la Compta : Outils, puis Défraiements du personnel. Il reste sur cet appareil.</p><label class="champ">Lien personnel<textarea id="lienFraisR" autocomplete="off" spellcheck="false"></textarea></label><p id="messageFraisR" class="souci" role="status"></p><div class="actions"><button class="bouton" data-frais-r="fermer">Annuler</button><button class="bouton fort" data-frais-r="garder">Enregistrer</button></div>');
       var zf = document.getElementById("lienFraisR"); if (zf) { try { zf.focus(); } catch (e) {} }
