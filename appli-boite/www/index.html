@@ -148,6 +148,13 @@
   .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
   .compte { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; background: var(--carte); border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
   .couleurs { display: flex; gap: 6px; }
+  /* 26.11 : désinstaller la Boîte mail d'un compte */
+  .desinst { grid-column: 1 / -1; border-top: 1px solid var(--ligne); padding-top: 10px; font-size: 14px; }
+  .desinst p { margin: 0 0 8px; }
+  .desinst label { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 8px; }
+  .desinst .danger, .cp-desinst[data-sur] { background: #b42318; color: #fff; border-color: #b42318; }
+  #desinst-fin { background: var(--carte); border: 1px solid var(--ligne); border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 14px; }
+  #desinst-fin p { margin: 0 0 8px; }
   .couleurs span { width: 22px; height: 22px; border-radius: 50%; border: 3px solid transparent; cursor: pointer; }
   .couleurs span.choisie { border-color: var(--texte); }
   .message { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--texte); color: var(--fond); padding: 10px 16px; border-radius: 12px; font-size: 14px; max-width: calc(100% - 32px); display: none; z-index: 9; }
@@ -1326,7 +1333,7 @@
 
   /* ---------- Comptes reliés ---------- */
   function dessinerComptes() {
-    $('comptes').innerHTML = '<h2>Comptes reliés</h2><p class="sous">Les boîtes que cette appli affiche. Retirer un compte ici ne touche pas à ses mails.</p>' +
+    $('comptes').innerHTML = '<h2>Comptes reliés</h2><p class="sous">Les boîtes que cette appli affiche. « Retirer » l\'enlève de cette appli seulement ; « Désinstaller » enlève aussi la Boîte mail du compte Google. Les mails de Gmail ne sont jamais touchés.</p>' + htmlDesinstFin() +
       (comptes.length > 1 ? '<p class="doux" style="margin:-4px 0 12px">Ordre des comptes : les flèches ici, ou faites glisser un compte à sa place <span class="si-large">dans le volet</span><span class="si-etroit">dans la barre du haut</span>.</p>' : '') +
       comptes.map(function (c, i) {
         var fleches = comptes.length > 1 ? '<span class="ordre"><button type="button" class="cp-monter" title="Monter" aria-label="Monter ' + esc(nomCourt(c)) + '"' + (i ? '' : ' disabled') + '>↑</button>' +
@@ -1335,7 +1342,7 @@
           '<div style="min-width:0"><input type="text" class="cp-nom" value="' + esc(c.nom) + '" placeholder="' + esc(nomCourt(c)) + '" aria-label="Nom affiché">' +
           '<div class="doux" style="margin-top:4px;overflow-wrap:anywhere">' + esc(c.email || 'adresse inconnue') + '</div>' +
           '<div class="couleurs" style="margin-top:6px">' + COULEURS.map(function (k) { return '<span data-couleur="' + k + '" style="background:' + k + '"' + (k === c.couleur ? ' class="choisie"' : '') + '></span>'; }).join('') + '</div></div>' +
-          '<div class="actions">' + fleches + '<button type="button" class="cp-retirer">Retirer</button></div></div>';
+          '<div class="actions">' + fleches + '<button type="button" class="cp-retirer" title="Retirer de cette appli seulement">Retirer</button><button type="button" class="cp-desinst" title="Désinstaller la Boîte mail de ce compte Google">Désinstaller…</button></div>' + htmlDesinst(c) + '</div>';
       }).join('');
   }
   $('comptes').addEventListener('change', function (e) {
@@ -1365,14 +1372,76 @@
       return;
     }
     if (e.target.classList.contains('cp-retirer')) {
-      comptes = comptes.filter(function (x) { return x.id !== id; });
-      copieEcrire('boite|' + id, null); gardeOublierCompte(id); ecranOublier(id); notifOublier(id); delete reperes[id]; garderToutes();
-      if (cadres[id]) { cadres[id].remove(); delete cadres[id]; delete sources[id]; }
-      delete demarre[id]; delete affiches[id]; delete aDire[id]; delete recus[id]; delete infos[id]; delete apercus[id]; garderInfos();
-      garderComptes(); dessinerComptes(); dessinerNav();
+      oublierCompte(c);
       try { porte(c, 'deconnecterAppareil', []); } catch (er) { /* hors ligne : le jeton expirera */ }
+      return;
     }
+    if (e.target.classList.contains('cp-desinst')) { desinst = desinst && desinst.id === id ? null : { id: id, etape: 'choix' }; dessinerComptes(); return; }
+    if (e.target.getAttribute('data-desinst') === 'annuler') { desinst = null; dessinerComptes(); return; }
+    if (e.target.getAttribute('data-desinst') === 'case') { var b = l.querySelector('[data-desinst="go"]'); if (b) b.disabled = !e.target.checked; return; }
+    if (e.target.getAttribute('data-desinst') === 'go') { desinstaller(c); return; }
+    if (e.target.getAttribute('data-desinst') === 'seulement') { desinst = null; desinstFin = { email: c.email || '', nom: nomCourt(c), ancien: true, jete: false }; oublierCompte(c); return; }
   });
+  $('comptes').addEventListener('click', function (e) {
+    var a = e.target.getAttribute('data-fin'); if (!a || !desinstFin) return;
+    if (a === 'google') ouvrirDehors(ORIGAMI_RETIRER + (desinstFin.email ? '&email=' + encodeURIComponent(desinstFin.email) : ''));
+    else if (a === 'classeur') ouvrirDehors(desinstFin.url || ('https://drive.google.com/drive/search?q=' + encodeURIComponent('Boîte mail') + (desinstFin.email ? '&authuser=' + encodeURIComponent(desinstFin.email) : '')));
+    else if (a === 'fermer') { desinstFin = null; dessinerComptes(); }
+  });
+
+  /* ---------- Désinstaller la Boîte mail d'un compte (26.11.2026) ----------
+     1. Le moteur du compte arrête ses déclencheurs, efface ses réglages et ses jetons, ferme sa porte, et essaie de jeter son classeur.
+     2. S'il n'a pas pu jeter le classeur (le droit Drive de la boîte ne le permet souvent pas), la page Origami connectée à Google le fait
+        (?fenetre=boite-retirer), ou le geste à la main (ouvrir le classeur, Fichier › Placer dans la corbeille). La corbeille garde 30 jours.
+     3. Le compte est retiré de cette appli (copie des mails gardée sur ce Mac, écran gardé, notifications). */
+  var ORIGAMI_RETIRER = 'https://sevanegu-pixel.github.io/origami/accueil/?fenetre=boite-retirer';
+  var desinst = null, desinstFin = null;
+  function oublierCompte(c) {
+    var id = c.id;
+    comptes = comptes.filter(function (x) { return x.id !== id; });
+    copieEcrire('boite|' + id, null); gardeOublierCompte(id); ecranOublier(id); notifOublier(id); delete reperes[id]; garderToutes();
+    if (cadres[id]) { cadres[id].remove(); delete cadres[id]; delete sources[id]; }
+    delete demarre[id]; delete affiches[id]; delete aDire[id]; delete recus[id]; delete infos[id]; delete apercus[id]; garderInfos();
+    garderComptes(); dessinerComptes(); dessinerNav();
+  }
+  function htmlDesinst(c) {
+    if (!desinst || desinst.id !== c.id) return '';
+    var qui = esc(c.email || nomCourt(c));
+    if (desinst.etape === 'encours') return '<div class="desinst" role="status">Désinstallation de la Boîte mail de ' + qui + '…</div>';
+    if (desinst.etape === 'ancien') return '<div class="desinst"><p>Le moteur de cette boîte ne sait pas encore se désinstaller' + (desinst.detail ? ' (' + esc(desinst.detail) + ')' : '') + '. ' +
+      'Il reste deux gestes : « Retirer seulement » ici, puis mettre son classeur à la corbeille (par Google ou à la main).</p>' +
+      '<div class="actions"><button type="button" data-desinst="seulement">Retirer seulement</button><button type="button" data-desinst="annuler">Annuler</button></div></div>';
+    return '<div class="desinst"><p><b>Désinstaller la Boîte mail de ' + qui + ' ?</b></p>' +
+      '<p>Son moteur s\'arrête (envois programmés, campagnes, relances), ses réglages et ses codes sont effacés, et son classeur (modèles, campagnes, carnet d\'adresses) part à la corbeille du Drive, où il reste 30 jours. Puis elle est retirée de cette appli. Les mails de Gmail ne sont pas touchés.</p>' +
+      '<label><input type="checkbox" data-desinst="case"> Je veux désinstaller la Boîte mail de ce compte.</label>' +
+      '<div class="actions"><button type="button" class="danger" data-desinst="go" disabled>Désinstaller</button><button type="button" data-desinst="annuler">Annuler</button></div></div>';
+  }
+  function htmlDesinstFin() {
+    if (!desinstFin) return '';
+    var f = desinstFin, h = '<div id="desinst-fin" role="status">' + (f.ancien ? '<p><b>' + esc(f.email || f.nom) + ' est retirée de cette appli.</b> Son moteur, plus ancien, n\'a pas pu être arrêté d\'ici : il s\'arrête quand son classeur part à la corbeille puis est vidé.</p>' : '<p><b>Boîte mail désinstallée de ' + esc(f.email || f.nom) + '.</b> ' +
+      (f.declencheurs ? 'Moteur arrêté (' + f.declencheurs + ' tâche' + (f.declencheurs > 1 ? 's' : '') + ' en attente supprimée' + (f.declencheurs > 1 ? 's' : '') + '), ' : 'Moteur arrêté, ') + 'réglages et codes effacés, boîte retirée de cette appli.</p>');
+    if (f.jete) h += '<p>Son classeur est à la corbeille du Drive (30 jours pour changer d\'avis).</p>';
+    else h += '<p><b>Dernier geste :</b> mettre son classeur' + (f.classeur ? ' « ' + esc(f.classeur) + ' »' : '') + ' à la corbeille. Google ne laisse pas la boîte le faire elle-même. ' +
+      'Le plus simple : « Avec Google », la page Origami s\'en charge et arrête aussi sa publication. Sinon, ouvrez le classeur, puis Fichier › Placer dans la corbeille.</p>' +
+      '<div class="actions"><button type="button" data-fin="google">Avec Google</button><button type="button" data-fin="classeur">Ouvrir le classeur</button><button type="button" data-fin="fermer">Terminé</button></div>';
+    if (f.jete) h += '<div class="actions"><button type="button" data-fin="fermer">Terminé</button></div>';
+    return h + '</div>';
+  }
+  function desinstaller(c) {
+    desinst = { id: c.id, etape: 'encours' }; dessinerComptes();
+    var fin = function (r) {
+      desinst = null;
+      desinstFin = { email: (r && r.compte) || c.email || '', nom: nomCourt(c), declencheurs: (r && r.declencheurs) || 0, jete: !!(r && r.jete), url: r && r.classeur ? r.classeur.url : '', classeur: r && r.classeur ? r.classeur.nom : '' };
+      oublierCompte(c);
+    };
+    porte(c, 'desinstallerBoite', ['DESINSTALLER']).then(fin, function (er) {
+      var m = String(er && er.message || er);
+      if (/DESINSTALLE/.test(m)) return fin(null); // déjà fait (autre appareil)
+      if (/Fonction inconnue|desinstallerBoite/.test(m)) { desinst = { id: c.id, etape: 'ancien', detail: 'moteur à mettre à jour' }; dessinerComptes(); return; }
+      if (/référence/.test(m)) { desinst = null; dessinerComptes(); dire(m.replace(/^Error:\s*/, '')); return; }
+      desinst = { id: c.id, etape: 'ancien', detail: m.replace(/^Error:\s*/, '').slice(0, 120) }; dessinerComptes();
+    });
+  }
 
   /* ---------- Liens boitemail://relier?c=… ---------- */
   /* ---------- Liens boitemail://ecrire?…, boitemail://conversation?… et boitemail://brouillon?… (18.11.2026) ----------
