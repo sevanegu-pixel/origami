@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-26.73">
+<meta name="origami-version" content="2026-11-26.74">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -219,6 +219,7 @@ html.sombre .famille { background: #1e2a4a; }
 .rang-f .nom small { font-weight: 400; color: var(--doux); overflow-wrap: anywhere; }
 .info .note.maj-origami { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 12px; }
 .info .note.maj-origami .maj-souci { flex-basis: 100%; font-size: 13px; }
+[data-boite-retirer] p { margin: 8px 0; }
 .pas-autoriser { margin: 6px 0 8px; padding-left: 20px; } .pas-autoriser li { margin: 3px 0; }
 .info details ul { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .lien { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
@@ -228,6 +229,9 @@ html.sombre .famille { background: #1e2a4a; }
 .carte-choix.principal { border-color: var(--accent); border-width: 2px; padding: 16px 18px; }
 .carte-choix.principal strong { font-size: 17px; }
 [data-parcours-vue] { display: flex; flex-direction: column; gap: 12px; }
+/* 26.11, Sévane : « l'appli est très vide à cet endroit, est-ce qu'au moins ça pourrait être dans un encadré » : les étapes d'ajout d'un compte sont sur une carte. */
+[data-parcours-vue]:not([data-parcours-vue^="desinst"]) { padding: 22px 24px 20px; border-radius: 16px; background: var(--carte); box-shadow: 0 1px 2px rgba(17, 16, 20, 0.06), 0 8px 24px rgba(17, 16, 20, 0.05); }
+@media (max-width: 700px) { [data-parcours-vue]:not([data-parcours-vue^="desinst"]) { padding: 16px 16px 14px; border-radius: 14px; } }
 [data-parcours-vue] .actions { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 8px; }
 .info [data-parcours-vue] p.souci-guide { color: #b42318; }
 [data-parcours-vue] .pas-boutons { margin-top: 10px; }
@@ -563,10 +567,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-26.73"></script>
-<script src="repertoire.js?v=2026-11-26.73"></script>
-<script src="fichiers.js?v=2026-11-26.73"></script>
-<script src="google.js?v=2026-11-26.73"></script>
+<script src="agenda.js?v=2026-11-26.74"></script>
+<script src="repertoire.js?v=2026-11-26.74"></script>
+<script src="fichiers.js?v=2026-11-26.74"></script>
+<script src="google.js?v=2026-11-26.74"></script>
 <script>
 (function () {
   "use strict";
@@ -679,6 +683,9 @@ button.tuile:hover { border-color: var(--ligne); }
   // installation dans le compte, autorisation, puis le lien boitemail://relier qui ramène dans l'appli. Origami n'a pas besoin
   // d'être installé dans ce compte ; s'il l'est un jour, sa tuile Boîte mail retrouve celle-ci (même marque sur le classeur).
   var BOITE_SEULE = /[?&]fenetre=boite-google(&|$)/.test(location.search), ID_BOITE_SEULE = "boiteseule";
+  // …/accueil/?fenetre=boite-retirer (et « &email=… ») : l'onglet que « Désinstaller… » de l'appli Boîte mail ouvre pour le dernier geste
+  // (26.11, Sévane : « supprimer boîte mail, du drive totalement »). Il ne montre que sa feuille. Voir boiteRetirerDemarrer.
+  var BOITE_RETIRER = /[?&]fenetre=boite-retirer(&|$)/.test(location.search), CLE_RETIRER = "boiteretirer";
   function tkComptesGardes() { var l = []; try { l = JSON.parse(lire("origami_tk_comptes") || "[]"); } catch (e) { l = []; } return (Array.isArray(l) ? l : []).filter(function (c) { return c && /^c[0-9a-z]{4,12}$/.test(c.id) && typeof c.nom === "string" && c.nom.trim() && COULEURS.indexOf(c.couleur) >= 0; }).slice(0, 12); }
   if (TK_SEUL) tkComptesGardes().forEach(function (c) { if (!etat.ajoutes.some(function (x) { return x.id === c.id; })) etat.ajoutes.push({ id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, applis: ["boite"] }); });
   function tkRetenir() { if (TK_SEUL) garder("origami_tk_comptes", JSON.stringify(etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }))); }
@@ -2340,7 +2347,7 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     return false;
   }
-  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && !voile.hidden && !BOITE_SEULE) fermerVoile(); });
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && !voile.hidden && !BOITE_SEULE && !BOITE_RETIRER) fermerVoile(); });
   voile.addEventListener("input", function () { var z = document.getElementById("tkSouci"); if (z && voile.contains(z)) z.textContent = ""; });
 
   // ---- Diffusion « à zéro » : son propre moteur, dans le compte ; l'appareil y entre avec un jeton du moteur du compte ----
@@ -3310,6 +3317,116 @@ button.tuile:hover { border-color: var(--ligne); }
     document.documentElement.classList.add("fenetre"); document.title = "Boîte mail";
     try { history.replaceState(null, "", location.href.split("?")[0] + "?fenetre=boite-google"); } catch (e) {}   // l'adresse tapée ne reste pas dans la barre
     boiteGuide(ID_BOITE_SEULE);
+  }
+  // ---- Retirer la Boîte mail d'un compte (26.11) : arrêter sa mise en ligne, mettre son classeur à la corbeille du Drive ----
+  // Ne touche que la Boîte mail installée par « Continuer avec Google » (le classeur que la page a créé et marqué) : Google ne montre
+  // à la page aucun autre fichier. Une Boîte mail copiée à la main n'est donc jamais trouvée : la feuille dit quoi faire à la main.
+  // Le compte de la compagnie est refusé (ses vraies données). Les mails, eux, sont dans Gmail : rien n'y est touché.
+  var retB = null, EMPREINTE_COMPAGNIE = "7745eb308daf5e1a7604";
+  function empreinteAdresse(a) {
+    try { return crypto.subtle.digest("SHA-256", new TextEncoder().encode("origami-compagnie:" + String(a || "").toLowerCase())).then(function (h) { return Array.prototype.map.call(new Uint8Array(h), function (b) { return ("0" + b.toString(16)).slice(-2); }).join("").slice(0, 20); }, function () { return ""; }); }
+    catch (e) { return Promise.resolve(""); }
+  }
+  var REFUS_COMPAGNIE = "C'est le compte de la compagnie : sa Boîte mail garde les vraies données, elle ne se retire pas d'ici. Rien n'a été retiré.";
+  function boiteRetirerDemarrer() {
+    var m = /[?&]email=([^&#]{3,200})(&|$)/.exec(location.search), voulu = "";
+    try { voulu = m ? decodeURIComponent(m[1]).trim().toLowerCase() : ""; } catch (e) { voulu = ""; }
+    if (!/^[^\s@"<>]{1,64}@[^\s@"<>]{1,120}$/.test(voulu)) voulu = "";
+    document.documentElement.classList.add("fenetre"); document.title = "Retirer la Boîte mail";
+    try { history.replaceState(null, "", location.href.split("?")[0] + "?fenetre=boite-retirer"); } catch (e) {}   // l'adresse ne reste pas dans la barre
+    retB = { voulu: voulu, phase: "depart", occupe: "", souci: "", adresse: "", trouve: null, fin: null };
+    boiteRetirerMontrer();
+    if (voulu) empreinteAdresse(voulu).then(function (h) { if (h === EMPREINTE_COMPAGNIE && retB && retB.phase === "depart") { retB.phase = "refus"; boiteRetirerMontrer(); } });
+  }
+  function boiteRetirerMontrer() {
+    var R = retB; if (!R) return;
+    var G = window.OrigamiGoogle, qui = R.adresse || R.voulu, nomQ = qui ? "<strong>" + texte(qui) + "</strong>" : "", h = '<div data-boite-retirer="' + R.phase + '"><h2>Retirer la Boîte mail</h2>';
+    var souci = R.souci ? '<p class="souci-guide" role="alert">' + texte(R.souci) + "</p>" : "";
+    var gmail = '<p class="aide-fine">Tes mails restent dans Gmail : rien n\'y est touché.</p>';
+    if (R.phase === "refus") h += '<p class="souci-guide" role="alert">' + REFUS_COMPAGNIE + "</p><p class=\"aide-fine\">Tu peux fermer cet onglet.</p>";
+    else if (R.phase === "depart") {
+      h += "<p>" + (nomQ ? "Compte : " + nomQ + ". " : "") + "Ce geste arrête la Boîte mail installée dans ce compte Google et met son classeur « Origami - Boîte mail » à la corbeille du Drive. Tu as 30 jours pour le reprendre.</p>" + gmail +
+        (R.occupe ? occupeHtml(R.occupe, true) : !G ? "<p>La connexion à Google n'est pas chargée. Recharge cette page.</p>"
+          : "<p>D'abord, Google ouvre une fenêtre : choisis " + (nomQ ? "le compte " + nomQ : "le compte Google concerné") + " et accepte, en laissant toutes les cases cochées. Rien n'est retiré à cette étape.</p>" + '<div class="actions"><button class="bouton fort" data-retb="connecter">Continuer avec Google</button></div>') + souci;
+    } else if (R.phase === "trouve") {
+      h += "<p>Dans le compte " + nomQ + ", Origami a trouvé la Boîte mail : le classeur « Origami - Boîte mail »" + (R.trouve && R.trouve.deploiement ? " et sa mise en ligne" : "") + ".</p>" +
+        "<p>En continuant, elle s'arrête et son classeur part à la corbeille du Drive, avec tout ce qu'elle a enregistré de son côté. Tu as 30 jours pour le reprendre dans la corbeille.</p>" + gmail +
+        '<div class="actions"><button class="bouton" data-retb="autre">Ce n\'est pas le bon compte</button><button class="bouton fort danger" data-retb="lancer">Arrêter et mettre à la corbeille</button></div>' + souci;
+    } else if (R.phase === "travail") h += occupeHtml(R.occupe || "Arrêt de la Boîte mail…", true);
+    else if (R.phase === "rien") {
+      h += "<p>Dans le compte " + nomQ + ", Origami ne trouve aucune Boîte mail installée par « Continuer avec Google ». Elle est peut-être déjà à la corbeille.</p>" +
+        "<p>Si cette Boîte mail a été copiée à la main, Origami ne peut pas la voir. Pour la retirer : ouvre son classeur dans Drive, puis « Fichier », « Placer dans la corbeille ».</p>" +
+        '<div class="actions"><a class="bouton" href="https://drive.google.com/drive/search?q=Bo%C3%AEte%20mail" target="_blank" rel="noopener">Chercher dans Drive</a><button class="bouton" data-retb="autre">Essayer un autre compte</button></div>' + souci;
+    } else if (R.phase === "fini") {
+      var f = R.fin || {};
+      h += f.jetes ? "<p><strong>C'est fait.</strong> " + (f.jetes > 1 ? "Les " + f.jetes + " classeurs « Origami - Boîte mail »" : "Le classeur « Origami - Boîte mail »") + " du compte " + nomQ + (f.jetes > 1 ? " sont" : " est") + " à la corbeille du Drive : 30 jours pour " + (f.jetes > 1 ? "les" : "le") + " reprendre.</p>" : "";
+      h += f.jetes && f.arretee >= f.jetes ? "<p>La Boîte mail ne répond plus : sa mise en ligne est arrêtée.</p>"
+        : f.jetes ? '<p class="aide-fine">Google n\'a pas confirmé l\'arrêt de sa mise en ligne. Sans son classeur, elle ne sert plus à rien et disparaît quand la corbeille est vidée.</p>' : "";
+      h += f.reste && f.reste.length ? '<p class="souci-guide" role="alert">Google a refusé de mettre le classeur à la corbeille. Fais-le à la main : ouvre-le, puis « Fichier », « Placer dans la corbeille ».</p><div class="actions">' + f.reste.map(function (id) { return '<a class="bouton" href="https://docs.google.com/spreadsheets/d/' + texte(id) + '/edit" target="_blank" rel="noopener">Ouvrir le classeur</a>'; }).join("") + "</div>" : "";
+      h += gmail;
+      h += f.acces === true ? '<p class="aide-fine">L\'accès d\'Origami à ce compte Google est retiré.</p>'
+        : f.acces === false ? '<p class="aide-fine">Google n\'a pas confirmé. Tu peux le retirer à la main : <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener">accès des applis à ton compte Google</a>.</p>'
+        : R.occupe ? occupeHtml(R.occupe, true)
+        : '<p class="aide-fine">Tu n\'utilises plus du tout Origami avec ce compte ? <button class="lien" data-retb="acces">Retirer aussi l\'accès d\'Origami à ce compte Google</button>. Sinon, laisse : Google te redemanderait ton accord la prochaine fois.</p>';
+      h += '<p class="aide-fine">Tu peux fermer cet onglet et revenir dans l\'appli Boîte mail.</p>';
+    }
+    ouvrirVoile(h + "</div>");
+  }
+  function boiteRetirerAutre() { var R = retB, G = window.OrigamiGoogle; if (!R || R.occupe) return; if (G) G.oublier(CLE_RETIRER); retB = { voulu: "", phase: "depart", occupe: "", souci: "", adresse: "", trouve: null, fin: null }; boiteRetirerMontrer(); }
+  function boiteRetirerConnecter() {
+    var R = retB, G = window.OrigamiGoogle;
+    if (!R || !G || R.occupe || R.phase !== "depart") return;
+    var p = G.connecter(CLE_RETIRER, { adresse: R.voulu, drive: true });   // dans le clic même
+    R.souci = ""; R.occupe = "La fenêtre de Google est ouverte : choisis le compte et accepte…"; boiteRetirerMontrer();
+    function refus(m) { G.oublier(CLE_RETIRER); var e = new Error(m); e.code = "refus-ici"; throw e; }
+    p.then(function (s) {
+      var a = String((s && s.adresse) || "").trim().toLowerCase();
+      return empreinteAdresse(a).then(function (h) {
+        if (retB !== R) return null;
+        if (!a) refus("Google n'a pas dit quel compte tu as choisi. Rien n'a été retiré. Réessaie.");
+        if (!h || h === EMPREINTE_COMPAGNIE) refus(h ? REFUS_COMPAGNIE : "Cette page n'a pas pu vérifier le compte. Rien n'a été retiré.");
+        if (R.voulu && a !== R.voulu) refus("Dans la fenêtre de Google, tu as choisi " + a + ", pas " + R.voulu + ". Rien n'a été retiré. Recommence en choisissant bien " + R.voulu + ".");
+        R.adresse = a; R.occupe = "Recherche de la Boîte mail dans ce compte…"; boiteRetirerMontrer();
+        return G.chercherBoite(CLE_RETIRER, true).then(function (b) { if (retB !== R) return; R.occupe = ""; R.trouve = b && b.classeur ? b : null; R.phase = R.trouve ? "trouve" : "rien"; boiteRetirerMontrer(); });
+      });
+    }).catch(function (e) { if (retB !== R) return; if (!e || e.code !== "refus-ici") G.oublier(CLE_RETIRER); R.occupe = ""; R.adresse = ""; R.souci = String((e && e.message) || e); boiteRetirerMontrer(); });
+  }
+  function boiteRetirerLancer() {
+    var R = retB, G = window.OrigamiGoogle;
+    if (!R || !G || R.phase !== "trouve" || !R.trouve || R.occupe) return;
+    var fait = { arretee: 0, jetes: 0, reste: [], ids: [] }, tours = 0;
+    R.phase = "travail"; R.souci = ""; R.occupe = "Arrêt de la Boîte mail et mise à la corbeille…"; boiteRetirerMontrer();
+    function tour(b) {
+      if (!b || !b.classeur || tours++ >= 5 || fait.ids.indexOf(b.classeur) >= 0) return Promise.resolve();
+      fait.ids.push(b.classeur);
+      // D'abord l'arrêt (tant que le classeur est là), ensuite la corbeille. Un classeur que Google refuse de jeter : on s'arrête là.
+      return G.arreterBoite({ cle: CLE_RETIRER, boite: b }).then(function (ok) {
+        if (ok) fait.arretee++;
+        return G.jeterReste({ cle: CLE_RETIRER, reste: [{ id: b.classeur }] });
+      }).then(function (j) {
+        if (j.reste.length) { fait.reste.push(b.classeur); return null; }
+        fait.jetes++;
+        return G.chercherBoite(CLE_RETIRER, true).then(tour, function () { return null; });   // une ancienne, restée à côté : la même chose
+      });
+    }
+    tour(R.trouve).then(function () {
+      if (retB !== R) return;
+      // Ce que cette page retenait de cette Boîte mail (dans ce navigateur) est oublié.
+      [ID_BOITE_SEULE].concat(comptes().map(function (c) { return c.id; })).forEach(function (id) { var b = boiteDe(id); if (b && fait.ids.indexOf(b.classeur) >= 0 && fait.reste.indexOf(b.classeur) < 0) { if (id === ID_BOITE_SEULE) boiteSeuleOublier(); else boiteGarder(id, null); } });
+      R.phase = "fini"; R.occupe = ""; R.fin = fait; boiteRetirerMontrer();
+    }, function (e) {
+      if (retB !== R) return;
+      var exp = e && (e.code === "expire" || e.code === "connexion");
+      if (fait.jetes || fait.reste.length) { R.phase = "fini"; R.occupe = ""; R.fin = fait; }
+      else { G.oublier(CLE_RETIRER); R.phase = "depart"; R.occupe = ""; R.adresse = ""; R.trouve = null; R.souci = (exp ? "La connexion à Google a expiré." : String((e && e.message) || e)) + (fait.arretee ? " La Boîte mail est arrêtée, mais son classeur n'est pas encore à la corbeille. Recommence." : " Rien n'a été retiré. Recommence."); }
+      boiteRetirerMontrer();
+    });
+  }
+  function boiteRetirerAcces() {
+    var R = retB, G = window.OrigamiGoogle;
+    if (!R || !G || R.phase !== "fini" || R.occupe || !R.fin || R.fin.acces !== undefined) return;
+    R.occupe = "Retrait de l'accès…"; boiteRetirerMontrer();
+    G.retirerAcces(CLE_RETIRER).then(function (a) { if (retB !== R) return; R.occupe = ""; R.fin.acces = !!a; boiteRetirerMontrer(); });
   }
   function boiteConnecter() {
     var id = guideB.id, G = window.OrigamiGoogle;
@@ -4336,7 +4453,7 @@ button.tuile:hover { border-color: var(--ligne); }
     ouvrirVue: function (cid, vue) { if (!compte(cid)) return; etat.compte = cid; etat.vue = vue; montrer(); }
   };
   function montrer() {
-    if (BOITE_SEULE) return;   // l'onglet « Boîte mail : continuer avec Google » ne montre que son guide
+    if (BOITE_SEULE || BOITE_RETIRER) return;   // ces onglets de la Boîte mail ne montrent que leur feuille
     if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
     if (COMPTA_SEULE && !comptes().length) etat.vue = "comptaAjout";   // appli Compta sans aucune Compta : elle dit comment en avoir une
     var vue = etat.vue, c0 = compte(etat.compte);
@@ -4470,6 +4587,7 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     if (d.boiteRefaire) { boiteGarder(guideB.id, null); guideB.codeAppli = ""; guideB.souci = ""; dessinerGuideBoite(); return; }
     if (d.boiteFermer) { fermerVoile(); guideB = { id: "" }; return; }
+    if (d.retb) { if (d.retb === "connecter") boiteRetirerConnecter(); else if (d.retb === "lancer") boiteRetirerLancer(); else if (d.retb === "acces") boiteRetirerAcces(); else if (d.retb === "autre") boiteRetirerAutre(); return; }
     if (d.boiteAutre && guideB.id === ID_BOITE_SEULE && !guideB.occupe) { boiteSeuleOublier(); boiteGuide(ID_BOITE_SEULE); return; }
     if (d.guideComptaConnecter) { guideComptaConnecter(); return; }
     if (d.guideComptaPing) { guideComptaPing(); return; }
@@ -4798,6 +4916,7 @@ button.tuile:hover { border-color: var(--ligne); }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (BOITE_SEULE) boiteSeuleDemarrer();
+  else if (BOITE_RETIRER) boiteRetirerDemarrer();
   else if (versFrais) location.replace(APPLIS.frais.lien);   // fenêtre Frais avec un lien déjà connu : la page Frais prend la place
   else if (Object.keys(moteurs).length) Promise.all(Object.keys(moteurs).map(lireMemoire)).then(function () { montrer(); }, function () { montrer(); });
   else montrer();
