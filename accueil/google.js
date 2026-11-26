@@ -432,6 +432,17 @@
       return f.filter(function (x) { return x.deploiement; })[0] || f[0] || null;
     });
   }
+  /**
+   * Origami a-t-il été retiré de ce compte (26.11.2026, Sévane : « Origami est déjà installé dans ce compte », alors qu'il venait
+   * d'en être retiré) ? Son classeur des réglages est alors dans la corbeille du Drive, pour 30 jours. Rend la date ISO du
+   * dernier retrait, ou "" (jamais installé par cette voie, ou corbeille vidée).
+   */
+  function chercherOrigamiJete(s) {
+    return drive(s, "GET", "files?pageSize=20&fields=" + enc("files(id,trashedTime)") + "&q=" + enc("appProperties has { key='origami' and value='" + MARQUE + "' } and trashed=true")).then(function (l) {
+      var d = ((l && l.files) || []).map(function (x) { return String((x && x.trashedTime) || ""); }).filter(function (t) { return /^\d{4}-\d{2}-\d{2}T/.test(t); }).sort();
+      return d.length ? d[d.length - 1] : (((l && l.files) || []).length ? "?" : "");
+    }, function () { return ""; });
+  }
   function noter(s, classeur, quoi) { return drive(s, "PATCH", "files/" + enc(classeur) + "?fields=id", { appProperties: quoi }); }
 
   /**
@@ -439,42 +450,47 @@
    * Étapes dites : chercher, code, classeur, projet, contenu, version, ligne. Chaque étape faite est notée sur le classeur :
    * une installation interrompue reprend où elle en était. Rend { classeur, projet, deploiement, adresse, secret, version }.
    * Le secret sert au premier contact : le moteur n'en porte que l'empreinte, et ne l'accepte qu'une fois.
+   * o.arret() (26.11.2026, Sévane : « j'ai fait annuler, je me demande s'il a vraiment annulé ») : rend true quand la personne a
+   * annulé. L'installation s'arrête alors avant l'étape suivante, avec le code « annule » ; l'erreur porte « classeur » quand
+   * le classeur des réglages vient d'être créé par CETTE installation (jamais celui d'une installation d'avant) : la page le jette.
    */
   function installerOrigami(o) {
-    var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, secret = hasard(32);
+    var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, secret = hasard(32), neuf = !!o.neuf;
+    var pas = function () { if (o.arret && o.arret()) { var e = souci("Installation annulée.", "annule"); e.classeur = neuf && r && r.classeur ? r.classeur : ""; throw e; } };
     if (!s || !s.drive) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
     dire("chercher");
     return chercherOrigami(s).then(function (x) {
       r = x || { classeur: "", projet: "", deploiement: "", adresse: "" };
-      dire("code");
+      pas(); dire("code");
       return lireModele(s);
     }).then(function (m) {
-      modele = m;
+      modele = m; pas();
       // Un modèle plus ancien ne connaît pas le premier contact : on s'arrête avant de créer quoi que ce soit.
       if (!(modele.version >= 10)) throw souci("Le modèle d'Origami n'est pas encore à jour.", "modele-ancien");
       if (r.classeur) return null;
       dire("classeur");
       return drive(s, "POST", "files?fields=id", { name: NOM_CLASSEUR, mimeType: "application/vnd.google-apps.spreadsheet", appProperties: { origami: MARQUE } }).then(function (f) {
         if (!/^[\w-]{20,120}$/.test(String(f.id || ""))) throw souci("Google n'a pas rendu l'identifiant du classeur. Réessaie.", "occupe");
-        r.classeur = f.id;
+        r.classeur = f.id; neuf = true;
       });
     }).then(function () {
+      pas();
       if (r.projet) return null;
       dire("projet");
       return api(s, "POST", "projects", { title: "Origami", parentId: r.classeur }).then(function (p) {
         if (!/^[\w-]{20,120}$/.test(String(p.scriptId || ""))) throw souci("Google n'a pas rendu l'identifiant du projet. Réessaie.", "occupe");
         r.projet = p.scriptId; return noter(s, r.classeur, { origamiProjet: r.projet });
       });
-    }).then(function () { return hacher("premier-contact:" + secret); })
+    }).then(function () { pas(); return hacher("premier-contact:" + secret); })
       .then(function (empreinte) {
         dire("contenu");
         var fichiers = modele.fichiers.concat([{ name: "99_Installation", type: "SERVER_JS", source: "// Posé par l'appli Origami à l'installation : l'empreinte du secret du premier contact (le secret, lui, n'est écrit nulle part ici).\nvar INSTALLATION_ = { empreinte: " + JSON.stringify(empreinte) + " };\n" }]);
         return api(s, "PUT", "projects/" + enc(r.projet) + "/content", { files: fichiers });
       })
-      .then(function () { dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Origami installé depuis l'appli" }); })
+      .then(function () { pas(); dire("version"); return api(s, "POST", "projects/" + enc(r.projet) + "/versions", { description: "Origami installé depuis l'appli" }); })
       .then(function (v) {
         var version = Number(v.versionNumber) || 0; if (!version) throw souci("Google n'a pas rendu le numéro de version. Réessaie.", "occupe");
-        dire("ligne");
+        pas(); dire("ligne");
         var config = { versionNumber: version, manifestFileName: "appsscript", description: "Origami de ce compte" };
         if (r.deploiement) return api(s, "PUT", "projects/" + enc(r.projet) + "/deployments/" + enc(r.deploiement), { deploymentConfig: { scriptId: r.projet, versionNumber: version, manifestFileName: "appsscript", description: config.description } });
         return api(s, "POST", "projects/" + enc(r.projet) + "/deployments", config).then(function (d) {
@@ -483,12 +499,27 @@
           return noter(s, r.classeur, { origamiMoteur: r.deploiement });
         });
       })
-      .then(function () { return { classeur: r.classeur, projet: r.projet, deploiement: r.deploiement, adresse: r.adresse, secret: secret, version: modele.version }; })
+      .then(function () { pas(); return { classeur: r.classeur, projet: r.projet, deploiement: r.deploiement, adresse: r.adresse, secret: secret, version: modele.version, neuf: neuf }; })
       .catch(function (e) {
         // Le projet noté a été supprimé à la main chez Google : on l'oublie et on repart d'un projet neuf, une seule fois.
-        if (e && e.code === "introuvable" && !o.refait && r && r.classeur && r.projet) return noter(s, r.classeur, { origamiProjet: null, origamiMoteur: null }).then(function () { return installerOrigami({ cle: o.cle, dire: o.dire, refait: true }); });
+        if (e && e.code === "introuvable" && !o.refait && r && r.classeur && r.projet) return noter(s, r.classeur, { origamiProjet: null, origamiMoteur: null }).then(function () { return installerOrigami({ cle: o.cle, dire: o.dire, arret: o.arret, neuf: neuf, refait: true }); });
         throw e;
       });
+  }
+
+  /**
+   * Après une installation annulée : le classeur des réglages qu'elle venait de créer part à la corbeille du Drive (le projet
+   * Origami, qui lui est attaché, part avec). La page ne touche que SON classeur : celui qui porte la marque d'Origami.
+   * o = { cle, id }. Rend true s'il est à la corbeille.
+   */
+  function jeterInstallation(o) {
+    var s = session(o.cle);
+    if (!s || !s.drive || !/^[\w-]{20,120}$/.test(String(o.id || ""))) return Promise.resolve(false);
+    return drive(s, "GET", "files/" + enc(o.id) + "?fields=" + enc("id,trashed,appProperties")).then(function (f) {
+      if (f && f.trashed) return true;
+      if (!f || !f.appProperties || f.appProperties.origami !== MARQUE) return false;
+      return drive(s, "PATCH", "files/" + enc(o.id) + "?fields=id,trashed", { trashed: true }).then(function (g) { return !!(g && g.trashed); });
+    }).catch(function () { return false; });
   }
 
   /**
@@ -803,10 +834,11 @@
   }
 
   var sortie = { charger: charger, installerBoite: installerBoite, pingBoite: pingBoite, relierBoite: relierBoite, _fichierPremierBoite: fichierPremierBoite, _appelBoite: APPEL_BOITE, mettreAJourOrigami: mettreAJourOrigami, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, installerModules: installerModules, mettreAJourModules: mettreAJourModules, pingModules: pingModules, ping: ping, lienAutorisation: lienAutorisation,
+    origamiJete: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigamiJete(s) : Promise.resolve(""); },
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
     // La Boîte mail déjà installée dans le compte connecté (par Origami ou par l'appli Boîte mail seule), ou null. Ne crée rien.
     chercherBoite: function (cle, franc) { var s = session(cle); if (franc && (!s || !s.drive)) return Promise.reject(souci("La connexion à Google a expiré.", "expire")); return s && s.drive ? chercherBoite(s).catch(function (e) { if (franc) throw e; return null; }) : Promise.resolve(null); },
-    parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, sortirBoite: sortirBoite, arreterBoite: arreterBoite, jeterReste: jeterReste, retirerAcces: retirerAcces,
+    parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, jeterInstallation: jeterInstallation, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, sortirBoite: sortirBoite, arreterBoite: arreterBoite, jeterReste: jeterReste, retirerAcces: retirerAcces,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
   if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;
 })(typeof window !== "undefined" ? window : this);
