@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-26.75">
+<meta name="origami-version" content="2026-11-26.76">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -567,10 +567,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-26.75"></script>
-<script src="repertoire.js?v=2026-11-26.75"></script>
-<script src="fichiers.js?v=2026-11-26.75"></script>
-<script src="google.js?v=2026-11-26.75"></script>
+<script src="agenda.js?v=2026-11-26.76"></script>
+<script src="repertoire.js?v=2026-11-26.76"></script>
+<script src="fichiers.js?v=2026-11-26.76"></script>
+<script src="google.js?v=2026-11-26.76"></script>
 <script>
 (function () {
   "use strict";
@@ -3982,6 +3982,9 @@ button.tuile:hover { border-color: var(--ligne); }
         if (!sorti && cl.parPage) { G.oublier(cle); var ea = new Error("Google n'a pas trouvé le classeur d'Origami de ce compte : dans sa fenêtre, tu as peut-être choisi un autre compte Google. Rien n'a été retiré. Recommence en choisissant bien le compte " + D.nom + "."); ea.code = "autre-compte"; throw ea; }
         return moteurAppel(id, "compte.desinstaller", { mot: "DESINSTALLER" }, { sans: true, lent: true });
       }).then(function (r) {
+        if (desinstDouteux(r).length) { D.occupe = "Vérification de la corbeille du Drive…"; desinstMontrer(); }
+        return desinstRevoir(id, r);
+      }).then(function (r) {
         var reste = (r && Array.isArray(r.reste) ? r.reste : []).filter(function (x) { return x && typeof x === "object"; }).slice(0, 20).map(function (x) {
           return { nom: String(x.nom || "Un fichier").slice(0, 120), lien: desinstLien(x.lien), dossier: x.sorte === "dossier", id: x.conteneur && /^[\w-]{6,120}$/.test(String(x.id || "")) ? String(x.id) : "" };
         });
@@ -4010,6 +4013,30 @@ button.tuile:hover { border-color: var(--ligne); }
       else { if (G) G.oublier(cle); D.phase = "liste"; D.souci = e && e.code === "desinstalle" ? "" : String((e && e.message) || e); if (e && e.code === "autre-compte") D.sansGoogle = true; if (e && e.code === "desinstalle") { D.inv = null; D.etatMoteur = "deja"; } }
       desinstMontrer();
     });
+  }
+  /** Dans ce que le moteur n'a pas pu jeter : les dossiers et classeurs qu'il voit lui-même (pas le classeur des réglages, dont la page s'occupe). */
+  function desinstDouteux(r) { return (r && Array.isArray(r.reste) ? r.reste : []).filter(function (x) { return x && typeof x === "object" && !x.conteneur && x.lien; }); }
+  /**
+   * Vu en vrai le 26.11.2026 (Sévane : « ça m'a renvoyé vers un dossier dans la corbeille ») : quand la Compta du compte jette le dossier « Origami »
+   * entier, Google met quelques secondes à marquer tout son contenu. Le moteur, qui regarde aussitôt, croit certains dossiers encore là, n'arrive pas à
+   * les jeter et les rend comme « dernier geste ». La page relit donc l'inventaire un instant plus tard (le moteur retiré répond encore à cette prise)
+   * et ne garde que ce qui est vraiment resté. Elle insiste (4 fois au plus) seulement si un dossier « Origami » est bien parti. Ne bloque jamais.
+   */
+  function desinstRevoir(id, r) {
+    if (!desinstDouteux(r).length) return Promise.resolve(r);
+    var tours = 0, delai = window.__attenteReste || (window.__sansAttente ? 150 : 2500);
+    function tour() {
+      tours++;
+      return new Promise(function (ok) { setTimeout(ok, delai); }).then(function () { return moteurAppel(id, "compte.inventaire", null, { sans: true }); }).then(function (inv) {
+        if (!inv || !Array.isArray(inv.elements)) return r;
+        var etats = {}, partie = false;
+        inv.elements.forEach(function (x) { if (x && x.lien) { etats[String(x.lien)] = String(x.etat || ""); if (x.racine && x.etat === "corbeille") partie = true; } });
+        // « corbeille » : parti depuis. Absent de l'inventaire : le moteur ne le trouve plus du tout. Dans les deux cas, plus rien à faire à la main.
+        r.reste = r.reste.filter(function (x) { return !x || typeof x !== "object" || x.conteneur || !x.lien || etats[String(x.lien)] === "la"; });
+        return desinstDouteux(r).length && partie && tours < 4 ? tour() : r;
+      }, function () { return r; });
+    }
+    return tour();
   }
   function desinstDessiner() {
     var D = desinst, nom = "<strong>" + texte(D.nom || "") + "</strong>", h = '<div data-parcours-vue="desinst-' + texte(D.phase) + '">';
@@ -4056,7 +4083,7 @@ button.tuile:hover { border-color: var(--ligne); }
         h += "<h1>Presque fini : un dernier geste dans le Drive</h1><p>Origami est retiré de " + nom + " dans cette appli et ne répond plus dans ce compte. " + (reste.length > 1 ? "Il reste " + reste.length + " éléments" : "Il reste un élément") + " qu'il n'a pas le droit de jeter lui-même : Google ne laisse une appli toucher qu'à ce qu'elle a créé.</p>";
         h += "<p><strong>Ouvre " + (reste.length > 1 ? "chacun" : "ce lien") + " avec ce compte Google et mets-le à la corbeille</strong>, s'il n'y est pas déjà. Un dossier part avec tout ce qu'il contient.</p>";
         h += '<ul class="liste-desinst">';
-        reste.forEach(function (x) { h += "<li>" + texte(x.nom) + (x.lien ? ' <a href="' + texte(x.lien) + '" target="_blank" rel="noopener">Ouvrir</a>' : "") + '<span class="aide-fine" style="display:block">' + (x.dossier ? "Dans le Drive : clic droit sur le nom du dossier, en haut, puis « Placer dans la corbeille »." : "Dans le classeur : menu Fichier, « Placer dans la corbeille ».") + "</span></li>"; });
+        reste.forEach(function (x) { h += "<li>" + texte(x.nom) + (x.lien ? ' <a href="' + texte(x.lien) + '" target="_blank" rel="noopener">Ouvrir</a>' : "") + '<span class="aide-fine" style="display:block">' + (x.dossier ? "Dans le Drive : clic droit sur le nom du dossier, en haut, puis « Placer dans la corbeille »." : "Dans le classeur : menu Fichier, « Placer dans la corbeille ».") + " Si Google te dit qu'il est déjà dans la corbeille, il n'y a plus rien à faire.</span></li>"; });
         h += "</ul>";
       }
       h += '<p class="aide-fine">Pour vérifier qu\'il ne reste rien : <a href="' + LIEN_DRIVE_ORIGAMI + '" target="_blank" rel="noopener">chercher « Origami » dans le Drive</a> de ce compte. ' + (D.acces ? "L'accès d'Origami à ce compte Google est retiré." : 'Pour retirer aussi l\'accès d\'Origami chez Google : <a href="' + LIEN_ACCES_GOOGLE + '" target="_blank" rel="noopener">les applis connectées à ton compte</a>.') + "</p>";
