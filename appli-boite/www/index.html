@@ -1280,7 +1280,7 @@
       '<div class="boite" style="margin-bottom:12px"><b>Le plus simple</b><p class="doux">Connectez le compte à Google : tout s\'installe dans son Drive (dossier « Origami »), puis le compte apparaît ici.</p>' +
         '<input type="text" id="aj-google-email" inputmode="email" autocomplete="email" placeholder="Adresse Gmail du compte (facultatif)" style="margin-bottom:8px">' +
         '<button type="button" class="prim" id="aj-google">Continuer avec Google</button></div>' +
-      '<p class="doux" style="margin:0 0 8px">Ou, à la main :</p>' +
+      '<details class="aj-main"><summary class="doux" style="cursor:pointer;margin:0 0 8px">Autre façon, à la main (copie du modèle, à ranger soi-même dans le Drive)</summary>' +
       '<div class="boite">' +
       '<div class="etape"><span class="num">1</span><div><b>Créer la Boîte mail du compte</b><p class="doux">Une copie vierge s\'ouvre dans le navigateur. Indiquez l\'adresse Gmail du compte : la copie se fait avec ce compte-là. Puis « Créer une copie ».</p>' +
         '<input type="text" id="aj-email" inputmode="email" autocomplete="email" placeholder="Adresse Gmail du compte à relier" style="margin-bottom:8px">' +
@@ -1288,7 +1288,7 @@
       '<div class="etape"><span class="num">2</span><div><b>Relier à l\'appli</b><p class="doux">Dans la copie : menu <b>Boîte mail › Relier à l\'appli Boîte mail</b>, puis acceptez les autorisations Google (« appli non validée » : c\'est normal pour un outil à soi, « Paramètres avancés › Accéder »). La première fois, un interrupteur Google est demandé : la fenêtre explique.</p></div></div>' +
       '<div class="etape"><span class="num">3</span><div><b>Ouvrir dans l\'appli</b><p class="doux">Cliquez « Ouvrir dans l\'appli Boîte mail » : le compte apparaît ici tout seul. Sinon, collez le code :</p>' +
         '<textarea id="aj-code" placeholder="Code de liaison"></textarea><div class="actions"><button type="button" id="aj-ok">Relier avec ce code</button></div></div></div>' +
-      '</div>';
+      '</div></details>';
     var b = $('aj-copie'); if (b && pret) b.onclick = function () {
       // Plusieurs comptes Google dans le navigateur : sans « authuser », la copie part sur le compte par défaut.
       var em = String($('aj-email').value || '').trim();
@@ -1468,7 +1468,8 @@
       return d || comptes.filter(function (x) { return x.id === vue; })[0] || comptes[0] || null;
     }
     var c = e ? comptes.filter(function (x) { return String(x.email || '').toLowerCase() === e; })[0] : null;
-    if (!c && e) dire('La boîte ' + e + ' n\'est pas reliée à cette appli : ouvert dans la boîte affichée.');
+    // Adresse demandée mais pas reliée (26.11) : ne JAMAIS retomber sur une autre boîte (on écrirait depuis le mauvais compte).
+    if (!c && e) { dire('La boîte ' + e + ' n\'est pas reliée à cette appli. Ajoutez-la (menu ＋ Ajouter un compte), puis recommencez.'); return false; }
     return c || comptes.filter(function (x) { return x.id === vue; })[0] || comptes[0] || null;
   }
   function demandeDehors(u) {
@@ -1492,6 +1493,7 @@
     }
     var m = /^boitemail:\/\/(ecrire|conversation|brouillon)\b/i.exec(String(u)); if (!m) return false;
     var p = champsLien(u), c = compteDuLien(p.boite);
+    if (c === false) { try { if (T && T.window && T.window.getCurrentWindow) { var w1 = T.window.getCurrentWindow(); w1.show(); if (w1.unminimize) w1.unminimize(); w1.setFocus(); } } catch (e) { /* déjà visible */ } montrer('ajouter'); return true; }
     var texte = String(p.texte || '').slice(0, 1000), attente = /^[0-9A-Za-z_-]{6,40}$/.test(p.attente || '') ? p.attente : '';
     if (m[1].toLowerCase() === 'ecrire' && p.fenetre === 'seule' && c && fenetresPossibles()) { // seulement la fenêtre d'écriture : la grande fenêtre ne bouge pas
       ouvrirFenetreEcrire(c.id, null, { a: p.a || '', cc: p.cc || '', cci: p.cci || '', objet: p.objet || '', texte: texte, attente: attente });
