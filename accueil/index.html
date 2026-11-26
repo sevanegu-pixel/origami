@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-26.80">
+<meta name="origami-version" content="2026-11-26.81">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -120,6 +120,8 @@ html.sombre { --carte: #1d1d1d; --carte2: #232323; --texte: #ececec; --doux: #a9
 html.sombre .info-guide, html.sombre .deja-retire { background: #1e2a4a; }
 .droits-modules { margin: 4px 0 10px; padding-left: 18px; line-height: 1.45; }
 .guide-compta .droits-modules li { display: list-item; margin: 4px 0; }
+.guide-compta ol.pas { margin: 4px 0 10px; }
+.guide-compta ol.pas > li { display: list-item; }   /* les pas numérotés du premier accord (Boîte mail seule), dans une étape du guide */
 .etapes-compta li { margin: 6px 0; line-height: 1.45; }
 .progression { display: inline-flex; flex-direction: column; gap: 3px; min-width: 150px; font-size: 12px; color: var(--doux); }
 .progression progress { width: 150px; height: 6px; appearance: none; -webkit-appearance: none; border: 0; border-radius: 3px; background: rgba(0, 0, 0, 0.1); overflow: hidden; }
@@ -592,10 +594,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-26.80"></script>
-<script src="repertoire.js?v=2026-11-26.80"></script>
-<script src="fichiers.js?v=2026-11-26.80"></script>
-<script src="google.js?v=2026-11-26.80"></script>
+<script src="agenda.js?v=2026-11-26.81"></script>
+<script src="repertoire.js?v=2026-11-26.81"></script>
+<script src="fichiers.js?v=2026-11-26.81"></script>
+<script src="google.js?v=2026-11-26.81"></script>
 <script>
 (function () {
   "use strict";
@@ -3360,7 +3362,7 @@ button.tuile:hover { border-color: var(--ligne); }
       var cl = faits[i] ? "fait" : i === actif ? "actif" : "attente", travaille = i === actif && !!guideB.occupe;
       return '<li class="' + cl + '"><span class="pastille" aria-hidden="true">' + (faits[i] ? "✓" : travaille ? roue() : i + 1) + '</span><div><strong>' + titre + "</strong>" + (travaille ? travail : i === actif ? corps : "") + "</div></li>";
     }
-    var sous = guideB.sous ? sousEtapes(ORDRE_BOITE, SOUS_BOITE, guideB.sous) : "";
+    var sous = guideB.sous ? (guideB.prepa ? '<p class="aide-fine">D\'abord la préparation de ton Drive (le dossier « Origami »), puis la Boîte mail elle-même.</p>' + sousEtapes(ORDRE_PARCOURS, SOUS_PREPA_BOITE, guideB.sous) : sousEtapes(ORDRE_BOITE, SOUS_BOITE, guideB.sous)) : "";
     var travail = !guideB.occupe ? "" : sous ? sous + '<p class="progression" role="status">' + barreVive() + "<span>Une minute environ. Ne quitte pas Origami.</span></p>" : occupeHtml(guideB.occupe, true);
     var brut = guideB.brut ? '<p class="aide-fine">Réponse de Google, telle quelle : « ' + texte(guideB.brut) + " »</p>" : "";
     var seule = id === ID_BOITE_SEULE, connu = !seule || !!googleAdresse(id);
@@ -3370,7 +3372,8 @@ button.tuile:hover { border-color: var(--ligne); }
       : "<p>" + ouvreGoogle() + (connu ? " Choisis le compte <strong>" + nom + "</strong>" : " Choisis le compte Google dont tu veux les mails") + " et accepte, en laissant toutes les cases cochées.</p>" + '<div class="actions"><button class="bouton fort" data-boite-connecter="1">' + (seule ? "Continuer avec Google" : "Se connecter à Google") + "</button></div>";
     var e2 = guideB.code === "api-eteinte" ? "<p>Google demande d'allumer un interrupteur du compte, une seule fois. Sur la page qui s'ouvre, vérifie en haut à droite que c'est bien <strong>" + nom + "</strong>, puis allume « API Google Apps Script ».</p>" +
         '<div class="actions"><a class="bouton" href="' + REGLAGES_API + (googleAdresse(id) ? "?authuser=" + encodeURIComponent(googleAdresse(id)) : "") + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-boite-installer="1">C\'est allumé, continuer</button></div>' + brut
-      : (seule ? "<p>Ta Boîte mail est créée dans ton Drive (un classeur « Origami - Boîte mail ») et mise en ligne. Une minute environ.</p>" : "<p>Origami crée ta Boîte mail dans ton Drive (dossier Origami › Boîte mail) et la met en ligne. Une minute environ.</p>") +
+      : seule && guideB.origami ? boiteSeuleAccord(nom)
+      : (seule ? "<p>Ta Boîte mail s'installe dans ton Drive, dans un dossier « Origami » (Origami › Boîte mail), et se met en ligne. Si tu installes Origami un jour, il se servira du même dossier.</p><p>Deux à trois minutes. Google te demandera encore ton accord deux fois en chemin.</p>" : "<p>Origami crée ta Boîte mail dans ton Drive (dossier Origami › Boîte mail) et la met en ligne. Une minute environ.</p>") +
         "<p class=\"aide-fine\">Si ce compte a déjà une Boîte mail copiée à la main, la nouvelle prend sa place dans l'appli du Mac. L'ancienne reste dans ton Drive, sans rien perdre.</p>" + '<div class="actions"><button class="bouton fort" data-boite-installer="1">Installer la Boîte mail</button></div>' + brut;
     var lienA = b && G ? G.lienAutorisation(b.projet, googleAdresse(id)) : "";
     var e3 = "<p>Google te demande d'autoriser ta Boîte mail à lire et envoyer tes mails. Vérifie que c'est bien le compte <strong>" + nom + "</strong>, puis accepte. S'il dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Boîte mail » (c'est ta propre appli, dans ton compte).</p>" +
@@ -3404,6 +3407,119 @@ button.tuile:hover { border-color: var(--ligne); }
         if (etat.vue === "applis" || etat.vue === "accueil") montrer();
       });
     }).catch(function () {});
+  }
+  // ---- Boîte mail seule, rangée dans le dossier « Origami » (26.11.2026) ----
+  // Sévane : « ça devrait être dans un dossier Origami. Ce même dossier qui serait utilisé si l'utilisateur installe Origami. »
+  // Google ne laisse chaque appli voir que les dossiers qu'elle a créés : pour que ce soit LE MÊME dossier, il faut que ce soit
+  // l'Origami du compte qui le crée. L'onglet l'installe donc d'abord « en silence » (comme l'appli Compta seule), lui demande le
+  // dossier « Origami › Boîte mail › Données », y range le classeur, puis retire l'appareil qui n'a servi qu'à cela : sa clé
+  // n'est gardée nulle part. Le compte de la compagnie (Origami installé depuis le Mac) et une Boîte mail déjà rangée : rien de tout cela.
+  var SOUS_PREPA_BOITE = { chercher: "Vérification du compte", code: "Lecture du code", classeur: "Classeur des réglages dans ton Drive", projet: "Préparation de ton compte", contenu: "Envoi du code", version: "Enregistrement", ligne: "Mise en ligne" };
+  var NOM_APPAREIL_BOITE = "Installation de la Boîte mail";
+  function boiteSeuleAccord(nom) {
+    var G = window.OrigamiGoogle, o = guideB.origami, lien = (G && o && G.lienAutorisation(o.projet, googleAdresse(ID_BOITE_SEULE))) || "";
+    return '<div data-boite-accord="1"><p><strong>Premier accord de Google.</strong> Ton Drive est prêt dans le compte <strong>' + nom + "</strong>. Google te demande d'autoriser ce qui vient d'y être installé à y travailler : il l'appelle « Origami », c'est ce qui range ta Boîte mail dans son dossier.</p>" +
+      '<ol class="pas"><li>Clique « Autoriser ». Une page de Google s\'ouvre.</li><li>Choisis le compte <strong>' + nom + "</strong>.</li>" +
+      "<li>Google écrit « <strong>Google n'a pas validé cette application</strong> » : clique sur le petit lien <strong>Paramètres avancés</strong>, puis sur <strong>Accéder à Origami (non sécurisé)</strong>." +
+      '<span class="aide-fine">C\'est normal et sans danger : cette installation est la tienne, dans ton propre compte.</span></li>' +
+      "<li>Laisse toutes les cases cochées, puis <strong>Continuer</strong>.</li><li>Reviens ici : la suite part toute seule.</li></ol>" +
+      '<div class="actions">' + (lien ? '<a class="bouton fort" href="' + texte(lien) + '" target="_blank" rel="noopener">Autoriser</a>' : "") + '<button class="bouton" data-boite-accord-verifier="1">C\'est fait, continuer</button></div>' +
+      aidePlusieursComptes(lien, "<strong>" + nom + "</strong>") + "</div>";
+  }
+  function boiteSeuleSouci(e) {
+    var G = window.OrigamiGoogle, code = (e && e.code) || "", m = String((e && e.message) || e);
+    guideB.occupe = ""; guideB.sous = ""; guideB.prepa = false;
+    if (code === "expire" || code === "connexion") { m = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprendra où elle en était."; if (G) G.oublier(ID_BOITE_SEULE); guideB.origami = null; }
+    else if (code === "api-eteinte") m = "";
+    else if (code === "projet-compagnie" || code === "modele" || code === "modele-ancien") m = "La préparation de ton Drive n'aboutit pas pour l'instant. Ce n'est pas de ton fait : préviens la personne qui s'occupe d'Origami.";
+    else m += " Ce qui est fait est gardé : tu peux reprendre.";
+    guideB.souci = m; guideB.code = code; guideB.brut = String((e && e.brut) || "").slice(0, 320);
+    if (guideB.id === ID_BOITE_SEULE) dessinerGuideBoite();
+  }
+  // L'Origami du compte est joint : la Boîte mail s'installe à la suite, sans rien redemander. lie = null : sans dossier à préparer.
+  function boiteSeuleSuite(lie) {
+    clearInterval(guideB.minuteur); guideB.minuteur = 0;
+    guideB.lie = lie || null; guideB.prepare = true; guideB.origami = null; guideB.occupe = ""; guideB.sous = ""; guideB.prepa = false;
+    boiteInstaller();
+  }
+  function boiteSeulePreparer() {
+    var id = ID_BOITE_SEULE, G = window.OrigamiGoogle, s = G && G.session(id), tour = (guideB.tour = {});
+    if (!s || !s.drive) { boiteSeuleSouci({ code: "expire" }); return; }
+    function vivant() { return guideB.id === id && guideB.tour === tour; }
+    function occupe(t) { guideB.prepa = false; guideB.sous = ""; guideB.occupe = t; dessinerGuideBoite(); }
+    function installer() {
+      return G.installerOrigami({ cle: id, dire: function (e) { if (!vivant()) return; guideB.prepa = true; guideB.sous = e; guideB.occupe = "Préparation de ton Drive…"; dessinerGuideBoite(); } }).then(function (r) {
+        garder("origami_installation", JSON.stringify({ adresse: r.adresse, secret: r.secret, projet: r.projet }));
+        if (!vivant()) return;
+        guideB.occupe = ""; guideB.sous = ""; guideB.prepa = false; guideB.origami = { adresse: r.adresse, projet: r.projet, secret: r.secret };
+        dessinerGuideBoite(); boiteSeuleVerifier(true); boiteSeuleGuetter();
+      });
+    }
+    guideB.souci = ""; guideB.code = ""; guideB.brut = ""; guideB.origami = null;
+    occupe("Je regarde ce qu'il y a déjà dans ce compte…");
+    Promise.all([G.chercherBoite(id, true), empreinteAdresse(s.adresse)]).then(function (rr) {
+      if (!vivant()) return null;
+      if (rr[0] && rr[0].dossier) { boiteSeuleSuite(null); return null; }          // déjà rangée : rien à préparer
+      if (rr[1] === EMPREINTE_COMPAGNIE) { boiteSeuleSuite(null); return null; }   // la compagnie : jamais un deuxième Origami dans ce compte
+      return G.chercherOrigami(id).then(function (vu) {
+        if (!vivant()) return null;
+        if (!vu || !vu.adresse) return installer();
+        return G.pingMoteur(vu.adresse).then(function (repond) {
+          if (!vivant()) return null;
+          if (!repond) return installer();   // pas encore autorisé : on reprend, jusqu'à l'écran d'autorisation
+          occupe("Préparation de ton Drive…");
+          return boiteSeuleJoindre(vu.adresse, "").then(function (lie) { if (vivant()) boiteSeuleSuite(lie); }, function (e) {
+            if (!vivant()) return null;
+            if (e && (e.code === "sans-proprietaire" || e.code === "secret")) return installer();   // installation jamais finie : on la reprend
+            throw e;
+          });
+        });
+      });
+    }).catch(function (e) { if (vivant()) boiteSeuleSouci(e); });
+  }
+  // La clé d'un appareil pour l'Origami du compte : le premier contact si cette page en a le secret, sinon la connexion à Google.
+  function boiteSeuleJoindre(adresse, secret) {
+    var G = window.OrigamiGoogle, att = parcoursAttente();
+    if (!secret && att && att.adresse === adresse) secret = att.secret;
+    return (secret ? G.premierContact({ cle: ID_BOITE_SEULE, adresse: adresse, secret: secret, nom: NOM_APPAREIL_BOITE }) : Promise.reject({ code: "sans-secret" }))
+      .catch(function (e) { if (e && (e.code === "deja" || e.code === "sans-secret" || e.code === "sans-installation")) return G.relierParGoogle({ cle: ID_BOITE_SEULE, adresse: adresse, nom: NOM_APPAREIL_BOITE }); throw e; })
+      .then(function (lie) { var a = parcoursAttente(); if (a && a.adresse === adresse) garder("origami_installation", ""); return lie; });
+  }
+  // L'onglet guette seul l'accord donné à Google. Dix minutes au plus, puis le bouton reste.
+  function boiteSeuleGuetter() {
+    var o = guideB.origami, tours = 0;
+    clearInterval(guideB.minuteur);
+    guideB.minuteur = setInterval(function () {
+      if (guideB.id !== ID_BOITE_SEULE || guideB.origami !== o || ++tours > 200) { clearInterval(guideB.minuteur); return; }
+      if (document.hidden && !window.__sansAttente) return;   // la personne est sur la page de Google : on vérifiera à son retour
+      boiteSeuleVerifier(true);
+    }, window.__sansAttente ? 120 : 3000);
+  }
+  function boiteSeuleVerifier(seul) {
+    var G = window.OrigamiGoogle, o = guideB.origami;
+    if (!G || !o || o.contact || guideB.id !== ID_BOITE_SEULE) return;
+    function la() { return guideB.id === ID_BOITE_SEULE && guideB.origami === o; }
+    if (!seul) { guideB.souci = ""; guideB.occupe = "Je vérifie l'accord…"; dessinerGuideBoite(); }
+    o.contact = true;
+    G.pingMoteur(o.adresse).then(function (repond) {
+      if (!la()) return null;
+      if (!repond) { o.contact = false; if (!seul) { guideB.occupe = ""; guideB.souci = "Google n'a pas encore enregistré ton accord. Si tu viens d'accepter son écran, attends dix secondes : la suite part toute seule."; dessinerGuideBoite(); } return null; }
+      guideB.souci = ""; guideB.occupe = "C'est autorisé. Préparation du dossier…"; dessinerGuideBoite();
+      return boiteSeuleJoindre(o.adresse, o.secret).then(function (lie) { if (la()) boiteSeuleSuite(lie); }, function (e) {
+        if (!la()) return;
+        o.contact = false;
+        if (e && e.code === "muet") { guideB.occupe = ""; dessinerGuideBoite(); return; }   // la nouvelle version n'est pas encore servie : au tour suivant
+        clearInterval(guideB.minuteur);
+        if (e && (e.code === "sans-proprietaire" || e.code === "secret")) { guideB.origami = null; boiteSeulePreparer(); return; }
+        boiteSeuleSouci(e);
+      });
+    });
+  }
+  // L'appareil « Installation de la Boîte mail » n'a servi qu'à préparer le dossier : il se retire lui-même de l'Origami du compte.
+  function boiteSeuleRendre() {
+    var G = window.OrigamiGoogle, lie = guideB.lie;
+    guideB.lie = null;
+    if (G && G.demanderMoteur && lie && lie.id) G.demanderMoteur(lie, "appareils.retirer", { id: lie.id }).catch(function () {});
   }
   // Boîte mail seule : ce que l'onglet retient (compte, installation en cours) est oublié pour repartir avec un autre compte.
   function boiteSeuleOublier() { boiteGarder(ID_BOITE_SEULE, null); garder("origami_google_adresse@" + ID_BOITE_SEULE, ""); try { if (window.OrigamiGoogle) OrigamiGoogle.oublier(ID_BOITE_SEULE); } catch (e) {} }
@@ -3446,11 +3562,11 @@ button.tuile:hover { border-color: var(--ligne); }
     var gmail = '<p class="aide-fine">Tes mails restent dans Gmail : rien n\'y est touché.</p>';
     if (R.phase === "refus") h += '<p class="souci-guide" role="alert">' + REFUS_COMPAGNIE + "</p><p class=\"aide-fine\">Tu peux fermer cet onglet.</p>";
     else if (R.phase === "depart") {
-      h += "<p>" + (nomQ ? "Compte : " + nomQ + ". " : "") + "Ce geste arrête la Boîte mail installée dans ce compte Google et met son classeur « Origami - Boîte mail » à la corbeille du Drive. Tu as 30 jours pour le reprendre.</p>" + gmail +
+      h += "<p>" + (nomQ ? "Compte : " + nomQ + ". " : "") + "Ce geste arrête la Boîte mail installée dans ce compte Google et met son classeur à la corbeille du Drive. Tu as 30 jours pour le reprendre.</p>" + gmail +
         (R.occupe ? occupeHtml(R.occupe, true) : !G ? "<p>La connexion à Google n'est pas chargée. Recharge cette page.</p>"
           : "<p>D'abord, Google ouvre une fenêtre : choisis " + (nomQ ? "le compte " + nomQ : "le compte Google concerné") + " et accepte, en laissant toutes les cases cochées. Rien n'est retiré à cette étape.</p>" + '<div class="actions"><button class="bouton fort" data-retb="connecter">Continuer avec Google</button></div>') + souci;
     } else if (R.phase === "trouve") {
-      h += "<p>Dans le compte " + nomQ + ", Origami a trouvé la Boîte mail : le classeur « Origami - Boîte mail »" + (R.trouve && R.trouve.deploiement ? " et sa mise en ligne" : "") + ".</p>" +
+      h += "<p>Dans le compte " + nomQ + ", Origami a trouvé la Boîte mail : son classeur" + (R.trouve && R.trouve.deploiement ? " et sa mise en ligne" : "") + ".</p>" +
         "<p>En continuant, elle s'arrête et son classeur part à la corbeille du Drive, avec tout ce qu'elle a enregistré de son côté. Tu as 30 jours pour le reprendre dans la corbeille.</p>" + gmail +
         '<div class="actions"><button class="bouton" data-retb="autre">Ce n\'est pas le bon compte</button><button class="bouton fort danger" data-retb="lancer">Arrêter et mettre à la corbeille</button></div>' + souci;
     } else if (R.phase === "travail") h += occupeHtml(R.occupe || "Arrêt de la Boîte mail…", true);
@@ -3460,7 +3576,7 @@ button.tuile:hover { border-color: var(--ligne); }
         '<div class="actions"><a class="bouton" href="https://drive.google.com/drive/search?q=Bo%C3%AEte%20mail" target="_blank" rel="noopener">Chercher dans Drive</a><button class="bouton" data-retb="autre">Essayer un autre compte</button></div>' + souci;
     } else if (R.phase === "fini") {
       var f = R.fin || {};
-      h += f.jetes ? "<p><strong>C'est fait.</strong> " + (f.jetes > 1 ? "Les " + f.jetes + " classeurs « Origami - Boîte mail »" : "Le classeur « Origami - Boîte mail »") + " du compte " + nomQ + (f.jetes > 1 ? " sont" : " est") + " à la corbeille du Drive : 30 jours pour " + (f.jetes > 1 ? "les" : "le") + " reprendre.</p>" : "";
+      h += f.jetes ? "<p><strong>C'est fait.</strong> " + (f.jetes > 1 ? "Les " + f.jetes + " classeurs de la Boîte mail" : "Le classeur de la Boîte mail") + " du compte " + nomQ + (f.jetes > 1 ? " sont" : " est") + " à la corbeille du Drive : 30 jours pour " + (f.jetes > 1 ? "les" : "le") + " reprendre.</p>" : "";
       h += f.jetes && f.arretee >= f.jetes ? "<p>La Boîte mail ne répond plus : sa mise en ligne est arrêtée.</p>"
         : f.jetes ? '<p class="aide-fine">Google n\'a pas confirmé l\'arrêt de sa mise en ligne. Sans son classeur, elle ne sert plus à rien et disparaît quand la corbeille est vidée.</p>' : "";
       h += f.reste && f.reste.length ? '<p class="souci-guide" role="alert">Google a refusé de mettre le classeur à la corbeille. Fais-le à la main : ouvre-le, puis « Fichier », « Placer dans la corbeille ».</p><div class="actions">' + f.reste.map(function (id) { return '<a class="bouton" href="https://docs.google.com/spreadsheets/d/' + texte(id) + '/edit" target="_blank" rel="noopener">Ouvrir le classeur</a>'; }).join("") + "</div>" : "";
@@ -3546,10 +3662,12 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!id || !G || (guideB.occupe && guideB.sous)) return;
     guideB.souci = ""; guideB.code = ""; guideB.brut = "";
     if (!s || !s.drive) { guideB.souci = "La connexion à Google a expiré. Reconnecte-toi : l'installation reprendra où elle en était."; if (G) G.oublier(id); dessinerGuideBoite(); return; }
-    var avant = boiteDe(id);
-    function dire(e) { guideB.sous = e; guideB.occupe = SOUS_BOITE[e] || "Installation de la Boîte mail…"; if (guideB.id === id) dessinerGuideBoite(); }
+    if (id === ID_BOITE_SEULE && !guideB.prepare) { boiteSeulePreparer(); return; }   // d'abord le dossier « Origami » du compte
+    var avant = boiteDe(id), lie = id === ID_BOITE_SEULE ? guideB.lie : null;
+    function dire(e) { guideB.prepa = false; guideB.sous = e; guideB.occupe = SOUS_BOITE[e] || "Installation de la Boîte mail…"; if (guideB.id === id) dessinerGuideBoite(); }
     dire("chercher");
-    G.installerBoite({ cle: id, moteur: id === ID_BOITE_SEULE ? null : appelMoteurCompta(id), dire: dire }).then(function (r) {
+    G.installerBoite({ cle: id, moteur: id === ID_BOITE_SEULE ? (lie ? function (prise, args) { return G.demanderMoteur(lie, prise, args); } : null) : appelMoteurCompta(id), dire: dire }).then(function (r) {
+      if (id === ID_BOITE_SEULE) { guideB.prepare = false; boiteSeuleRendre(); }
       // Nouveau secret : la liaison est à refaire (c'est aussi le chemin pour relier un autre Mac). L'autorisation, elle, reste.
       boiteGarder(id, { classeur: r.classeur, projet: r.projet, adresse: r.adresse, dossier: r.dossier || (avant && avant.dossier) || "", secret: r.secret, autorisee: !r.premiere && !!(avant && avant.autorisee), relie: "", g: id === ID_BOITE_SEULE ? String(googleAdresse(id) || "").toLowerCase() : undefined });
       guideB.occupe = ""; guideB.sous = "";
@@ -4114,7 +4232,7 @@ button.tuile:hover { border-color: var(--ligne); }
           return { nom: String(x.nom || "Un fichier").slice(0, 120), lien: desinstLien(x.lien), dossier: x.sorte === "dossier", id: x.conteneur && /^[\w-]{6,120}$/.test(String(x.id || "")) ? String(x.id) : "" };
         });
         if (!connecte) return { reste: reste, acces: false };
-        if (boite && boite.classeur) reste.push({ nom: "Classeur « Origami - Boîte mail »", lien: desinstLien("https://docs.google.com/spreadsheets/d/" + boite.classeur + "/edit"), dossier: false, id: boite.classeur });
+        if (boite && boite.classeur) reste.push({ nom: "Classeur de la Boîte mail", lien: desinstLien("https://docs.google.com/spreadsheets/d/" + boite.classeur + "/edit"), dossier: false, id: boite.classeur });
         // Le classeur des réglages, si c'est la page qui l'a créé : elle le voit et le jette (ou constate qu'il est parti avec le dossier).
         return G.jeterReste({ cle: cle, reste: reste }).then(function (j) {
           // L'accès n'est retiré que si Google a montré un fichier de CE compte : la preuve que c'est le bon compte Google.
@@ -4848,6 +4966,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.boiteVerifier) { relireCompte(guideB.id).then(dessinerGuideBoite); return; }
     if (d.boiteConnecter) { boiteConnecter(); return; }
     if (d.boiteInstaller) { boiteInstaller(); return; }
+    if (d.boiteAccordVerifier) { boiteSeuleVerifier(false); return; }
     if (d.boitePing) { boitePing(); return; }
     if (d.boiteRelier) { boiteRelier(); return; }
     if (d.boiteAppli) { guideB.ouvert = boiteOuvrirAppli(); dessinerGuideBoite(); return; }

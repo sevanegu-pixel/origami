@@ -26,7 +26,7 @@
   var MODELE_SCRIPT = "18Ri1dh1bJyiheHS5F0FEhGaUL5Lbq_HDKvlw7NalC7X5SehS7wiZdF0q";   // le moteur modèle (identifiant, pas de code) : la page le lit avec la connexion de la personne
   var NOM_CLASSEUR = "Origami - Réglages du compte", MARQUE = "reglages";
   // Boîte mail installée par Origami (23.11) : le modèle « Boîte mail (vierge) » de la compagnie, partagé par lien comme celui du moteur.
-  var MODELE_BOITE = "1GEKuqfAGTl3aT42Kx6HGHiXqgewx2DvwOApBfsFgVmHyNbWJdgtTpetU", NOM_BOITE = "Origami - Boîte mail", MARQUE_BOITE = "boite";
+  var MODELE_BOITE = "1GEKuqfAGTl3aT42Kx6HGHiXqgewx2DvwOApBfsFgVmHyNbWJdgtTpetU", NOM_BOITE = "Boîte mail", NOM_BOITE_AVANT = "Origami - Boîte mail", MARQUE_BOITE = "boite";
   var ADRESSE_EXEC = /^https:\/\/script\.google\.com\/(a\/[^/]+\/)?macros\/s\/[\w-]+\/exec$/;
   var ATTENTES = [1500, 4000, 9000];
   var sessions = {}, chargement = null;
@@ -588,7 +588,7 @@
 
   function finirLiaison(s, adresse, p) {
     if (!p || !/^[a-f0-9]{64}$/.test(String(p.cle || ""))) throw souci("Le moteur n'a pas rendu la clé de cet appareil.", "refus-moteur");
-    var lie = { u: adresse, c: p.cle, nom: String(p.nom || "").trim().slice(0, 40), couleur: String(p.couleur || ""), range: !p.ranger };
+    var lie = { u: adresse, c: p.cle, id: /^a[a-f0-9]{6,40}$/.test(String(p.id || "")) ? String(p.id) : "", nom: String(p.nom || "").trim().slice(0, 40), couleur: String(p.couleur || ""), range: !p.ranger };
     var g = p.ranger;
     if (!g || !s.drive || !/^[\w-]{6,120}$/.test(String(g.classeur || "")) || !/^[\w-]{6,120}$/.test(String(g.dossier || ""))) return lie;
     // Le classeur a été créé par la page : elle seule a le droit de le ranger dans le dossier que le moteur vient de créer.
@@ -742,10 +742,12 @@
   }
   /** La Boîte mail de ce compte installée par Origami : { classeur, projet, deploiement, adresse } ou null. */
   function chercherBoite(s) {
-    return drive(s, "GET", "files?pageSize=10&orderBy=createdTime&fields=" + enc("files(id,appProperties)") + "&q=" + enc("appProperties has { key='origami' and value='" + MARQUE_BOITE + "' } and trashed=false")).then(function (l) {
+    return drive(s, "GET", "files?pageSize=10&orderBy=createdTime&fields=" + enc("files(id,parents,appProperties)") + "&q=" + enc("appProperties has { key='origami' and value='" + MARQUE_BOITE + "' } and trashed=false")).then(function (l) {
       var f = ((l && l.files) || []).filter(function (x) { return x && /^[\w-]{20,120}$/.test(String(x.id || "")); }).map(function (x) {
         var a = x.appProperties || {}, dep = /^[\w-]{20,120}$/.test(String(a.origamiMoteur || "")) ? a.origamiMoteur : "";
-        return { classeur: x.id, projet: /^[\w-]{20,120}$/.test(String(a.origamiProjet || "")) ? a.origamiProjet : "", deploiement: dep, adresse: adresseDeploiement(dep) };
+        // « dossier » : seulement si le classeur est vraiment dans le dossier « Origami › Boîte mail › Données » noté au rangement.
+        var d = /^[\w-]{6,120}$/.test(String(a.origamiDossier || "")) && (x.parents || []).indexOf(a.origamiDossier) >= 0 ? a.origamiDossier : "";
+        return { classeur: x.id, projet: /^[\w-]{20,120}$/.test(String(a.origamiProjet || "")) ? a.origamiProjet : "", deploiement: dep, adresse: adresseDeploiement(dep), dossier: d };
       });
       return f.filter(function (x) { return x.deploiement; })[0] || f[0] || null;
     });
@@ -755,11 +757,11 @@
    * Étapes dites : chercher, code, classeur, projet, contenu, version, ligne. Rend { classeur, projet, deploiement, adresse, dossier, secret, premiere }.
    */
   function installerBoite(o) {
-    var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, secret = hasard(32), dossier = "", premiere = false;
+    var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, secret = hasard(32), dossier = "", premiere = false, deja = false;
     if (!s || !s.drive) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
     dire("chercher");
     return chercherBoite(s).then(function (x) {
-      r = x || { classeur: "", projet: "", deploiement: "", adresse: "" };
+      r = x || { classeur: "", projet: "", deploiement: "", adresse: "", dossier: "" };
       premiere = !r.deploiement;
       dire("code");
       return lireModeleBoite(s);
@@ -769,19 +771,24 @@
       // Le dossier « Origami/Boîte mail/Données » : préparé par le moteur du compte (il le refait s'il a été mis à la corbeille).
       return Promise.resolve(o.moteur ? o.moteur("rangement.preparer", { appli: "boite" }) : null).then(function (rg) {
         dossier = rg && rg.donnees && /^[\w-]{6,120}$/.test(String(rg.donnees.id || "")) ? rg.donnees.id : "";
+        if (!o.moteur && r.dossier) { dossier = r.dossier; deja = true; }   // déjà rangée (installée seule, puis remise à jour) : rien à redemander
         if (r.classeur) return null;
         return drive(s, "POST", "files?fields=id", { name: NOM_BOITE, mimeType: "application/vnd.google-apps.spreadsheet", appProperties: { origami: MARQUE_BOITE } }).then(function (f) {
           if (!/^[\w-]{20,120}$/.test(String(f.id || ""))) throw souci("Google n'a pas rendu l'identifiant du classeur. Réessaie.", "occupe");
           r.classeur = f.id;
         });
       }).then(function () {
-        if (!dossier) return null;
-        // Rangé dans son dossier ; si Google refuse, il reste à la racine du Drive et rien ne casse.
-        return drive(s, "GET", "files/" + enc(r.classeur) + "?fields=parents").then(function (f) {
-          var p = (f && f.parents) || [];
-          if (p.indexOf(dossier) >= 0) return null;
-          return drive(s, "PATCH", "files/" + enc(r.classeur) + "?addParents=" + enc(dossier) + (p.length ? "&removeParents=" + enc(p.join(",")) : "") + "&fields=id", {});
-        }).catch(function (e) { if (e && e.code === "expire") throw e; });
+        if (!dossier || deja) return null;
+        // Rangé dans son dossier (26.11 : « ça devrait être dans un dossier Origami », et s'appeler « Boîte mail ») ; un classeur
+        // installé avant, encore à la racine sous son premier nom, y entre et prend le nouveau nom. Si Google refuse, il reste où
+        // il est, rien ne casse, et l'écran ne dit pas qu'il est rangé (« dossier » rendu vide).
+        return drive(s, "GET", "files/" + enc(r.classeur) + "?fields=" + enc("name,parents")).then(function (f) {
+          var p = (f && f.parents) || [], nom = f && f.name === NOM_BOITE_AVANT ? { name: NOM_BOITE } : {};
+          if (p.indexOf(dossier) >= 0) return nom.name ? drive(s, "PATCH", "files/" + enc(r.classeur) + "?fields=id", nom) : null;
+          return drive(s, "PATCH", "files/" + enc(r.classeur) + "?addParents=" + enc(dossier) + (p.length ? "&removeParents=" + enc(p.join(",")) : "") + "&fields=" + enc("id,parents"), nom)
+            .then(function (g) { if (((g && g.parents) || []).indexOf(dossier) < 0) throw souci("Le classeur n'a pas bougé.", "rangement"); });
+        }).then(function () { return noter(s, r.classeur, { origamiDossier: dossier }); })
+          .catch(function (e) { if (e && e.code === "expire") throw e; dossier = ""; });
       });
     }).then(function () {
       if (r.projet) return null;
@@ -838,7 +845,9 @@
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
     // La Boîte mail déjà installée dans le compte connecté (par Origami ou par l'appli Boîte mail seule), ou null. Ne crée rien.
     chercherBoite: function (cle, franc) { var s = session(cle); if (franc && (!s || !s.drive)) return Promise.reject(souci("La connexion à Google a expiré.", "expire")); return s && s.drive ? chercherBoite(s).catch(function (e) { if (franc) throw e; return null; }) : Promise.resolve(null); },
-    parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, jeterInstallation: jeterInstallation, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur, sortirClasseur: sortirClasseur, sortirBoite: sortirBoite, arreterBoite: arreterBoite, jeterReste: jeterReste, retirerAcces: retirerAcces,
+    parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, jeterInstallation: jeterInstallation, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur,
+    // Une demande au moteur d'un compte avec la clé d'un appareil tout juste relié (lie = ce que rend premierContact).
+    demanderMoteur: function (lie, prise, args) { return demander(lie && lie.u, { prise: 1, cle: lie && lie.c, fn: String(prise), args: args || {} }); }, sortirClasseur: sortirClasseur, sortirBoite: sortirBoite, arreterBoite: arreterBoite, jeterReste: jeterReste, retirerAcces: retirerAcces,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
   if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;
 })(typeof window !== "undefined" ? window : this);
