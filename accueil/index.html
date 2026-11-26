@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-26.78">
+<meta name="origami-version" content="2026-11-26.79">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -590,10 +590,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-26.78"></script>
-<script src="repertoire.js?v=2026-11-26.78"></script>
-<script src="fichiers.js?v=2026-11-26.78"></script>
-<script src="google.js?v=2026-11-26.78"></script>
+<script src="agenda.js?v=2026-11-26.79"></script>
+<script src="repertoire.js?v=2026-11-26.79"></script>
+<script src="fichiers.js?v=2026-11-26.79"></script>
+<script src="google.js?v=2026-11-26.79"></script>
 <script>
 (function () {
   "use strict";
@@ -936,7 +936,7 @@ button.tuile:hover { border-color: var(--ligne); }
   var CAMERA_MAC = false;
   // Appli du Mac 0.4 et plus (22.11) : « Continuer avec Google » passe par le navigateur du Mac et revient tout seul (google.js).
   // Une appli plus ancienne ne sait pas le faire : elle propose de se mettre à jour.
-  var PONT_MAC = false;
+  var PONT_MAC = false, VERSION_MAC_LUE = false;
   // Appli du Mac 0.4.1 : elle sait ouvrir la page d'autorisation de Google dans une fenêtre privée (un seul compte connecté).
   var PRIVE_MAC = false;
   // 22.11, Sévane devant « Impossible d'ouvrir le fichier » : « en tant qu'utilisateur lambda je n'ai aucun indice ». La page
@@ -950,17 +950,19 @@ button.tuile:hover { border-color: var(--ligne); }
       '<div class="actions">' + (PRIVE_MAC ? '<button class="bouton" data-fenetre-privee="' + texte(lien) + '">Autoriser dans une fenêtre privée</button>' : "") + '<button class="bouton" data-guide-compta-copier="' + texte(lien) + '">Copier le lien</button></div></div>';
   }
   function macSansGoogle() { return !!MAC && !PONT_MAC; }
-  function ouvreGoogle() { return MAC ? "Ton navigateur s'ouvre pour la connexion à Google, puis Origami revient devant toi tout seul." : "Google ouvre une fenêtre."; }
+  function ouvreGoogle() { return MAC ? "Ton navigateur s'ouvre pour la connexion à Google, puis " + (COMPTA_SEULE ? "la Compta" : /^tickets/.test(String(FENETRE || "")) ? "Tickets" : "Origami") + " revient devant toi tout seul." : "Google ouvre une fenêtre."; }
   function noteMacAncien() {
     return '<p class="note">Pour te connecter à Google depuis l\'appli du Mac, il lui faut sa version ' + VERSIONS_MAC.origami + '. Va dans « Applis », section « Sur ce Mac », ligne « Origami », et clique « Mettre à jour ».</p>' +
       '<div class="actions"><button class="bouton fort" data-vue="applis">Ouvrir « Applis »</button><a class="bouton" href="' + ADRESSE_ORIGAMI + '" target="_blank" rel="noopener">Ou continuer dans le navigateur</a></div>';
   }
   if (MAC && MAC.app && MAC.app.getVersion) try { MAC.app.getVersion().then(function (v) {
-    var n = String(v || "").split(".").map(Number); CAMERA_MAC = n[0] > 0 || n[1] >= 2;
+    var n = String(v || "").split(".").map(Number); CAMERA_MAC = n[0] > 0 || n[1] >= 2; VERSION_MAC_LUE = true;
     PONT_MAC = (n[0] > 0 || n[1] >= 4) && !!(window.OrigamiGoogle && OrigamiGoogle.parPont && OrigamiGoogle.parPont());
     PRIVE_MAC = n[0] > 0 || n[1] > 4 || (n[1] === 4 && (n[2] || 0) >= 1);
-    if (PONT_MAC) try { if (etat.vue === "ajouter" || etat.vue === "accueil" || etat.vue === "desinstaller" || etat.vue === "tickets0") montrer(); } catch (e) {}   // tickets0 (26.11) : l'écran « pas encore relié » propose alors « Continuer avec Google » au lieu du code
-  }, function () {}); } catch (e) {}
+    // comptaAjout (26.11, vu en vrai par Sévane : l'appli Compta du Mac, vide, ne proposait pas « Continuer avec Google ») : l'écran
+    // est dessiné avant que l'appli ait dit sa version ; on le redessine, quel qu'il soit, dès qu'on sait qu'elle sait ouvrir Google.
+    try { if (voile.hidden && (PONT_MAC || etat.vue === "comptaAjout")) montrer(); } catch (e) {}   // tickets0 (26.11) : l'écran « pas encore relié » propose alors « Continuer avec Google » au lieu du code
+  }, function () { VERSION_MAC_LUE = true; try { if (voile.hidden && etat.vue === "comptaAjout") montrer(); } catch (e) {} }); } catch (e) {}
   // Appli Mac Origami 0.3 et plus (19.11) : elle installe elle-même les applis (Compta, Tickets, Frais, Boîte mail) et se met
   // à jour, avec une barre de progression, sans navigateur ni GitHub. Une seule commande par appli : Installer, la barre, Ouvrir.
   var INSTALLEUR = false, MAC_VERSION = "", MAC_APPLIS = null, MAC_INSTALL = {};
@@ -4973,8 +4975,14 @@ button.tuile:hover { border-color: var(--ligne); }
       h += '<div class="choix-ajout" data-compta-par-google="1"><button class="carte-choix principal" data-compta-google="1"><strong>Continuer avec Google</strong><span>Tu choisis ton compte Google. Si ta Compta y est déjà, elle s\'ouvre ici. Sinon, elle s\'y installe : quelques minutes, une seule fois, rien à copier.</span></button></div>';
       h += '<p class="aide-fine">Pas besoin de l\'appli Origami. Si tu l\'installes plus tard, elle retrouvera cette Compta toute seule, avec le même compte Google.</p>';
       try { G.charger().catch(function () {}); } catch (e) {}   // prête avant le clic : la fenêtre de Google doit s'ouvrir dans le clic même
-    } else if (macSansGoogle()) h += "<p>Le plus simple : dans l'appli <strong>Origami</strong>, ajoute ton compte avec « Continuer avec Google », puis va dans « Applis », ligne « Compta », et clique « Installer ». Ensuite, « Ouvrir » depuis Origami : ta Compta arrive ici.</p>";
-    h += '<details class="autres-facons"' + (PARCOURS_GOOGLE && G && !macSansGoogle() ? "" : " open") + "><summary>Tu as l'adresse d'une Compta ?</summary>";
+    } else if (macSansGoogle() && !VERSION_MAC_LUE) h += occupeHtml("Un instant…", true);   // l'appli du Mac n'a pas encore dit sa version : l'écran se redessine dès qu'elle l'a dite
+    else if (macSansGoogle()) {
+      // Appli Compta du Mac d'avant la 0.4 : elle ne sait pas ouvrir Google. On le dit, avec la nouvelle version à portée de main.
+      h += '<div class="choix-ajout" data-compta-mac-ancienne="1"><p><strong>Cette appli Compta est une ancienne version</strong> : elle ne sait pas encore se connecter à Google pour créer ou retrouver ta Compta. Télécharge la nouvelle, ouvre le fichier et glisse « Compta » dans Applications (« Remplacer »), puis rouvre-la : « Continuer avec Google » sera ici.</p>' +
+        '<div class="actions"><a class="bouton fort" href="' + DMG.compta + '" target="_blank" rel="noopener">Télécharger la nouvelle Compta</a></div></div>';
+      h += "<p class=\"aide-fine\">Ou, dans l'appli <strong>Origami</strong> : ajoute ton compte avec « Continuer avec Google », puis « Applis », ligne « Compta », « Installer ». Ensuite « Ouvrir » depuis Origami : ta Compta arrive ici.</p>";
+    }
+    h += '<details class="autres-facons"' + ((PARCOURS_GOOGLE && G && !macSansGoogle()) || (macSansGoogle() && !VERSION_MAC_LUE) ? "" : " open") + "><summary>Tu as l'adresse d'une Compta ?</summary>";
     h += "<p>Pour ouvrir ici une Compta sans passer par Google : dans cette Compta (sur un appareil où elle est déjà ouverte), va dans <strong>Outils › Accès par code PIN</strong> et clique « Copier l'adresse ». Colle-la ci-dessous. La Compta te demandera ensuite son code PIN.</p>";
     h += '<label class="champ">Adresse de la Compta<input id="ajComptaU" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></label>';
     h += '<label class="champ">Nom à afficher<input id="ajComptaN" type="text" maxlength="40" placeholder="Par exemple : Sévane perso"></label>';
