@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-27.86">
+<meta name="origami-version" content="2026-11-27.87">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -596,10 +596,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-27.86"></script>
-<script src="repertoire.js?v=2026-11-27.86"></script>
-<script src="fichiers.js?v=2026-11-27.86"></script>
-<script src="google.js?v=2026-11-27.86"></script>
+<script src="agenda.js?v=2026-11-27.87"></script>
+<script src="repertoire.js?v=2026-11-27.87"></script>
+<script src="fichiers.js?v=2026-11-27.87"></script>
+<script src="google.js?v=2026-11-27.87"></script>
 <script>
 (function () {
   "use strict";
@@ -4002,6 +4002,9 @@ button.tuile:hover { border-color: var(--ligne); }
   // « Connecter mon Claude » (moteur v17, 26.11 : « que n'importe qui puisse connecter son Claude ») : le moteur demande au
   // connecteur un espace neuf pour cette personne et y relie le compte, d'un seul geste.
   function claudeConnecterPossible(id) { var e = etatMoteur(id); return !!(moteurs[id] && e && e.moteur && Number(e.moteur.version) >= 17); }
+  // Connecteur créé d'ici par « Connecter mon Claude » (27.11) : on retient seulement CE FAIT (jamais l'adresse), pour garder
+  // « Annuler : j'ai déjà un connecteur » après un rechargement.
+  function claudeCreeIci(id) { try { return localStorage.getItem("origami_claude_cree_" + id) === "1"; } catch (e) { return false; } }
   function claudeRedessiner() { if (etat.vue === "reglages") dessinerReglages(); }
   function claudeCharger(id, force) {
     var v = claudeVus[id] || (claudeVus[id] = {});
@@ -4029,6 +4032,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (!a && claudeConnecterPossible(c.id) && !v.deja) {
         h += "<p>Tu n'as pas encore de connecteur ? Un clic en crée un, rien qu'à toi, et y relie ce compte.</p>";
         h += '<p id="claudeMessage" class="souci" role="status">' + texte(v.message || "") + '</p><div class="actions"><button class="bouton fort" data-claude="connecter"' + de + arret + '>Connecter mon Claude</button><button class="bouton" data-claude="deja"' + de + arret + ">J'ai déjà un connecteur</button></div>";
+        h += "<p class=\"aide-fine\">Tu en as déjà un, même créé dans une autre appli (la Compta, un autre compte) ? Prends plutôt « J'ai déjà un connecteur ».</p>";
         return h + "</div>";
       }
       if (a) h += '<div class="actions"><button class="bouton fort" data-claude="reprendre" data-source="' + a.id + '"' + de + arret + ">Reprendre la page réglée dans « " + texte(a.nom) + " »</button></div>";
@@ -4045,6 +4049,7 @@ button.tuile:hover { border-color: var(--ligne); }
         '<div class="actions"><button class="bouton fort" data-claude="copier"' + de + ">Copier l'adresse pour Claude</button><button class=\"bouton\" data-claude=\"claudeAi\"" + de + ">Ouvrir les connecteurs de Claude</button></div>" +
         '<p class="aide-fine">Cette adresse vaut une clé : garde-la pour toi. Elle n\'est pas écrite ici ; tu la retrouves à tout moment avec « Ouvrir la page du connecteur ».</p></div>';
     }
+    if (v.pourClaude || claudeCreeIci(c.id)) h += '<div class="actions"><button class="bouton" data-claude="annulerCree"' + de + arret + ">Annuler : j'ai déjà un connecteur</button></div>";
     h += '<div class="actions"><button class="bouton' + (e.relie && !v.pourClaude ? " fort" : "") + '" data-claude="page"' + de + '>Ouvrir la page du connecteur</button><button class="bouton' + (e.relie ? "" : " fort") + '" data-claude="brancher"' + de + arret + ">" + (e.relie ? "Relier de nouveau" : "Relier Origami à Claude") + '</button><button class="bouton" data-claude="oublier"' + de + arret + ">Oublier l'adresse</button></div>";
     return h + "</div>";
   }
@@ -4057,6 +4062,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var v = claudeVus[id] || (claudeVus[id] = {});
     v.occupe = "Enregistrement…"; v.message = ""; claudeRedessiner();
     moteurAppel(id, "claude.regler", { page: page }, { sans: true }).then(function (e) {
+      garder("origami_claude_cree_" + id, "");   // une autre page (collée, reprise ou oubliée) : « Annuler » ne doit jamais fermer celle-là
       v.occupe = ""; v.e = e && typeof e === "object" ? e : v.e; v.le = Date.now(); v.message = ""; v.bon = true;
       var cp = document.getElementById("claudePage"); if (cp) cp.value = "";
       avis(dit); claudeRedessiner();
@@ -4085,6 +4091,7 @@ button.tuile:hover { border-color: var(--ligne); }
         v.occupe = ""; v.enVol = ""; v.bon = true; v.le = Date.now(); v.deja = false; if (r && r.etat && typeof r.etat === "object") v.e = r.etat;
         // L'adresse à coller dans Claude : en mémoire seulement, le temps de la copier. Elle n'est jamais écrite dans la page ni gardée sur l'appareil.
         v.pourClaude = r && /^https:\/\/[a-z0-9.-]+\/mcp\/[A-Za-z0-9]{32,128}$/.test(String(r.adresse || "")) ? String(r.adresse) : "";
+        garder("origami_claude_cree_" + id, "1");
         v.message = v.pourClaude ? "Ton connecteur est créé et ce compte y est relié." : (r && r.message ? String(r.message).slice(0, 200) : "Origami est relié à Claude.") + " Dans Claude, ouvre une nouvelle conversation pour qu'il voie ce compte.";
         claudeRedessiner();
       }, function (er) {
@@ -4117,6 +4124,34 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     if (d.claude === "oublier") {
       ouvrirVoile("<h2>Oublier l'adresse du connecteur ?</h2><p>« " + texte(c.nom) + " » ne retiendra plus l'adresse de la page du connecteur : il faudra la coller de nouveau pour l'ouvrir d'ici.</p>" + (v.e && v.e.relie ? "<p>Claude reste relié à ce compte. Pour lui couper l'accès, retire « Claude (connecteur) » dans « Appareils reliés ».</p>" : "") + '<div class="actions"><button class="bouton" data-fermer-voile="1">Annuler</button><button class="bouton fort" data-claude="oublierOui" data-de="' + id + '">Oublier</button></div>');
+      return true;
+    }
+    if (d.claude === "annulerCree") {
+      ouvrirVoile("<h2>Annuler ce connecteur ?</h2><p>Le connecteur créé tout à l'heure depuis « " + texte(c.nom) + " » sera fermé pour de bon : son adresse ne marchera plus dans Claude. Tu pourras ensuite coller l'adresse du connecteur que tu as déjà.</p>" + '<div class="actions"><button class="bouton" data-fermer-voile="1">Garder ce connecteur</button><button class="bouton fort danger" data-claude="annulerOui" data-de="' + id + '">Fermer ce connecteur</button></div>');
+      return true;
+    }
+    if (d.claude === "annulerOui") {
+      fermerVoile();
+      var pg = v.e && v.e.page ? String(v.e.page) : "";
+      if (!/\/boites\//.test(pg)) { v.bon = false; v.message = "La page de ce connecteur n'est pas connue ici : rien n'a changé."; claudeRedessiner(); return true; }
+      v.occupe = "Fermeture du connecteur…"; v.message = ""; claudeRedessiner();
+      var lu = false, ferme = false;
+      fetch(pg.replace("/boites/", "/fermer/"), { method: "POST" }).then(function (r) {
+        lu = true;
+        if (!(r.ok || r.status === 404)) throw new Error("refus " + r.status);
+        ferme = true;
+        return moteurAppel(id, "claude.regler", { page: "" }, { sans: true });
+      }).then(function (e) {
+        garder("origami_claude_cree_" + id, "");
+        v.occupe = ""; v.pourClaude = ""; v.e = e && typeof e === "object" ? e : v.e; v.le = Date.now(); v.deja = true; v.bon = true;
+        v.message = "Ce connecteur est fermé. Colle maintenant l'adresse de la page de celui que tu as déjà.";
+        claudeRedessiner(); var cq = document.getElementById("claudePage"); if (cq) cq.focus();
+      }, function () {
+        v.occupe = ""; v.bon = false;
+        // Réponse illisible (relais sans en-tête CORS sur /fermer, avant 5.0.1) : le connecteur a pu être fermé quand même.
+        v.message = ferme ? "Le connecteur est fermé, mais ce compte n'a pas pu oublier son adresse : clique « Oublier l'adresse »." : lu ? "Le connecteur n'a pas pu être fermé d'ici : rien n'a changé. Réessaie un peu plus tard." : "La réponse du connecteur n'a pas pu être lue. Ouvre la page du connecteur : si elle dit qu'il est fermé, clique « Oublier l'adresse ». Sinon, réessaie un peu plus tard.";
+        claudeRedessiner();
+      });
       return true;
     }
     if (d.claude === "oublierOui") { fermerVoile(); v.pourClaude = ""; claudeRegler(id, "", "Adresse du connecteur oubliée pour « " + c.nom + " »."); return true; }
