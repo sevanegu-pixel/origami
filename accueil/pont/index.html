@@ -52,6 +52,9 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   "use strict";
   var G = window.OrigamiGoogle, titre = document.getElementById("titre"), texte = document.getElementById("texte"), souci = document.getElementById("souci"), bouton = document.getElementById("continuer"), aide = document.getElementById("aide");
   var champ = document.getElementById("champ"), saisie = document.getElementById("adresse");
+  // Lien collé dans un onglet déjà ouvert sur cette page (27.11, vu en vrai) : le navigateur change seulement ce qui suit le #,
+  // sans recharger, et la page gardait « Rien à faire ici ». On relit donc la page à chaque nouveau lien.
+  window.addEventListener("hashchange", function () { if (location.hash) location.reload(); });
   var m = /^#(\d{4,5})\.([0-9a-f]{32,64})(\.d)?(?:\.a([A-Za-z0-9_-]{4,400}))?$/.exec(location.hash || ""), port = m ? Number(m[1]) : 0;
   try { history.replaceState(null, "", location.pathname); } catch (e) {}   // le secret ne reste pas dans la barre d'adresse
   function dire(t, p) { titre.textContent = t; texte.textContent = p; }
