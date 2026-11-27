@@ -1357,7 +1357,7 @@
         c = deja;
       }
       else comptes.push(c);
-      garderComptes(); dire('Compte relié : ' + (c.email || nomCourt(c))); montrer(c.id);
+      delete versions[c.id]; garderComptes(); dire('Compte relié : ' + (c.email || nomCourt(c))); montrer(c.id);
       // Boîte (re)faite : rebranchée toute seule au connecteur Claude si sa page est connue sur ce Mac (sinon rien, sans message).
       if (pageClaudeOk(pageClaude())) { var cc = c; setTimeout(function () { relierClaude(cc, pageClaude(), true); }, 4000); }
     }, function (e) { dire('Pas pu relier : ' + (e && e.message || e)); });
@@ -1373,7 +1373,7 @@
         return '<div class="compte" data-id="' + esc(c.id) + '"><span class="pastille" style="background:' + esc(c.couleur) + '"></span>' +
           '<div style="min-width:0"><input type="text" class="cp-nom" value="' + esc(c.nom) + '" placeholder="' + esc(nomCourt(c)) + '" aria-label="Nom affiché">' +
           '<div class="doux" style="margin-top:4px;overflow-wrap:anywhere">' + esc(c.email || 'adresse inconnue') + '</div>' +
-          '<div class="cp-liens" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="cp-classeur">Ouvrir le classeur</button><button type="button" class="cp-claude"' + (claudeVu && claudeVu.id === c.id ? ' aria-expanded="true"' : '') + '>Connecteur Claude…</button></div>' +
+          '<div class="cp-liens" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="cp-classeur">Ouvrir le classeur</button><button type="button" class="cp-claude"' + (claudeVu && claudeVu.id === c.id ? ' aria-expanded="true"' : '') + '>Connecteur Claude…</button>' + htmlMaj(c) + '</div>' +
           '<div class="couleurs" style="margin-top:6px">' + COULEURS.map(function (k) { return '<span data-couleur="' + k + '" style="background:' + k + '"' + (k === c.couleur ? ' class="choisie"' : '') + '></span>'; }).join('') + '</div></div>' +
           '<div class="actions">' + fleches + '<button type="button" class="cp-retirer" title="Retirer de cette appli seulement">Retirer</button><button type="button" class="cp-desinst" title="Désinstaller la Boîte mail de ce compte Google">Désinstaller…</button></div>' + htmlDesinst(c) + htmlClaude(c) + '</div>';
       }).join('');
@@ -1410,6 +1410,7 @@
       return;
     }
     if (e.target.classList.contains('cp-classeur')) { ouvrirClasseur(c); return; }
+    if (e.target.classList.contains('cp-maj')) { mettreAJour(c); return; }
     if (e.target.classList.contains('cp-claude')) { claudeVu = claudeVu && claudeVu.id === id ? null : { id: id }; dessinerComptes(); return; }
     if (e.target.getAttribute('data-claude') === 'relier') { relierClaude(c, String((l.querySelector('[data-claude="page"]') || {}).value || '').trim(), false); return; }
     if (e.target.getAttribute('data-claude') === 'fermer') { claudeVu = null; dessinerComptes(); return; }
@@ -1441,6 +1442,26 @@
      le connecteur remplace tout seul l'ancienne copie du même compte. L'adresse de la page est gardée sur ce Mac pour les boîtes suivantes,
      et une boîte reliée de nouveau (refaite par « Continuer avec Google ») est rebranchée toute seule. */
   var CLE_PAGE_CLAUDE = 'boite-mail-claude-page', claudeVu = null;
+  /* « Mettre à jour la boîte » (27.11.2026, Sévane : qu'une nouvelle version arrive sans tout refaire). Google ne laisse pas une copie
+     changer son propre code ; la page Origami, connectée à Google, le fait (« Continuer avec Google » : elle retrouve la boîte installée
+     et remplace seulement son code, même adresse, liaisons gardées). L'appli demande au moteur où il en est (infosBoite : moteur 37 et
+     plus) et propose le bouton quand il est plus ancien que DERNIER_MOTEUR (la version publiée sur la boîte compagnie et le modèle). */
+  var DERNIER_MOTEUR = 37, versions = {};
+  function htmlMaj(c) {
+    var v = versions[c.id];
+    if (!v) { versions[c.id] = { attente: true }; porte(c, 'infosBoite', []).then(function (r) { versions[c.id] = { n: Number(r && r.moteur) || 37, corbeille: !!(r && r.classeur && r.classeur.corbeille) }; },
+      function (e) { var m = String(e && e.message || e); versions[c.id] = ancienMoteur(m) ? { n: 0 } : { muet: m }; }).then(function () { if (vue === 'comptes') dessinerComptes(); }); return ''; }
+    if (v.attente) return '';
+    if (v.muet) return '<span class="avert" style="flex-basis:100%;font-size:13px">Cette boîte ne répond pas : ' + esc(v.muet.replace(/[.\s]+$/, '')) + '.</span>';
+    if (v.corbeille) return '<span class="avert" style="flex-basis:100%;font-size:13px">Son classeur est dans la corbeille de Drive : restaurez-le, sinon la boîte s\'arrêtera.</span>';
+    if (v.n && v.n >= DERNIER_MOTEUR) return '<span class="doux" style="align-self:center;font-size:13px">Boîte à jour</span>';
+    return '<button type="button" class="cp-maj prim" title="Par Origami, connecté à Google. Une boîte faite à la main (copie du modèle) est remplacée par une boîte neuve, rangée dans Origami ; l\'ancienne copie reste dans le Drive.">Mettre à jour la boîte</button>';
+  }
+  function mettreAJour(c) {
+    ouvrirDehors(ORIGAMI_GOOGLE + (c.email ? '&email=' + encodeURIComponent(c.email) : ''));
+    delete versions[c.id];
+    dire('Origami s\'ouvre dans le navigateur : connectez-vous avec ' + (c.email || 'ce compte') + '. Il remplace seulement le code de la boîte ; elle revient ici toute seule.');
+  }
   function pageClaude() { try { return localStorage.getItem(CLE_PAGE_CLAUDE) || ''; } catch (e) { return ''; } }
   function pageClaudeOk(p) { return /^https:\/\/boite-mail-relais\.boite-mail-relais\.workers\.dev\/boites\/[A-Za-z0-9_-]{32,128}$/.test(String(p || '')); }
   function ancienMoteur(m) { return /Fonction inconnue/.test(String(m || '')); }
