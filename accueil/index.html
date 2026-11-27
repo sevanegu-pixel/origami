@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-26.83">
+<meta name="origami-version" content="2026-11-27.84">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -596,10 +596,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-26.83"></script>
-<script src="repertoire.js?v=2026-11-26.83"></script>
-<script src="fichiers.js?v=2026-11-26.83"></script>
-<script src="google.js?v=2026-11-26.83"></script>
+<script src="agenda.js?v=2026-11-27.84"></script>
+<script src="repertoire.js?v=2026-11-27.84"></script>
+<script src="fichiers.js?v=2026-11-27.84"></script>
+<script src="google.js?v=2026-11-27.84"></script>
 <script>
 (function () {
   "use strict";
@@ -4468,7 +4468,14 @@ button.tuile:hover { border-color: var(--ligne); }
     } else if (P.phase === "compagnie") {
       // Le compte de la compagnie : Origami y a été installé depuis le Mac, la page ne le voit pas. Surtout ne pas l'y installer une deuxième fois.
       h += "<h1>Origami est déjà dans ce compte</h1><p>Compte Google : " + adr + "</p>";
-      h += "<p>C'est le compte de la compagnie : Origami y est déjà installé, il ne faut pas l'y installer une deuxième fois. Pour l'ajouter sur cet appareil, il faut un code de liaison : sur un appareil où ce compte est déjà dans Origami, va dans Réglages, « Relier un autre appareil ».</p>";
+      h += "<p>C'est le compte de la compagnie : Origami y est déjà installé, il ne faut pas l'y installer une deuxième fois. Pour l'ajouter sur cet appareil, il faut un code de liaison.</p>";
+      // Chercher le code depuis cet écran (27.11, demandé par Sévane) : le classeur des réglages du compte le donne.
+      // La page ne voit pas ce classeur (installé avant le parcours Google) : on ouvre la recherche du Drive sur son nom, dans ce compte.
+      var lienCode = "https://drive.google.com/drive/search?q=" + encodeURIComponent('"Origami - Réglages du compte"') + (P.google ? "&authuser=" + encodeURIComponent(P.google) : "");
+      h += '<ol class="pas"><li>Clique « Ouvrir le classeur dans le Drive ». Vérifie en haut à droite que c\'est bien ' + adr + ' (sinon, copie le lien et colle-le dans le navigateur de ce compte).</li><li>Ouvre « Origami - Réglages du compte » (pas celui marqué « modèle à copier »).</li><li>Menu « Origami », puis « Relier un appareil ». Copie le code.</li><li>Reviens ici, clique « J\'ai un code de liaison » et colle-le.</li></ol>';
+      h += '<div class="actions"><a class="bouton" href="' + lienCode + '" target="_blank" rel="noopener">Ouvrir le classeur dans le Drive</a></div>';
+      h += '<div class="copie"><input id="lienCodeLiaison" readonly value="' + texte(lienCode) + '" aria-label="Lien du Drive à copier"><button class="bouton" data-copier="lienCodeLiaison">Copier le lien</button></div>';
+      h += '<p class="aide-fine">Autre façon : sur un appareil où ce compte est déjà dans Origami, Réglages, « Relier un autre appareil ».</p>';
       h += '<div class="pas-boutons"><button class="bouton" data-parcours="annuler">Retour</button><button class="bouton fort" data-guide="-1">J\'ai un code de liaison</button></div>';
     } else if (P.phase === "interrupteur") {
       h += parcoursBarre(2) + "<h1>Un interrupteur à allumer</h1>";
