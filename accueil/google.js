@@ -758,6 +758,9 @@
    */
   function installerBoite(o) {
     var s = session(o.cle), dire = o.dire || function () {}, r = null, modele = null, secret = hasard(32), dossier = "", premiere = false, deja = false;
+    // Pourquoi le classeur n'est pas dans son dossier, pour que l'écran le dise (27.11 : des classeurs restés à la racine sans un mot) :
+    // "" (rangé), "sans-moteur" (l'Origami du compte n'a pas été joint), "sans-dossier" (il n'a pas rendu de dossier), "refus" (Google a refusé).
+    var pasRange = "", prevu = "";
     if (!s || !s.drive) return Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion"));
     dire("chercher");
     return chercherBoite(s).then(function (x) {
@@ -772,6 +775,8 @@
       return Promise.resolve(o.moteur ? o.moteur("rangement.preparer", { appli: "boite" }) : null).then(function (rg) {
         dossier = rg && rg.donnees && /^[\w-]{6,120}$/.test(String(rg.donnees.id || "")) ? rg.donnees.id : "";
         if (!o.moteur && r.dossier) { dossier = r.dossier; deja = true; }   // déjà rangée (installée seule, puis remise à jour) : rien à redemander
+        prevu = dossier;
+        if (!dossier) pasRange = o.moteur ? "sans-dossier" : "sans-moteur";
         if (r.classeur) return null;
         return drive(s, "POST", "files?fields=id", { name: NOM_BOITE, mimeType: "application/vnd.google-apps.spreadsheet", appProperties: { origami: MARQUE_BOITE } }).then(function (f) {
           if (!/^[\w-]{20,120}$/.test(String(f.id || ""))) throw souci("Google n'a pas rendu l'identifiant du classeur. Réessaie.", "occupe");
@@ -788,7 +793,7 @@
           return drive(s, "PATCH", "files/" + enc(r.classeur) + "?addParents=" + enc(dossier) + (p.length ? "&removeParents=" + enc(p.join(",")) : "") + "&fields=" + enc("id,parents"), nom)
             .then(function (g) { if (((g && g.parents) || []).indexOf(dossier) < 0) throw souci("Le classeur n'a pas bougé.", "rangement"); });
         }).then(function () { return noter(s, r.classeur, { origamiDossier: dossier }); })
-          .catch(function (e) { if (e && e.code === "expire") throw e; dossier = ""; });
+          .catch(function (e) { if (e && e.code === "expire") throw e; dossier = ""; pasRange = "refus"; });
       });
     }).then(function () {
       if (r.projet) return null;
@@ -815,7 +820,7 @@
         });
       })
       .then(function () { return noter(s, r.classeur, { origamiMoteur: r.deploiement, origamiModele: modele.empreinte }); })
-      .then(function () { return { classeur: r.classeur, projet: r.projet, deploiement: r.deploiement, adresse: r.adresse || adresseDeploiement(r.deploiement), dossier: dossier, secret: secret, premiere: premiere, modele: modele.empreinte }; })
+      .then(function () { return { classeur: r.classeur, projet: r.projet, deploiement: r.deploiement, adresse: r.adresse || adresseDeploiement(r.deploiement), dossier: dossier, pasRange: dossier ? "" : pasRange, prevu: dossier ? "" : prevu, secret: secret, premiere: premiere, modele: modele.empreinte }; })
       .catch(function (e) {
         if (e && e.code === "introuvable" && !o.refait && r && r.classeur && r.projet) return noter(s, r.classeur, { origamiProjet: null, origamiMoteur: null }).then(function () { return installerBoite({ cle: o.cle, moteur: o.moteur, dire: o.dire, refait: true }); });
         throw e;
