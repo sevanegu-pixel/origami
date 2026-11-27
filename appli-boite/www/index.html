@@ -1284,17 +1284,37 @@
       '<div class="boite">' +
       '<div class="etape"><span class="num">1</span><div><b>Créer la Boîte mail du compte</b><p class="doux">Une copie vierge s\'ouvre dans le navigateur. Indiquez l\'adresse Gmail du compte : la copie se fait avec ce compte-là. Puis « Créer une copie ».</p>' +
         '<input type="text" id="aj-email" inputmode="email" autocomplete="email" placeholder="Adresse Gmail du compte à relier" style="margin-bottom:8px">' +
-        '<button type="button" class="prim" id="aj-copie"' + (pret ? '' : ' disabled') + '>Créer ma Boîte mail</button>' + (pret ? '' : ' <span class="doux">(bientôt)</span>') + '</div></div>' +
+        '<div class="actions" style="flex-wrap:wrap;gap:6px"><button type="button" class="prim" id="aj-copie"' + (pret ? '' : ' disabled') + '>Créer ma Boîte mail</button>' +
+        '<button type="button" id="aj-prive"' + (pret ? '' : ' disabled') + '>Dans une fenêtre privée</button>' +
+        '<button type="button" id="aj-lien"' + (pret ? '' : ' disabled') + '>Copier le lien</button>' + (pret ? '' : ' <span class="doux">(bientôt)</span>') + '</div>' +
+        '<p class="doux" style="margin:6px 0 0">Google demande d\'abord quel compte utiliser : choisissez l\'adresse indiquée. Si un autre compte s\'ouvre quand même, « Dans une fenêtre privée » n\'a que ce compte-là.</p>' +
+        '<input type="text" id="aj-lien-texte" readonly style="display:none;margin-top:6px"></div></div>' +
       '<div class="etape"><span class="num">2</span><div><b>Relier à l\'appli</b><p class="doux">Dans la copie : menu <b>Boîte mail › Relier à l\'appli Boîte mail</b>, puis acceptez les autorisations Google (« appli non validée » : c\'est normal pour un outil à soi, « Paramètres avancés › Accéder »). La première fois, un interrupteur Google est demandé : la fenêtre explique.</p></div></div>' +
       '<div class="etape"><span class="num">3</span><div><b>Ouvrir dans l\'appli</b><p class="doux">Cliquez « Ouvrir dans l\'appli Boîte mail » : le compte apparaît ici tout seul. Sinon, collez le code :</p>' +
         '<textarea id="aj-code" placeholder="Code de liaison"></textarea><div class="actions"><button type="button" id="aj-ok">Relier avec ce code</button></div></div></div>' +
       '</div></details>';
-    var b = $('aj-copie'); if (b && pret) b.onclick = function () {
-      // Plusieurs comptes Google dans le navigateur : sans « authuser », la copie part sur le compte par défaut.
+    // 27.11 : « authuser » seul ouvrait le compte déjà connecté (compagnie) au lieu de l'adresse écrite. Le passage par le choix
+    // de compte de Google (« AccountChooser », adresse proposée d'office) fait choisir ou connecter le bon compte avant la copie.
+    function lienCopie() {
       var em = String($('aj-email').value || '').trim();
-      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { dire('Adresse incomplète.'); return; }
-      ouvrirDehors(MODELE + (em ? '?authuser=' + encodeURIComponent(em) : ''));
-    };
+      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) { dire('Adresse incomplète.'); return ''; }
+      var copie = MODELE + (em ? '?authuser=' + encodeURIComponent(em) : '');
+      return 'https://accounts.google.com/AccountChooser?' + (em ? 'Email=' + encodeURIComponent(em) + '&' : '') + 'continue=' + encodeURIComponent(copie);
+    }
+    if (pret) {
+      $('aj-copie').onclick = function () { var u = lienCopie(); if (u) ouvrirDehors(u); };
+      $('aj-prive').onclick = function () {
+        var u = lienCopie(); if (!u) return;
+        if (!(T && T.core)) { window.open(u, '_blank'); return; }
+        T.core.invoke('fenetre_privee', { url: u }).then(function (nav) { dire('Ouvert dans une fenêtre privée de ' + nav + '. Connectez-vous avec le compte à relier.'); },
+          function () { montrerLien(u); dire('Aucun navigateur ne sait s\'ouvrir en privé d\'ici (Safari ne le permet pas) : lien copié, collez-le dans une fenêtre privée.'); });
+      };
+      $('aj-lien').onclick = function () { var u = lienCopie(); if (u) { montrerLien(u); dire('Lien copié : collez-le dans le navigateur où le compte est connecté.'); } };
+    }
+    function montrerLien(u) {
+      var t = $('aj-lien-texte'); t.value = u; t.style.display = 'block';
+      try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).catch(function () { t.select(); try { document.execCommand('copy'); } catch (e) { /* rien */ } }); else { t.select(); document.execCommand('copy'); } } catch (e) { /* le lien reste affiché */ }
+    }
     $('aj-ok').onclick = function () { relier($('aj-code').value); };
     // « Continuer avec Google » (25.11, page d'Origami) : connexion, installation dans le compte, puis retour ici par boitemail://relier.
     $('aj-google').onclick = function () {

@@ -162,6 +162,43 @@ fn ecran_oublier(app: tauri::AppHandle, compte: String) -> Result<(), String> {
     Ok(())
 }
 
+// Fenêtre privée (27.11) : la copie du modèle s'ouvrait sur le compte Google déjà connecté dans le navigateur
+// (« authuser » ne suffit pas, vu chez Sévane). Dans une fenêtre privée, seul le compte voulu est connecté.
+// Seulement les pages Google utiles. Rend le nom du navigateur ouvert. Safari ne sait pas le faire par commande.
+const NAVIGATEURS_PRIVES: [(&str, &str, &str); 4] = [
+    ("Google Chrome", "Google Chrome.app", "--incognito"),
+    ("Brave", "Brave Browser.app", "--incognito"),
+    ("Microsoft Edge", "Microsoft Edge.app", "--inprivate"),
+    ("Firefox", "Firefox.app", "--private-window"),
+];
+
+#[tauri::command]
+fn fenetre_privee(url: String) -> Result<String, String> {
+    let permis = ["https://accounts.google.com/", "https://docs.google.com/", "https://script.google.com/"];
+    if !permis.iter().any(|d| url.starts_with(d)) || url.len() > 900 || url.chars().any(|c| c.is_whitespace() || c.is_control() || c == '"' || c == '\'' || c == '\\') {
+        return Err("Adresse refusée.".into());
+    }
+    let mut dossiers = vec![std::path::PathBuf::from("/Applications")];
+    if let Some(m) = std::env::var_os("HOME") {
+        dossiers.push(std::path::PathBuf::from(m).join("Applications"));
+    }
+    for (nom, dossier, drapeau) in NAVIGATEURS_PRIVES.iter() {
+        for d in dossiers.iter() {
+            let chemin = d.join(dossier);
+            if !chemin.exists() {
+                continue;
+            }
+            let ok = std::process::Command::new("/usr/bin/open")
+                .arg("-na").arg(&chemin).arg("--args").arg(drapeau).arg(&url)
+                .status().map(|s| s.success()).unwrap_or(false);
+            if ok {
+                return Ok(nom.to_string());
+            }
+        }
+    }
+    Err("aucun-navigateur".into())
+}
+
 fn reponse(code: u16, sorte: &str, corps: Vec<u8>) -> tauri::http::Response<Vec<u8>> {
     tauri::http::Response::builder()
         .status(code)
@@ -190,7 +227,7 @@ pub fn run() {
                 Err(_) => reponse(404, "text/plain; charset=utf-8", b"pas encore garde".to_vec()),
             }
         })
-        .invoke_handler(tauri::generate_handler![dossier_telechargements, enregistrer_fichier, montrer_fichier, ouvrir_fichier, ecran_garder, ecran_oublier, imprimer])
+        .invoke_handler(tauri::generate_handler![dossier_telechargements, enregistrer_fichier, montrer_fichier, ouvrir_fichier, ecran_garder, ecran_oublier, imprimer, fenetre_privee])
         .run(tauri::generate_context!())
         .expect("Boîte mail n'a pas pu démarrer");
 }
