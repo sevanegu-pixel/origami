@@ -1,0 +1,125 @@
+# Fabrique l'appli Boîte mail pour Android (fichier .apk) à partir du code de l'appli Mac (dossier appli-boite/), sans le modifier :
+# appli-boite-android/preparer.mjs le copie dans un dossier de fabrication et y pose ce qui est propre au téléphone
+# (affichage téléphone, veille des nouveaux mails en arrière-plan, une mémoire par boîte). Publiée comme « version » GitHub.
+name: Appli Boîte mail Android
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Branche où prendre le code de l'appli Mac (appli-boite/)"
+        required: false
+        default: "claude/project-thread-lsq98w"
+  push:
+    paths:
+      - "appli-boite-android/**"
+      - ".github/workflows/appli-boite-android.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    env:
+      SOURCE: ${{ github.event.inputs.source || 'claude/project-thread-lsq98w' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Le code de l'appli Mac : la branche demandée, sinon main.
+      - name: Code de l'appli Mac
+        run: |
+          mkdir -p source
+          if git fetch --depth 1 origin "$SOURCE" && git cat-file -e FETCH_HEAD:appli-boite/www/index.html; then
+            echo "Code pris sur $SOURCE"
+          else
+            git fetch --depth 1 origin main
+            echo "Code pris sur main"
+          fi
+          git rev-parse FETCH_HEAD | tee source/commit.txt
+          git archive FETCH_HEAD appli-boite | tar -x -C source
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Outils Android (NDK)
+        run: |
+          sdkmanager --install "ndk;27.2.12479018" > /dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Projet Android préparé
+        env:
+          NUMERO: ${{ github.run_number }}
+        run: node appli-boite-android/preparer.mjs source/appli-boite fab
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fab/src-tauri -> target
+
+      - name: Outils, icônes et numéro de version
+        working-directory: fab
+        run: |
+          npm install --no-audit --no-fund
+          npx tauri icon icone-1024.png
+          node -e "const fs=require('fs'),f='www/index.html';fs.writeFileSync(f,fs.readFileSync(f,'utf8').split('__VERSION_APPLI__').join('${{ github.run_number }} (Android)'))"
+          npx tauri android init --ci
+
+      # Clé de signature : TOUJOURS la même (secret du dépôt), sinon Android refuse d'installer une nouvelle version par-dessus
+      # l'ancienne (il faudrait désinstaller, et la mémoire de l'appli serait perdue). Sans le secret : clé d'essai jetable.
+      - name: Signature
+        working-directory: fab/src-tauri/gen/android
+        env:
+          CLE: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          MDP: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$CLE" ] && [ -n "$MDP" ]; then
+            echo "$CLE" | base64 -d > "$RUNNER_TEMP/boite.jks"
+            echo "CLE_FIXE=oui" >> "$GITHUB_ENV"
+          else
+            MDP=$(openssl rand -hex 16)
+            keytool -genkeypair -v -keystore "$RUNNER_TEMP/boite.jks" -alias boite -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$MDP" -keypass "$MDP" -dname "CN=Boite mail, O=Origami, C=CH" > /dev/null
+            echo "CLE_FIXE=non" >> "$GITHUB_ENV"
+          fi
+          printf 'keyAlias=boite\npassword=%s\nstoreFile=%s\n' "$MDP" "$RUNNER_TEMP/boite.jks" > keystore.properties
+          node "$GITHUB_WORKSPACE/appli-boite-android/signature.mjs" app/build.gradle.kts
+
+      - name: Fabrication
+        working-directory: fab
+        run: npx tauri android build --apk --target aarch64 --ci
+
+      - name: Fichier à télécharger
+        run: |
+          f=$(find fab/src-tauri/gen/android/app/build/outputs/apk -name "*release*.apk" | grep -v unsigned | head -1)
+          test -n "$f" || { find fab/src-tauri/gen/android/app/build/outputs -name "*.apk"; exit 1; }
+          cp "$f" Boite-mail-Android.apk
+          ls -l Boite-mail-Android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Boite-mail-Android
+          path: Boite-mail-Android.apk
+
+      - name: Version à télécharger
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: appli-boite-android-${{ github.run_number }}
+          name: Appli Boîte mail pour Android (${{ github.run_number }})
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          files: Boite-mail-Android.apk
+          body: |
+            Appli Boîte mail pour téléphone Android (essai). Ouvrir ce lien sur le téléphone, télécharger « Boite-mail-Android.apk », l'ouvrir,
+            puis autoriser une fois l'installation d'applis depuis le navigateur. Clé de signature fixe : ${{ env.CLE_FIXE }}.

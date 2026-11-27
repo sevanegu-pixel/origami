@@ -1,0 +1,7 @@
+/* Boîte mail sur téléphone (appli Android) : barre des comptes plus fine, sans barre de défilement visible.
+   Posé seulement par l'appli Android (classe « telephone » sur <html>). */
+html.telephone nav { padding: 6px 8px !important; gap: 6px !important; scrollbar-width: none; }
+html.telephone nav::-webkit-scrollbar { width: 0; height: 0; }
+html.telephone .choix { padding: 5px 11px !important; font-size: 13px; gap: 7px; }
+html.telephone .choix .nom { max-width: 120px; }
+html.telephone ::-webkit-scrollbar { width: 0; height: 0; }

@@ -1,0 +1,97 @@
+/* Boîte mail sur téléphone (appli Android) : même écran, mêmes fonctions, rangé pour un écran de téléphone,
+   à la manière de l'appli Gmail : pas de cadres autour des mails, lignes serrées, recherche en haut, « Nouveau mail » flottant.
+   Posé seulement par l'appli Android (classe « telephone » sur <html>) : l'appli du Mac et le navigateur ne le voient pas. */
+html.telephone, html.telephone body { background: var(--carte); }
+html.telephone ::-webkit-scrollbar { width: 0; height: 0; }
+html.telephone .bandeau-test { font-size: 10px; padding: 2px 8px; }
+
+/* Rubriques (Boîte, Campagnes, Modèles…) : une ligne fine */
+html.telephone #sous-onglets { margin: 0; padding: 0 8px; border: 0; }
+html.telephone #sous-onglets .volets { gap: 2px; padding: 0; border-bottom: 1px solid var(--ligne); scrollbar-width: none; }
+html.telephone #sous-onglets .volets button { padding: 8px 10px; font-size: 13px; min-height: 0; }
+html.telephone .contenu, html.telephone main { padding: 0 !important; margin: 0 !important; }
+
+/* La colonne des mails : pleine largeur, sans carte */
+html.telephone #msg-grille { padding: 0; margin: 0; gap: 0; }
+html.telephone .msg-colonne { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 0 0 88px !important; margin: 0 !important; background: transparent !important; }
+
+/* Recherche : une pastille ronde avec le bouton ☰ des dossiers dedans */
+html.telephone .msg-colonne > .barre { position: relative; display: flex; align-items: center; gap: 0; margin: 8px 10px 4px; padding: 0; background: var(--carte2); border-radius: 28px; }
+html.telephone #msg-ouvrir-dossiers { display: inline-flex !important; align-items: center; justify-content: center; flex: 0 0 auto; width: 46px; height: 46px; padding: 0; border: 0; background: transparent; font-size: 0; color: var(--texte); box-shadow: none; }
+html.telephone #msg-ouvrir-dossiers::before { content: "☰"; font-size: 20px; line-height: 1; }
+html.telephone #msg-recherche { flex: 1 1 auto; min-width: 0; height: 46px; border: 0 !important; background: transparent !important; box-shadow: none !important; font-size: 16px; padding: 0 14px 0 2px; border-radius: 28px; }
+
+/* Onglets Principale, Promotions… : petits, sur une ligne */
+html.telephone #msg-onglets { margin: 2px 10px 0; padding: 0; gap: 2px; border: 0; scrollbar-width: none; }
+html.telephone #msg-onglets button { padding: 6px 10px; font-size: 13px; min-height: 0; }
+
+/* Barre d'actions : une seule ligne serrée */
+html.telephone #msg-actions { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; margin: 0; padding: 2px 10px 4px; overflow-x: auto; scrollbar-width: none; border: 0; min-height: 0; }
+html.telephone #msg-actions > * { flex: 0 0 auto; }
+html.telephone #msg-actions .btn { min-height: 30px; height: 30px; padding: 0 8px; font-size: 13px; }
+html.telephone #msg-actions .espace { flex: 1 1 auto; min-width: 4px; }
+html.telephone #msg-actions label.petit { font-size: 12px; white-space: nowrap; }
+html.telephone #msg-actions .pagination-haut { display: inline-flex; align-items: center; gap: 2px; margin: 0; }
+html.telephone #msg-actions .pagination-haut .btn { width: 30px; padding: 0; }
+
+/* Liste des mails : lignes à la Gmail */
+html.telephone #msg-liste { padding: 0; margin: 0; gap: 0; display: block; }
+html.telephone #msg-liste .conv { display: flex; align-items: flex-start; gap: 12px; margin: 0 !important; padding: 10px 14px 10px 10px; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; background: var(--carte); min-height: 0; }
+html.telephone #msg-liste .conv + .conv { border-top: 1px solid var(--ligne) !important; }
+html.telephone #msg-liste .conv.non-lu { background: var(--carte); }
+html.telephone #msg-liste .conv.choisi, html.telephone #msg-liste .conv.actif, html.telephone #msg-liste .conv[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--carte)); }
+html.telephone #msg-liste .conv-gauche { position: relative; flex: 0 0 40px; width: 40px; height: 40px; margin-top: 2px; display: block; }
+html.telephone #msg-liste .conv-gauche input[type="checkbox"] { position: absolute; inset: 0; width: 40px; height: 40px; margin: 0; opacity: 0; z-index: 2; cursor: pointer; }
+html.telephone #msg-liste .tel-pastille { position: absolute; inset: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: 500; z-index: 1; pointer-events: none; }
+html.telephone #msg-liste .conv-gauche input[type="checkbox"]:checked + .tel-pastille { background: #1a73e8 !important; font-size: 0; }
+html.telephone #msg-liste .conv-gauche input[type="checkbox"]:checked + .tel-pastille::after { content: "✓"; font-size: 20px; }
+html.telephone #msg-liste .conv-corps { position: relative; flex: 1 1 auto; min-width: 0; display: block; padding-right: 0; }
+html.telephone #msg-liste .conv-tete { display: flex; align-items: baseline; gap: 6px; font-size: 15px; line-height: 1.3; }
+html.telephone #msg-liste .conv-tete > b { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+html.telephone #msg-liste .conv.non-lu .conv-tete > b { font-weight: 700; }
+html.telephone #msg-liste .conv-tete .conv-date { margin-left: auto; flex: 0 0 auto; font-size: 12px; color: var(--doux); white-space: nowrap; }
+html.telephone #msg-liste .conv.non-lu .conv-date { color: var(--texte); font-weight: 700; }
+html.telephone #msg-liste .conv-objet { display: block; font-size: 14px; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--texte); padding-right: 30px; }
+html.telephone #msg-liste .conv.non-lu .conv-objet { font-weight: 700; }
+html.telephone #msg-liste .conv-extrait { display: block; font-weight: 400; font-size: 14px; color: var(--doux); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.telephone #msg-liste .conv-corps .etoile { opacity: .55; position: absolute; right: -6px; bottom: -6px; width: 34px; height: 34px; margin: 0; border: 0; background: transparent; color: var(--doux); font-size: 20px; line-height: 34px; padding: 0; text-align: center; }
+html.telephone #msg-liste .conv-corps .etoile.on { color: #f4b400; opacity: 1; }
+
+/* « Nouveau mail » : bouton flottant en bas à droite */
+html.telephone .tel-nouveau { position: fixed; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: inline-flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px 0 16px; border: 0; border-radius: 16px; background: color-mix(in srgb, var(--accent) 22%, var(--carte)); color: var(--texte); font: 500 15px/1 inherit; font-family: inherit; box-shadow: 0 2px 6px rgba(0,0,0,.18), 0 1px 2px rgba(0,0,0,.12); cursor: pointer; }
+html.telephone .tel-nouveau svg { width: 22px; height: 22px; }
+html.telephone .tel-nouveau.replie { padding: 0; width: 56px; justify-content: center; }
+html.telephone .tel-nouveau.replie span { display: none; }
+html.telephone:not(.tel-vue-liste) .tel-nouveau { display: none; }
+
+/* Conversation ouverte : pleine largeur, messages sans cadre, séparés d'un trait */
+html.telephone #msg-fil { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; margin: 0 !important; padding: 0 12px 24px !important; background: var(--carte) !important; }
+html.telephone #msg-fil .fil-message { border: 0 !important; border-radius: 0 !important; box-shadow: none !important; margin: 0 -12px !important; padding: 12px 14px !important; border-bottom: 1px solid var(--ligne) !important; background: var(--carte) !important; }
+
+/* Écrire : champs sur une ligne (« À », « Cc », « Objet » à gauche), sans cadres, outils sur une ligne */
+html.telephone #modale .modale-boite > header { padding: 6px 8px 6px 14px; min-height: 0; }
+html.telephone #modale .modale-corps { padding: 0 14px 14px; }
+html.telephone #mc-ecrire .champs { gap: 0 !important; display: block; margin: 0; }
+html.telephone #mc-ecrire .mc-de { background: transparent !important; border: 0 !important; border-bottom: 1px solid var(--ligne) !important; border-radius: 0 !important; padding: 6px 0 !important; margin: 0 !important; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+html.telephone #mc-ecrire .mc-de label { color: var(--doux); font-weight: 400; font-size: 14px; }
+html.telephone #mc-ecrire .mc-de input { border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 4px 0 !important; flex: 1 1 120px; min-width: 0; font-size: 15px; }
+html.telephone #mc-ecrire .mc-de .mc-de-adresse { flex-basis: 100%; font-size: 12px; color: var(--doux); margin: 0; }
+html.telephone #mc-ecrire .champs label.champ:not(.cache) { display: flex !important; align-items: center; gap: 10px; margin: 0 !important; padding: 2px 0; min-height: 46px; border-bottom: 1px solid var(--ligne); font-size: 14px; font-weight: 400; color: var(--doux); white-space: nowrap; }
+html.telephone #mc-ecrire .champs label.champ > input:not(.cache), html.telephone #mc-ecrire .champs label.champ .puces-champ { flex: 1 1 auto; min-width: 0; border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 6px 0 !important; margin: 0 !important; min-height: 0; font-size: 15px; color: var(--texte); }
+html.telephone #mc-ecrire .champs label.champ .puces-saisie { border: 0 !important; background: transparent !important; box-shadow: none !important; font-size: 15px; padding: 4px 0 !important; }
+html.telephone #mc-ecrire .mc-outils { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 4px; margin: 6px 0 4px; padding: 2px 0; scrollbar-width: none; }
+html.telephone #mc-ecrire .mc-outils > * { flex: 0 0 auto; }
+html.telephone #mc-ecrire .mc-outils .btn { min-height: 32px; height: 32px; padding: 0 9px; font-size: 13px; }
+html.telephone #modale .mc-bascule { margin: 4px 0 2px; padding: 2px; min-height: 0; }
+html.telephone #modale .mc-bascule button { padding: 5px 10px; font-size: 13px; min-height: 0; }
+html.telephone #mc-ecrire .champs label.champ > select { flex: 1 1 auto; min-width: 0; border: 0 !important; background-color: transparent !important; box-shadow: none !important; padding: 6px 0 !important; font-size: 15px; color: var(--texte); }
+html.telephone #mc-ecrire .mc-corps { min-height: 38vh; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; padding: 8px 0 !important; margin: 0 0 4px; font-size: 16px; background: transparent !important; outline: none; }
+html.telephone #mc-ecrire .mc-joints, html.telephone #mc-ecrire .as-ligne { display: inline-flex; align-items: center; gap: 6px; margin: 6px 6px 0 0; }
+html.telephone #mc-ecrire .mc-joints > small { display: none; }
+html.telephone #mc-ecrire .mc-joints .btn, html.telephone #mc-ecrire .as-ligne .btn { min-height: 32px; height: 32px; padding: 0 10px; font-size: 13px; }
+html.telephone #mc-ecrire #mc-etat { font-size: 11px; margin: 6px 0 0; }
+html.telephone #modale-pied { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); }
+html.telephone #modale-pied .btn { min-height: 36px; height: 36px; padding: 0 10px; font-size: 13px; flex: 0 1 auto; }
+html.telephone #modale-pied #mc-envoyer { margin-left: auto; padding: 0 18px; border-radius: 18px; font-size: 14px; }
+html.telephone #modale-pied .mc-etat-pied { flex-basis: 100%; font-size: 11px; }
+html.telephone #modale-pied .mc-etat-pied:empty { display: none; }
