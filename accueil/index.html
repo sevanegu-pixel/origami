@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-27.84">
+<meta name="origami-version" content="2026-11-27.85">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -596,10 +596,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-27.84"></script>
-<script src="repertoire.js?v=2026-11-27.84"></script>
-<script src="fichiers.js?v=2026-11-27.84"></script>
-<script src="google.js?v=2026-11-27.84"></script>
+<script src="agenda.js?v=2026-11-27.85"></script>
+<script src="repertoire.js?v=2026-11-27.85"></script>
+<script src="fichiers.js?v=2026-11-27.85"></script>
+<script src="google.js?v=2026-11-27.85"></script>
 <script>
 (function () {
   "use strict";
@@ -4021,7 +4021,8 @@ button.tuile:hover { border-color: var(--ligne); }
     var v = claudeVus[c.id] || {}, e = v.e, de = ' data-de="' + c.id + '"', arret = v.occupe ? " disabled" : "";
     var h = '<div class="reglage" data-claude-bloc="' + c.id + '"><h3>Connecteur Claude</h3><p>Pour que Claude puisse, quand tu le lui demandes, lire et tenir à jour les Tickets, l\'Agenda et le Répertoire de ce compte. Tout se règle sur la page du connecteur : elle s\'ouvre d\'ici.</p>';
     if (!e) return h + (v.souci ? '<p class="souci" role="status">' + texte(v.souci) + '</p><div class="actions"><button class="bouton" data-claude="relire"' + de + ">Réessayer</button></div>" : occupeHtml("Chargement…", true)) + "</div>";
-    if (v.occupe) h += occupeHtml(v.occupe, true);
+    // Une attente qu'on peut quitter (27.11, Sévane : « on pourrait se retrouver bloqué ») : la réponse, si elle arrive, s'affiche quand même.
+    if (v.occupe) h += occupeHtml(v.occupe, true) + '<div class="actions"><button class="bouton" data-claude="attente"' + de + ">Ne plus attendre</button></div>";
     if (!e.page) {
       var a = claudeAutre(c.id);
       // Personne n'a encore de connecteur sur cet appareil : un clic en crée un. Qui en a déjà un colle l'adresse de sa page.
@@ -4032,7 +4033,8 @@ button.tuile:hover { border-color: var(--ligne); }
       }
       if (a) h += '<div class="actions"><button class="bouton fort" data-claude="reprendre" data-source="' + a.id + '"' + de + arret + ">Reprendre la page réglée dans « " + texte(a.nom) + " »</button></div>";
       h += '<label class="champ">' + (a ? "Ou colle l'adresse de la page du connecteur" : "Adresse de la page du connecteur") + '<input id="claudePage"' + de + ' type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://…workers.dev/boites/…"></label>';
-      h += '<p class="aide-fine">À coller une seule fois : ensuite ce compte la retient, sur tous tes appareils. Elle est dans le fichier « adresses-relais.txt », rangé avec le connecteur. Garde-la pour toi : elle vaut une clé.</p>';
+      h += '<p class="aide-fine">À coller une seule fois : ensuite ce compte la retient, sur tous tes appareils. Où la trouver : dans l\'appli où le connecteur a été créé. Dans la Compta : Outils, « Connecteur Claude », « Ouvrir la page de mon connecteur ». Dans un autre compte d\'Origami : Réglages, « Connecteur Claude », « Ouvrir la page du connecteur ». Copie l\'adresse de la page qui s\'ouvre. Garde-la pour toi : elle vaut une clé.</p>';
+      if (comptaDe(c.id)) h += '<div class="actions"><button class="bouton" data-vue="compta" data-de="' + c.id + '">Ouvrir la Compta</button></div>';
       h += '<p id="claudeMessage" class="souci" role="status">' + texte(v.message || "") + '</p><div class="actions">' + (v.deja ? '<button class="bouton" data-claude="pasDeja"' + de + arret + ">Retour</button>" : "") + '<button class="bouton' + (a ? "" : " fort") + '" data-claude="regler"' + de + arret + ">Enregistrer</button></div>";
       return h + "</div>";
     }
@@ -4040,7 +4042,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (v.message) h += '<p id="claudeMessage"' + (v.bon ? "" : ' class="souci"') + ' role="status">' + texte(v.message) + "</p>";
     if (v.pourClaude) {
       h += '<div class="claude-neuf" data-claude-neuf="1"><p><strong>Dernier geste, dans Claude.</strong></p><ol class="pas"><li>Clique « Copier l\'adresse pour Claude ».</li><li>Dans Claude : Réglages, « Connecteurs », « Ajouter un connecteur personnalisé ».</li><li>Donne-lui un nom (« Origami », par exemple), colle l\'adresse, valide.</li><li>Ouvre une nouvelle conversation : Claude voit ce compte.</li></ol>' +
-        '<div class="actions"><button class="bouton fort" data-claude="copier"' + de + ">Copier l'adresse pour Claude</button></div>" +
+        '<div class="actions"><button class="bouton fort" data-claude="copier"' + de + ">Copier l'adresse pour Claude</button><button class=\"bouton\" data-claude=\"claudeAi\"" + de + ">Ouvrir les connecteurs de Claude</button></div>" +
         '<p class="aide-fine">Cette adresse vaut une clé : garde-la pour toi. Elle n\'est pas écrite ici ; tu la retrouves à tout moment avec « Ouvrir la page du connecteur ».</p></div>';
     }
     h += '<div class="actions"><button class="bouton' + (e.relie && !v.pourClaude ? " fort" : "") + '" data-claude="page"' + de + '>Ouvrir la page du connecteur</button><button class="bouton' + (e.relie ? "" : " fort") + '" data-claude="brancher"' + de + arret + ">" + (e.relie ? "Relier de nouveau" : "Relier Origami à Claude") + '</button><button class="bouton" data-claude="oublier"' + de + arret + ">Oublier l'adresse</button></div>";
@@ -4065,6 +4067,8 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!c || !v || !moteurs[id]) return true;
     if (d.claude === "relire") { v.souci = ""; claudeCharger(id, true); claudeRedessiner(); return true; }
     if (d.claude === "page") { if (v.e && v.e.page) ouvrirDehors(v.e.page); return true; }
+    if (d.claude === "claudeAi") { ouvrirDehors("https://claude.ai/settings/connectors"); return true; }
+    if (d.claude === "attente") { v.occupe = ""; v.bon = false; v.message = "Tu n'attends plus : si la réponse arrive, elle s'affichera ici."; claudeRedessiner(); return true; }
     if (d.claude === "regler") {
       var champ = document.getElementById("claudePage"), page = champ ? champ.value.trim() : "";
       if (!page) { v.bon = false; v.message = "Colle d'abord l'adresse de la page du connecteur."; claudeRedessiner(); var ch = document.getElementById("claudePage"); if (ch) ch.focus(); return true; }
@@ -4074,15 +4078,18 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.claude === "deja" || d.claude === "pasDeja") { v.deja = d.claude === "deja"; v.message = ""; claudeRedessiner(); if (v.deja) { var cd = document.getElementById("claudePage"); if (cd) cd.focus(); } return true; }
     if (d.claude === "connecter") {
       if (v.occupe) return true;
+      if (v.enVol === "connecter") { v.bon = false; v.message = "La création demandée tout à l'heure n'est pas encore revenue. Attends sa réponse avant de recommencer."; claudeRedessiner(); return true; }
+      v.enVol = "connecter";
       v.occupe = "Création de ton connecteur…"; v.message = ""; v.pourClaude = ""; claudeRedessiner();
       moteurAppel(id, "claude.connecter", null, { sans: true, lent: true }).then(function (r) {
-        v.occupe = ""; v.bon = true; v.le = Date.now(); v.deja = false; if (r && r.etat && typeof r.etat === "object") v.e = r.etat;
+        v.occupe = ""; v.enVol = ""; v.bon = true; v.le = Date.now(); v.deja = false; if (r && r.etat && typeof r.etat === "object") v.e = r.etat;
         // L'adresse à coller dans Claude : en mémoire seulement, le temps de la copier. Elle n'est jamais écrite dans la page ni gardée sur l'appareil.
         v.pourClaude = r && /^https:\/\/[a-z0-9.-]+\/mcp\/[A-Za-z0-9]{32,128}$/.test(String(r.adresse || "")) ? String(r.adresse) : "";
         v.message = v.pourClaude ? "Ton connecteur est créé et ce compte y est relié." : (r && r.message ? String(r.message).slice(0, 200) : "Origami est relié à Claude.") + " Dans Claude, ouvre une nouvelle conversation pour qu'il voie ce compte.";
         claudeRedessiner();
       }, function (er) {
         v.occupe = ""; v.bon = false;
+        v.enVol = "";
         v.message = er && er.code === "relais-ancien" ? "Le connecteur ne sait pas encore en créer un d'un clic : il doit d'abord être mis à jour. Réessaie un peu plus tard." : /Demande inconnue/.test(String(er && er.message)) ? "Ce bouton arrive avec la mise à jour d'Origami dans ce compte." : String((er && er.message) || er);
         claudeRedessiner();
       });
