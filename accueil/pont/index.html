@@ -42,7 +42,7 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   <button id="continuer" type="button">Continuer avec Google</button>
   <p id="aide" class="doux" style="margin-top:14px">Google ouvre une petite fenêtre. Laisse les cases cochées. S'il dit qu'il n'a pas validé l'appli, clique « Continuer » : c'est l'appli Origami.</p>
 </main>
-<script src="../google.js?v=2026-11-27.84"></script>
+<script src="../google.js?v=2026-11-27.89"></script>
 <script>
 // Page « pont » (22.11.2026) : ouverte par l'appli Origami du Mac dans le navigateur, le temps d'une connexion à Google.
 // L'adresse porte, après le #, le port de la passerelle de l'appli (sur ce Mac seulement) et le secret tiré pour cette
@@ -52,11 +52,17 @@ input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   "use strict";
   var G = window.OrigamiGoogle, titre = document.getElementById("titre"), texte = document.getElementById("texte"), souci = document.getElementById("souci"), bouton = document.getElementById("continuer"), aide = document.getElementById("aide");
   var champ = document.getElementById("champ"), saisie = document.getElementById("adresse");
+  // Lien collé dans un onglet déjà ouvert sur cette page (27.11, vu en vrai) : le navigateur change seulement ce qui suit le #,
+  // sans recharger, et la page gardait « Rien à faire ici ». On relit donc la page à chaque nouveau lien.
+  window.addEventListener("hashchange", function () { if (location.hash) location.reload(); });
+  // Retour sur la page par « Précédent / Suivant » (27.11, vu en vrai) : le navigateur la remontrait figée sur « La fenêtre de
+  // Google est ouverte… ». Le lien a déjà servi : on relit la page, qui dit de recommencer depuis l'appli.
+  window.addEventListener("pageshow", function (e) { if (e.persisted) location.reload(); });
   var m = /^#(\d{4,5})\.([0-9a-f]{32,64})(\.d)?(?:\.a([A-Za-z0-9_-]{4,400}))?$/.exec(location.hash || ""), port = m ? Number(m[1]) : 0;
   try { history.replaceState(null, "", location.pathname); } catch (e) {}   // le secret ne reste pas dans la barre d'adresse
   function dire(t, p) { titre.textContent = t; texte.textContent = p; }
   if (!m || port < 1024 || port > 65535 || !G) {
-    dire("Rien à faire ici", "Cette page sert seulement à connecter l'appli Origami d'un Mac à Google. Ouvre l'appli Origami et clique « Continuer avec Google » : elle t'amènera ici au bon moment.");
+    dire("Rien à faire ici", "Cette page sert seulement à connecter l'appli Origami d'un Mac à Google. Ouvre l'appli Origami et clique « Continuer avec Google » : elle t'amènera ici au bon moment. Pour un autre compte Google, clique « Annuler » dans l'appli, puis recommence.");
     bouton.hidden = true; aide.hidden = true; champ.hidden = true; return;
   }
   // Compte déjà connu de l'appli (ou adresse écrite ici) : Google s'ouvre directement dessus.
