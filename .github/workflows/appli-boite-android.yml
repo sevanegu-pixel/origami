@@ -57,7 +57,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android
+          targets: aarch64-linux-android,x86_64-linux-android
 
       - name: Projet Android préparé
         env:
@@ -99,7 +99,7 @@ jobs:
 
       - name: Fabrication
         working-directory: fab
-        run: npx tauri android build --apk --target aarch64 --ci
+        run: npx tauri android build --apk --target aarch64 --target x86_64 --ci
 
       - name: Fichier à télécharger
         run: |
@@ -124,3 +124,44 @@ jobs:
           body: |
             Appli Boîte mail pour téléphone Android (essai). Ouvrir ce lien sur le téléphone, télécharger « Boite-mail-Android.apk », l'ouvrir,
             puis autoriser une fois l'installation d'applis depuis le navigateur. Clé de signature fixe : ${{ env.CLE_FIXE }}.
+
+  # Essai sur un téléphone virtuel (Android 14, x86_64) : l'APK publié est installé et lancé ; le journal du téléphone est gardé.
+  essai:
+    needs: android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Boite-mail-Android
+
+      - name: Accélération du téléphone virtuel
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Lancer l'appli
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb install -r Boite-mail-Android.apk
+            adb logcat -c
+            adb shell am start -n ch.origami.boitemail/.MainActivity
+            sleep 25
+            adb shell pidof ch.origami.boitemail && echo "APPLI EN VIE" || echo "APPLI ARRÊTÉE"
+            adb logcat -d > journal.txt
+            grep -E "AndroidRuntime|FATAL|panicked|RustStdoutStderr|Tauri|tauri|boitemail|Veille" journal.txt | tail -120 || true
+            adb exec-out screencap -p > ecran.png
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: essai-telephone
+          path: |
+            journal.txt
+            ecran.png
