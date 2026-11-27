@@ -1450,12 +1450,20 @@
   function htmlMaj(c) {
     var v = versions[c.id];
     if (!v) { versions[c.id] = { attente: true }; porte(c, 'infosBoite', []).then(function (r) { versions[c.id] = { n: Number(r && r.moteur) || 37, corbeille: !!(r && r.classeur && r.classeur.corbeille) }; },
-      function (e) { var m = String(e && e.message || e); versions[c.id] = ancienMoteur(m) ? { n: 0 } : { muet: m }; }).then(function () { if (vue === 'comptes') dessinerComptes(); }); return ''; }
+      function (e) { var m = String(e && e.message || e); versions[c.id] = ancienMoteur(m) ? { n: 0 } : { muet: m }; })
+      .then(function () {
+        // Seule une boîte installée par la page Origami peut être remise à jour par elle (sinon la page en crée une deuxième). Elle porte
+        // « origami.premier » : sans secret, il répond « Ce lien ne vaut pas… » (rien n'est changé) ; une copie faite à la main ne le connaît pas.
+        var v2 = versions[c.id]; if (!v2 || v2.muet || (v2.n && v2.n >= DERNIER_MOTEUR)) return;
+        return porte(c, 'origami.premier', []).then(function () { v2.main = true; }, function (e) { v2.parOrigami = /ne vaut pas pour cette Boîte mail|déjà reliée avec ce lien/.test(String(e && e.message || e)); v2.main = !v2.parOrigami; });
+      })
+      .then(function () { if (vue === 'comptes') dessinerComptes(); }); return ''; }
     if (v.attente) return '';
     if (v.muet) return '<span class="avert" style="flex-basis:100%;font-size:13px">Cette boîte ne répond pas : ' + esc(v.muet.replace(/[.\s]+$/, '')) + '.</span>';
     if (v.corbeille) return '<span class="avert" style="flex-basis:100%;font-size:13px">Son classeur est dans la corbeille de Drive : restaurez-le, sinon la boîte s\'arrêtera.</span>';
     if (v.n && v.n >= DERNIER_MOTEUR) return '<span class="doux" style="align-self:center;font-size:13px">Boîte à jour</span>';
-    return '<button type="button" class="cp-maj prim" title="Par Origami, connecté à Google. Une boîte faite à la main (copie du modèle) est remplacée par une boîte neuve, rangée dans Origami ; l\'ancienne copie reste dans le Drive.">Mettre à jour la boîte</button>';
+    if (!v.parOrigami) return v.main ? '<span class="doux" style="flex-basis:100%;font-size:13px">Moteur plus ancien. Cette boîte a été copiée à la main : elle ne peut pas se mettre à jour d\'ici. Elle marche telle quelle ; pour une boîte qui se met à jour, réinstallez-la par « Ajouter un compte › Continuer avec Google » (ses contacts et modèles ne suivent pas).</span>' : '';
+    return '<button type="button" class="cp-maj prim" title="Par Origami, connecté à Google : seul le code de la boîte change, même adresse.">Mettre à jour la boîte</button>';
   }
   function mettreAJour(c) {
     ouvrirDehors(ORIGAMI_GOOGLE + (c.email ? '&email=' + encodeURIComponent(c.email) : ''));
