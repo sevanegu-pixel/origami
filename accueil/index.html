@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-27.89">
+<meta name="origami-version" content="2026-11-27.90">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -596,10 +596,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-27.89"></script>
-<script src="repertoire.js?v=2026-11-27.89"></script>
-<script src="fichiers.js?v=2026-11-27.89"></script>
-<script src="google.js?v=2026-11-27.89"></script>
+<script src="agenda.js?v=2026-11-27.90"></script>
+<script src="repertoire.js?v=2026-11-27.90"></script>
+<script src="fichiers.js?v=2026-11-27.90"></script>
+<script src="google.js?v=2026-11-27.90"></script>
 <script>
 (function () {
   "use strict";
@@ -657,7 +657,7 @@ button.tuile:hover { border-color: var(--ligne); }
   };
   // Fichiers d'installation pour Mac, une appli par fichier (fabriqués par GitHub ; la Boîte mail a les siens).
   var VERSIONS_MAC = "https://github.com/sevanegu-pixel/origami/releases/download/";
-  var DMG = { origami: VERSIONS_MAC + "applis-mac/Origami-Mac.dmg", boite: VERSIONS_MAC + "appli-boite-27/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
+  var DMG = { origami: VERSIONS_MAC + "applis-mac/Origami-Mac.dmg", boite: VERSIONS_MAC + "appli-boite-30/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
   // Toutes les applis dans un seul fichier : on l'ouvre et on glisse tout dans Applications en un geste.
   var DMG_TOUT = VERSIONS_MAC + "applis-mac/Tout-Origami-Mac.dmg";
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -3399,7 +3399,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var e4 = guideB.codeAppli ? blocCode
       : (!appliMac && MAC ? "<p>L'appli Boîte mail n'est pas encore sur ce Mac. Installe-la dans « Applis », section « Sur ce Mac », puis reviens ici.</p>" : "") +
         "<p>Dernier geste : " + (seule ? "relier ta Boîte mail à l'appli Boîte mail." : "Origami relie ta Boîte mail à l'appli Boîte mail de ce Mac.") + "</p>" + '<div class="actions"><button class="bouton fort" data-boite-relier="1">Relier à l\'appli Boîte mail</button></div>';
-    var dossierL = b && b.dossier ? '<p class="aide-fine">Ses fichiers : <a href="https://drive.google.com/drive/folders/' + texte(b.dossier) + '" target="_blank" rel="noopener">dossier Origami › Boîte mail › Données</a>, dans le Drive de ce compte. Tes mails, eux, restent dans Gmail.</p>' : "";
+    var dossierL = b && b.dossier ? '<p class="aide-fine">Ses fichiers : <a href="https://drive.google.com/drive/folders/' + texte(b.dossier) + '" target="_blank" rel="noopener">dossier Origami › Boîte mail › Données</a>, dans le Drive de ce compte. Tes mails, eux, restent dans Gmail.</p>' : boitePasRangee(b);
     var h = '<div data-guide-boite="1"' + (seule ? ' data-boite-seule="1"' : "") + "><h2>" + (seule ? "Boîte mail : continuer avec Google" : "Installer la Boîte mail") + '</h2><p class="aide-fine">' + (connu ? "Dans le compte " + nom + ". " : "") + "Quatre étapes, une seule fois. " + (seule ? "Garde cet onglet ouvert jusqu'à la fin." : "Tu peux fermer et revenir : le guide reprend où tu en étais.") + "</p>" +
       '<ol class="guide-compta">' + etape(0, seule ? "Se connecter à Google" : "Connecter Origami à Google", e1) + etape(1, "Installer la Boîte mail", e2) + etape(2, "Autoriser ta Boîte mail", e3) + etape(3, seule ? "Relier l'appli Boîte mail" : "Relier l'appli Boîte mail du Mac", e4) + "</ol>" +
       (actif < 0 ? "<p><strong>C'est fait.</strong> " + (seule ? "Clique « Ouvrir dans l'appli Boîte mail » : ton compte y apparaît. Ensuite tu peux fermer cet onglet." : b.relie === "ailleurs" && !guideB.codeAppli ? "La Boîte mail de ce compte est déjà installée : Origami l'a retrouvée dans ton Drive. Si elle n'apparaît pas dans l'appli Boîte mail de ce Mac, clique « Relier à l'appli de ce Mac »." : "La Boîte mail de ce compte est reliée à l'appli Boîte mail du Mac.") + "</p>" + blocCode : "") + dossierL +
@@ -3431,6 +3431,15 @@ button.tuile:hover { border-color: var(--ligne); }
   // n'est gardée nulle part. Le compte de la compagnie (Origami installé depuis le Mac) et une Boîte mail déjà rangée : rien de tout cela.
   var SOUS_PREPA_BOITE = { chercher: "Vérification du compte", code: "Lecture du code", classeur: "Classeur des réglages dans ton Drive", projet: "Préparation de ton compte", contenu: "Envoi du code", version: "Enregistrement", ligne: "Mise en ligne" };
   var NOM_APPAREIL_BOITE = "Installation de la Boîte mail";
+  // Le classeur n'a pas pu entrer dans « Origami › Boîte mail › Données » : l'écran le dit, avec la raison et de quoi le ranger soi-même.
+  var BOITE_PAS_RANGEE = { "sans-moteur": "l'Origami de ce compte n'a pas été joint", "sans-dossier": "l'Origami de ce compte n'a pas préparé le dossier", "refus": "Google a refusé de le déplacer" };
+  function boitePasRangee(b) {
+    if (!b || !b.classeur || b.dossier || !BOITE_PAS_RANGEE[b.pasRange]) return "";
+    var prevu = /^[\w-]{6,120}$/.test(String(b.prevu || "")) ? b.prevu : "";
+    return '<p class="aide-fine" data-boite-pas-range="' + texte(b.pasRange) + '"><strong>Son classeur n\'est pas rangé dans le dossier « Origami »</strong> (' + BOITE_PAS_RANGEE[b.pasRange] + ") : il est resté à la racine du Drive de ce compte, sous le nom « Boîte mail ». Rien n'est perdu et la Boîte mail marche pareil. " +
+      '<a href="https://docs.google.com/spreadsheets/d/' + texte(b.classeur) + '/edit" target="_blank" rel="noopener">Ouvrir le classeur</a>' +
+      (prevu ? ' · <a href="https://drive.google.com/drive/folders/' + texte(prevu) + '" target="_blank" rel="noopener">le dossier prévu pour lui</a> (tu peux l\'y glisser toi-même)' : "") + "</p>";
+  }
   function boiteSeuleAccord(nom) {
     var G = window.OrigamiGoogle, o = guideB.origami, lien = (G && o && G.lienAutorisation(o.projet, googleAdresse(ID_BOITE_SEULE))) || "";
     return '<div data-boite-accord="1"><p><strong>Premier accord de Google.</strong> Ton Drive est prêt dans le compte <strong>' + nom + "</strong>. Google te demande d'autoriser ce qui vient d'y être installé à y travailler : il l'appelle « Origami », c'est ce qui range ta Boîte mail dans son dossier.</p>" +
@@ -3684,7 +3693,7 @@ button.tuile:hover { border-color: var(--ligne); }
     G.installerBoite({ cle: id, moteur: id === ID_BOITE_SEULE ? (lie ? function (prise, args) { return G.demanderMoteur(lie, prise, args); } : null) : appelMoteurCompta(id), dire: dire }).then(function (r) {
       if (id === ID_BOITE_SEULE) { guideB.prepare = false; boiteSeuleRendre(); }
       // Nouveau secret : la liaison est à refaire (c'est aussi le chemin pour relier un autre Mac). L'autorisation, elle, reste.
-      boiteGarder(id, { classeur: r.classeur, projet: r.projet, adresse: r.adresse, dossier: r.dossier || (avant && avant.dossier) || "", secret: r.secret, autorisee: !r.premiere && !!(avant && avant.autorisee), relie: "", g: id === ID_BOITE_SEULE ? String(googleAdresse(id) || "").toLowerCase() : undefined });
+      boiteGarder(id, { classeur: r.classeur, projet: r.projet, adresse: r.adresse, dossier: r.dossier || (avant && avant.dossier) || "", pasRange: r.dossier || (avant && avant.dossier) ? "" : String(r.pasRange || ""), prevu: r.dossier ? "" : String(r.prevu || ""), secret: r.secret, autorisee: !r.premiere && !!(avant && avant.autorisee), relie: "", g: id === ID_BOITE_SEULE ? String(googleAdresse(id) || "").toLowerCase() : undefined });
       guideB.occupe = ""; guideB.sous = "";
       if (guideB.id === id) dessinerGuideBoite();
       montrer();
