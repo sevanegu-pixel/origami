@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-27.90">
+<meta name="origami-version" content="2026-11-27.91">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -596,10 +596,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-27.90"></script>
-<script src="repertoire.js?v=2026-11-27.90"></script>
-<script src="fichiers.js?v=2026-11-27.90"></script>
-<script src="google.js?v=2026-11-27.90"></script>
+<script src="agenda.js?v=2026-11-27.91"></script>
+<script src="repertoire.js?v=2026-11-27.91"></script>
+<script src="fichiers.js?v=2026-11-27.91"></script>
+<script src="google.js?v=2026-11-27.91"></script>
 <script>
 (function () {
   "use strict";
@@ -1651,7 +1651,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
   // Version du moteur modèle en ligne (25.11 : v12, la Compta porte l'appli du personnel). Un compte installé par l'appli avec un
   // moteur plus ancien se met à jour avec sa Compta (bouton « Mettre à jour » de la tuile Compta) ; la compagnie, depuis le Mac.
-  var MOTEUR_ACTUEL = 17;
+  var MOTEUR_ACTUEL = 18;
   // ---- La famille (25.11, moteur v13) : un nouvel appareil retrouve tes autres comptes ----
   // Chaque moteur relié garde la liste des AUTRES comptes Google de la personne (adresse, nom, couleur ; jamais de clé ni d'adresse
   // de moteur). Un appareil neuf, relié à un seul compte par « Continuer avec Google », lit cette liste et propose les autres :
