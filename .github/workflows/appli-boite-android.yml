@@ -72,9 +72,10 @@ jobs:
         working-directory: fab
         run: |
           npm install --no-audit --no-fund
-          npx tauri icon icone-1024.png
           node -e "const fs=require('fs'),f='www/index.html';fs.writeFileSync(f,fs.readFileSync(f,'utf8').split('__VERSION_APPLI__').join('${{ github.run_number }} (Android)'))"
           npx tauri android init --ci
+          # Après « android init » : sinon les icônes Android restent celles de Tauri (rond bleu et jaune).
+          npx tauri icon icone-1024.png
 
       # Clé de signature : TOUJOURS la même, sinon Android refuse d'installer une nouvelle version par-dessus l'ancienne
       # (il faudrait désinstaller, et la mémoire de l'appli serait perdue). Elle est recalculée à l'identique à partir d'une phrase
