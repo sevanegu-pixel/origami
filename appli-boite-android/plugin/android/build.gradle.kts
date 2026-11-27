@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "ch.origami.boitemail.veille"
-    compileSdk = 34
+    compileSdk = 37
 
     defaultConfig {
         minSdk = 24
