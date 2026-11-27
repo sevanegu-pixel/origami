@@ -1446,7 +1446,7 @@
      changer son propre code ; la page Origami, connectée à Google, le fait (« Continuer avec Google » : elle retrouve la boîte installée
      et remplace seulement son code, même adresse, liaisons gardées). L'appli demande au moteur où il en est (infosBoite : moteur 37 et
      plus) et propose le bouton quand il est plus ancien que DERNIER_MOTEUR (la version publiée sur la boîte compagnie et le modèle). */
-  var DERNIER_MOTEUR = 37, versions = {};
+  var DERNIER_MOTEUR = 38, versions = {};
   function htmlMaj(c) {
     var v = versions[c.id];
     if (!v) { versions[c.id] = { attente: true }; porte(c, 'infosBoite', []).then(function (r) { versions[c.id] = { n: Number(r && r.moteur) || 37, corbeille: !!(r && r.classeur && r.classeur.corbeille) }; },
