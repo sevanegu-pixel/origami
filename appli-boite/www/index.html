@@ -489,9 +489,11 @@
     try { if (T && T.core) { T.core.invoke('plugin:opener|open_url', { url: String(u) }); return; } } catch (e) { /* plus bas */ }
     window.open(String(u), '_blank');
   }
+  var PARTI_APPLI = 'Le moteur de cette boîte ne répond plus normalement : son classeur a peut-être été mis à la corbeille ou la boîte désinstallée. Comptes › Ouvrir le classeur pour vérifier, ou réinstallez-la par « Ajouter un compte ».';
   function porte(c, f, args) {
     return fetch(c.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ f: f, jeton: c.jeton, args: args || [] }), redirect: 'follow' })
-      .then(function (r) { if (!r.ok) throw new Error('Le serveur ne répond pas (' + r.status + ').'); return r.json(); })
+      .then(function (r) { if (!r.ok) throw new Error(r.status === 404 || r.status === 410 ? PARTI_APPLI : 'Le serveur ne répond pas (' + r.status + ').'); return r.text(); })
+      .then(function (t) { try { return JSON.parse(t); } catch (e) { throw new Error(PARTI_APPLI); } })
       .then(function (x) { if (!x || !x.ok) throw new Error((x && x.erreur) || 'Réponse vide.'); return x.r; });
   }
   function nomCourt(c) { return c.nom || (c.email ? c.email.split('@')[0] : 'Boîte'); }
@@ -801,13 +803,21 @@
     var j = function (x) { return JSON.stringify(String(x || '')).replace(/</g, '\\u003c'); };
     return '<script>/* Boîte mail (appli Mac 22) : écran gardé sur ce Mac, il parle au moteur par sa porte. */(function () {\n' +
       'var U = ' + j(c.url) + ', J = ' + j(c.jeton) + ';\n' +
+      'var PARTI = "Le moteur de cette boîte ne répond plus normalement : son classeur a peut-être été mis à la corbeille ou la boîte désinstallée. Dans l\\u2019appli, Comptes › Ouvrir le classeur pour vérifier, ou réinstallez la boîte par « Ajouter un compte »."; \n' +
+      'var MUET = "La boîte ne répond pas (plus d\\u2019une minute). Réessayez ; si ça dure, Comptes › Ouvrir le classeur pour vérifier qu\\u2019il existe encore."; \n' +
       'try { if (!localStorage.getItem("diffusion_jeton")) localStorage.setItem("diffusion_jeton", J); } catch (e) { /* sans mémoire */ }\n' +
       'function appel(nom, args, ok, ko, uo) {\n' +
       '  var corps = nom === "appelProtege" ? { f: String(args[1] || ""), jeton: args[0] || J, args: args[2] || [] } : { f: nom, jeton: J, args: args };\n' +
-      '  fetch(U, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(corps), redirect: "follow" })\n' +
-      '    .then(function (r) { if (!r.ok) throw new Error("Le serveur de la boîte ne répond pas (" + r.status + ")."); return r.json(); })\n' +
-      '    .then(function (x) { if (x && x.ok) { if (ok) ok(x.r, uo); } else if (ko) ko(new Error((x && x.erreur) || "Réponse vide."), uo); },\n' +
-      '      function (e) { var m = String(e && e.message || e); if (navigator.onLine === false || /load failed|networkerror|failed to fetch|network connection|internet/i.test(m)) m = "Pas de connexion à Internet : ce qui est gardé sur ce Mac reste lisible."; if (ko) ko(new Error(m), uo); });\n' +
+      // 27.11 : une boîte dont le classeur est parti (corbeille, désinstallée) restait sur « Lecture de Gmail… » sans rien dire :
+      // délai au bout duquel on le dit (lectures 90 s, le reste 6 min 30 comme Google), et une réponse qui n'est pas celle du moteur est nommée.
+      '  var lent = /^(listeFils|dossiersGmail|listeConversations|lireConversation|ouvrirFil|filsEnLot|nouveauxMails|etatAcces|page|donneesTableauDeBord|changementsDepuis|versionDonnees)$/.test(String(corps.f)) ? 90000 : 390000;\n' +
+      '  var arret = typeof AbortController === "function" ? new AbortController() : null, fini = false;\n' +
+      '  var minuteur = setTimeout(function () { if (fini) return; fini = true; try { if (arret) arret.abort(); } catch (e) { /* rien */ } if (ko) ko(new Error(MUET), uo); }, lent);\n' +
+      '  fetch(U, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(corps), redirect: "follow", signal: arret ? arret.signal : undefined })\n' +
+      '    .then(function (r) { if (r.status === 404 || r.status === 410) throw new Error(PARTI); if (!r.ok) throw new Error("Le serveur de la boîte ne répond pas (" + r.status + "). Réessayez dans un moment."); return r.text(); })\n' +
+      '    .then(function (t) { var x = null; try { x = JSON.parse(t); } catch (e) { throw new Error(PARTI); } return x; })\n' +
+      '    .then(function (x) { if (fini) return; fini = true; clearTimeout(minuteur); if (x && x.ok) { if (ok) ok(x.r, uo); } else if (ko) ko(new Error((x && x.erreur) || "Réponse vide."), uo); },\n' +
+      '      function (e) { if (fini) return; fini = true; clearTimeout(minuteur); var m = String(e && e.message || e); if (navigator.onLine === false || /load failed|networkerror|failed to fetch|network connection|internet/i.test(m)) m = "Pas de connexion à Internet : ce qui est gardé sur ce Mac reste lisible."; if (ko) ko(new Error(m), uo); });\n' +
       '}\n' +
       'function coureur(ok, ko, uo) { return new Proxy({}, { get: function (c, nom) {\n' +
       '  if (typeof nom !== "string" || nom === "then") return undefined;\n' +
@@ -1348,6 +1358,8 @@
       }
       else comptes.push(c);
       garderComptes(); dire('Compte relié : ' + (c.email || nomCourt(c))); montrer(c.id);
+      // Boîte (re)faite : rebranchée toute seule au connecteur Claude si sa page est connue sur ce Mac (sinon rien, sans message).
+      if (pageClaudeOk(pageClaude())) { var cc = c; setTimeout(function () { relierClaude(cc, pageClaude(), true); }, 4000); }
     }, function (e) { dire('Pas pu relier : ' + (e && e.message || e)); });
   }
 
@@ -1361,8 +1373,9 @@
         return '<div class="compte" data-id="' + esc(c.id) + '"><span class="pastille" style="background:' + esc(c.couleur) + '"></span>' +
           '<div style="min-width:0"><input type="text" class="cp-nom" value="' + esc(c.nom) + '" placeholder="' + esc(nomCourt(c)) + '" aria-label="Nom affiché">' +
           '<div class="doux" style="margin-top:4px;overflow-wrap:anywhere">' + esc(c.email || 'adresse inconnue') + '</div>' +
+          '<div class="cp-liens" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px"><button type="button" class="cp-classeur">Ouvrir le classeur</button><button type="button" class="cp-claude"' + (claudeVu && claudeVu.id === c.id ? ' aria-expanded="true"' : '') + '>Connecteur Claude…</button></div>' +
           '<div class="couleurs" style="margin-top:6px">' + COULEURS.map(function (k) { return '<span data-couleur="' + k + '" style="background:' + k + '"' + (k === c.couleur ? ' class="choisie"' : '') + '></span>'; }).join('') + '</div></div>' +
-          '<div class="actions">' + fleches + '<button type="button" class="cp-retirer" title="Retirer de cette appli seulement">Retirer</button><button type="button" class="cp-desinst" title="Désinstaller la Boîte mail de ce compte Google">Désinstaller…</button></div>' + htmlDesinst(c) + '</div>';
+          '<div class="actions">' + fleches + '<button type="button" class="cp-retirer" title="Retirer de cette appli seulement">Retirer</button><button type="button" class="cp-desinst" title="Désinstaller la Boîte mail de ce compte Google">Désinstaller…</button></div>' + htmlDesinst(c) + htmlClaude(c) + '</div>';
       }).join('');
   }
   $('comptes').addEventListener('change', function (e) {
@@ -1396,6 +1409,10 @@
       try { porte(c, 'deconnecterAppareil', []); } catch (er) { /* hors ligne : le jeton expirera */ }
       return;
     }
+    if (e.target.classList.contains('cp-classeur')) { ouvrirClasseur(c); return; }
+    if (e.target.classList.contains('cp-claude')) { claudeVu = claudeVu && claudeVu.id === id ? null : { id: id }; dessinerComptes(); return; }
+    if (e.target.getAttribute('data-claude') === 'relier') { relierClaude(c, String((l.querySelector('[data-claude="page"]') || {}).value || '').trim(), false); return; }
+    if (e.target.getAttribute('data-claude') === 'fermer') { claudeVu = null; dessinerComptes(); return; }
     if (e.target.classList.contains('cp-desinst')) { desinst = desinst && desinst.id === id ? null : { id: id, etape: 'choix' }; dessinerComptes(); return; }
     if (e.target.getAttribute('data-desinst') === 'annuler') { desinst = null; dessinerComptes(); return; }
     if (e.target.getAttribute('data-desinst') === 'case') { var b = l.querySelector('[data-desinst="go"]'); if (b) b.disabled = !e.target.checked; return; }
@@ -1416,6 +1433,62 @@
         (?fenetre=boite-retirer), ou le geste à la main (ouvrir le classeur, Fichier › Placer dans la corbeille). La corbeille garde 30 jours.
      3. Le compte est retiré de cette appli (copie des mails gardée sur ce Mac, écran gardé, notifications). */
   var ORIGAMI_RETIRER = 'https://sevanegu-pixel.github.io/origami/accueil/?fenetre=boite-retirer';
+
+  /* ---------- Classeur et connecteur Claude d'un compte (27.11.2026, Sévane : « gérer les connecteurs depuis l'appli », « un lien vers
+     le classeur ») ----------
+     « Ouvrir le classeur » : le moteur dit où est son classeur (infosBoite, moteur 37) ; plus ancien, la recherche « Boîte mail » du Drive.
+     « Connecteur Claude » : le moteur crée la clé de Claude et l'envoie lui-même à la page du connecteur (brancherClaude, moteur 37) ;
+     le connecteur remplace tout seul l'ancienne copie du même compte. L'adresse de la page est gardée sur ce Mac pour les boîtes suivantes,
+     et une boîte reliée de nouveau (refaite par « Continuer avec Google ») est rebranchée toute seule. */
+  var CLE_PAGE_CLAUDE = 'boite-mail-claude-page', claudeVu = null;
+  function pageClaude() { try { return localStorage.getItem(CLE_PAGE_CLAUDE) || ''; } catch (e) { return ''; } }
+  function pageClaudeOk(p) { return /^https:\/\/boite-mail-relais\.boite-mail-relais\.workers\.dev\/boites\/[A-Za-z0-9_-]{32,128}$/.test(String(p || '')); }
+  function ancienMoteur(m) { return /Fonction inconnue/.test(String(m || '')); }
+  function htmlClaude(c) {
+    if (!claudeVu || claudeVu.id !== c.id) return '';
+    var v = claudeVu, p = pageClaude();
+    return '<div class="desinst"><b>Connecteur Claude</b>' +
+      '<p class="doux">Claude pourra lire et tenir cette boîte (il demande toujours votre accord avant d\'envoyer). Si une ancienne copie de cette boîte était reliée, elle est remplacée.</p>' +
+      '<label class="doux" style="display:block;margin:6px 0 4px">Adresse de la page de votre connecteur' + (p ? ' (gardée sur ce Mac)' : '') + '</label>' +
+      '<input type="text" data-claude="page" value="' + esc(p) + '" placeholder="https://boite-mail-relais…/boites/…" autocomplete="off" spellcheck="false">' +
+      '<p class="doux" style="margin:4px 0 0">Vous la trouvez en ouvrant la page de votre connecteur : c\'est l\'adresse dans la barre du navigateur.</p>' +
+      (v.message ? '<p class="' + (v.erreur ? 'avert' : 'doux') + '" role="status" style="margin:8px 0 0">' + esc(v.message) + '</p>' : '') +
+      '<div class="actions" style="margin-top:8px"><button type="button" class="prim" data-claude="relier"' + (v.encours ? ' disabled' : '') + '>' + (v.encours ? 'Liaison…' : 'Relier cette boîte à Claude') + '</button>' +
+      '<button type="button" data-claude="fermer">Fermer</button></div></div>';
+  }
+  function relierClaude(c, page, seul) {
+    page = String(page || '').replace(/\s+/g, '').replace(/\/+$/, '');
+    if (page && !pageClaudeOk(page)) { if (!seul) { claudeVu = { id: c.id, erreur: true, message: 'Ce n\'est pas l\'adresse de la page d\'un connecteur : elle commence par https://boite-mail-relais.boite-mail-relais.workers.dev/boites/.' }; dessinerComptes(); } return Promise.resolve(false); }
+    if (!seul) { claudeVu = { id: c.id, encours: true }; dessinerComptes(); }
+    return porte(c, 'brancherClaude', [page]).then(function (r) {
+      if (page) { try { localStorage.setItem(CLE_PAGE_CLAUDE, page); } catch (e) { /* sans mémoire */ } }
+      var m = (c.email || nomCourt(c)) + ' : ' + String((r && r.message) || 'reliée au connecteur Claude.');
+      if (seul) dire(m); else { claudeVu = { id: c.id, message: m }; dessinerComptes(); }
+      return true;
+    }, function (e) {
+      var m = String(e && e.message || e);
+      if (ancienMoteur(m)) m = 'Le moteur de cette boîte est plus ancien (avant le 27.11) : reliez-la par son classeur, menu « Boîte mail » › « Connecteur Claude : créer le code », puis collez le code dans la page du connecteur.';
+      else if (/SANS_PAGE/.test(m)) m = 'Collez d\'abord l\'adresse de la page de votre connecteur.';
+      if (seul) { if (!ancienMoteur(String(e && e.message || e))) dire('Connecteur Claude : ' + m); }
+      else { claudeVu = { id: c.id, erreur: true, message: m }; dessinerComptes(); }
+      return false;
+    });
+  }
+  function ouvrirClasseur(c) {
+    var compte = c.email ? 'authuser=' + encodeURIComponent(c.email) : '';
+    var chercher = function () { ouvrirDehors('https://drive.google.com/drive/search?q=' + encodeURIComponent('Boîte mail') + (compte ? '&' + compte : '')); };
+    dire('Recherche du classeur…');
+    porte(c, 'infosBoite', []).then(function (r) {
+      var u = r && r.classeur && String(r.classeur.url || '');
+      if (!/^https:\/\/docs\.google\.com\//.test(u)) { chercher(); return; }
+      if (r.classeur.corbeille) dire('Ce classeur est dans la corbeille de Google Drive : la boîte ne marchera plus s\'il y reste. Restaurez-le (Drive › Corbeille › Restaurer) ou réinstallez la boîte.');
+      ouvrirDehors(u + (compte ? (u.indexOf('?') < 0 ? '?' : '&') + compte : ''));
+    }, function (e) {
+      var m = String(e && e.message || e);
+      if (ancienMoteur(m)) { chercher(); return; }
+      dire('La boîte ne répond pas (' + m.replace(/[.\s]+$/, '') + ') : recherche du classeur dans Drive.'); chercher();
+    });
+  }
   var desinst = null, desinstFin = null;
   function oublierCompte(c) {
     var id = c.id;
@@ -1534,6 +1607,7 @@
     return true;
   }
   window.__demandeDehors = demandeDehors; // pour les essais
+  window.__cale = cale; window.__montrer = montrer; // pour les essais
   function liens(urls) { (urls || []).forEach(function (u) { if (/^boitemail:\/\/relier/i.test(String(u))) relier(String(u)); else demandeDehors(u); }); }
   if (!FEN) try {
     if (T && T.core) T.core.invoke('plugin:deep-link|get_current').then(liens, function () { /* aucun */ });
