@@ -11,7 +11,7 @@ a changé, la fabrication s'arrête en le nommant (« RETOUCHE IMPOSSIBLE ») : 
 | `telephone/coquille.css`, `coquille.js` | barre des comptes fine ; une « case » `http://bN.localhost/<compte>/` par boîte (une mémoire par boîte, comme `boite://<compte>/` sur le Mac) ; veille confiée à Android |
 | `telephone/ecran.css`, `ecran.js` | affichage téléphone à la Gmail, posé dans l'écran gardé de chaque boîte par la « cale » ; mêmes fonctions qu'avant |
 | `plugin/` | module `tauri-plugin-boite-android` : veille Kotlin (WorkManager, toutes les 15 min, même appli fermée) qui demande `nouveauxMails` à chaque moteur et annonce les nouveaux mails |
-| `signature.mjs` | signature de l'APK (secrets `ANDROID_KEYSTORE_B64` et `ANDROID_KEY_PASSWORD` ; sans eux, clé d'essai jetable) |
+| `cle.py`, `signature.mjs` | signature de l'APK : clé RSA et certificat recalculés à l'identique depuis le secret `ANDROID_GRAINE` (phrase choisie par Sévane) ; sans lui, clé d'essai jetable |
 
 Aucun nouveau droit Google, aucun service en plus : la veille appelle la même porte (`doPost`, jeton d'appareil) que l'appli Mac.
 Pas encore sur le téléphone : imprimer, fenêtres séparées (l'écriture reste dans la boîte), fenêtre privée de navigateur.

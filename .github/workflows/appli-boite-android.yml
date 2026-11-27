@@ -76,24 +76,25 @@ jobs:
           node -e "const fs=require('fs'),f='www/index.html';fs.writeFileSync(f,fs.readFileSync(f,'utf8').split('__VERSION_APPLI__').join('${{ github.run_number }} (Android)'))"
           npx tauri android init --ci
 
-      # Clé de signature : TOUJOURS la même (secret du dépôt), sinon Android refuse d'installer une nouvelle version par-dessus
-      # l'ancienne (il faudrait désinstaller, et la mémoire de l'appli serait perdue). Sans le secret : clé d'essai jetable.
+      # Clé de signature : TOUJOURS la même, sinon Android refuse d'installer une nouvelle version par-dessus l'ancienne
+      # (il faudrait désinstaller, et la mémoire de l'appli serait perdue). Elle est recalculée à l'identique à partir d'une phrase
+      # secrète (secret du dépôt ANDROID_GRAINE, choisie par Sévane) : aucun fichier de clé à garder. Sans le secret : clé d'essai jetable.
       - name: Signature
         working-directory: fab/src-tauri/gen/android
         env:
-          CLE: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-          MDP: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_GRAINE: ${{ secrets.ANDROID_GRAINE }}
         run: |
-          if [ -n "$CLE" ] && [ -n "$MDP" ]; then
-            echo "$CLE" | base64 -d > "$RUNNER_TEMP/boite.jks"
+          if [ -n "$ANDROID_GRAINE" ]; then
+            pip install --quiet cryptography
+            MDP=$(python3 "$GITHUB_WORKSPACE/appli-boite-android/cle.py" "$RUNNER_TEMP/boite.p12")
             echo "CLE_FIXE=oui" >> "$GITHUB_ENV"
           else
             MDP=$(openssl rand -hex 16)
-            keytool -genkeypair -v -keystore "$RUNNER_TEMP/boite.jks" -alias boite -keyalg RSA -keysize 2048 -validity 10000 \
+            keytool -genkeypair -keystore "$RUNNER_TEMP/boite.p12" -storetype pkcs12 -alias boite -keyalg RSA -keysize 3072 -validity 18000 \
               -storepass "$MDP" -keypass "$MDP" -dname "CN=Boite mail, O=Origami, C=CH" > /dev/null
             echo "CLE_FIXE=non" >> "$GITHUB_ENV"
           fi
-          printf 'keyAlias=boite\npassword=%s\nstoreFile=%s\n' "$MDP" "$RUNNER_TEMP/boite.jks" > keystore.properties
+          printf 'keyAlias=boite\npassword=%s\nstoreFile=%s\n' "$MDP" "$RUNNER_TEMP/boite.p12" > keystore.properties
           node "$GITHUB_WORKSPACE/appli-boite-android/signature.mjs" app/build.gradle.kts
 
       - name: Fabrication

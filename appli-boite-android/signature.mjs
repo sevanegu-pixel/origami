@@ -17,6 +17,7 @@ une('android {\n', 'android {\n' +
   '            keyPassword = p["password"] as String\n' +
   '            storeFile = file(p["storeFile"] as String)\n' +
   '            storePassword = p["password"] as String\n' +
+  '            storeType = "pkcs12"\n' +
   '        }\n' +
   '    }\n', 'android');
 une('        getByName("release") {\n', '        getByName("release") {\n            signingConfig = signingConfigs.getByName("release")\n', 'release');
