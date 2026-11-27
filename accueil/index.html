@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-27.85">
+<meta name="origami-version" content="2026-11-27.86">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -596,10 +596,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-27.85"></script>
-<script src="repertoire.js?v=2026-11-27.85"></script>
-<script src="fichiers.js?v=2026-11-27.85"></script>
-<script src="google.js?v=2026-11-27.85"></script>
+<script src="agenda.js?v=2026-11-27.86"></script>
+<script src="repertoire.js?v=2026-11-27.86"></script>
+<script src="fichiers.js?v=2026-11-27.86"></script>
+<script src="google.js?v=2026-11-27.86"></script>
 <script>
 (function () {
   "use strict";
@@ -4532,7 +4532,11 @@ button.tuile:hover { border-color: var(--ligne); }
     var G = window.OrigamiGoogle;
     if (!G) return;
     attendu = attendu && attendu.g ? attendu : null;
+    // « Ajouter un compte » doit toujours laisser choisir le compte Google (27.11, vu en vrai : l'appli reprenait la connexion
+    // de la compagnie, encore valable, et retombait sur « Origami est déjà dans ce compte »). On ne reprend la connexion
+    // que pour « Réessayer » après un arrêt, ou quand le compte attendu est celui de la connexion.
     var sa = G.session("ajout");
+    if (sa && !attendu && parcours.phase !== "souci") { G.oublier("ajout"); sa = null; }
     if (sa && sa.drive && (!attendu || String(sa.adresse || "").toLowerCase() === attendu.g)) { parcoursPhase("travail", { installe: false, attendu: attendu, occupe: etapeParcours("chercher") }); parcoursSuite(); return; }
     if (sa) G.oublier("ajout");
     var p = G.connecter("ajout", attendu ? { drive: true, adresse: attendu.g } : { drive: true });
@@ -4558,6 +4562,8 @@ button.tuile:hover { border-color: var(--ligne); }
           if (h !== EMPREINTE_COMPAGNIE) { parcoursPhase("confirmer", { jete: String(rr[1] || "") }); return; }
           // Appli Compta seule : la Compta de la compagnie est celle de toujours, elle revient avec son code PIN.
           if (COMPTA_SEULE) { parcoursQuitter(); guide.etape = 0; comptaSuiteGoogle("compagnie"); avis("C'est le compte de la compagnie : sa Compta est déjà là."); return; }
+          // La compagnie est déjà reliée sur cet appareil (par son code de liaison) : rien à faire, on le dit.
+          if (compte("compagnie") && moteurs.compagnie) { G.adopter("ajout", "compagnie"); parcoursPhase("pret", { id: "compagnie", retrouve: true }); return; }
           parcoursPhase("compagnie");
         });
       }
