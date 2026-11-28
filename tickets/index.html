@@ -53,7 +53,8 @@ iframe { position: fixed; top: 0; left: 0; width: 100%; height: 100%; border: 0;
   function lire(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function garder(k, v) { try { if (v) localStorage.setItem(k, v); else localStorage.removeItem(k); } catch (e) {} }
   var cadre = document.getElementById("app"), charge = document.getElementById("charge");
-  cadre.src = EXEC;
+  // 28.11.2026 : une seule appli Tickets. Cette appli installée ouvre la nouvelle Tickets (avec le scanner), même adresse que la fenêtre Tickets du Mac.
+  cadre.src = "../accueil/?fenetre=tickets";
   function finCharge() { charge.classList.add("fini"); setTimeout(function () { charge.style.display = "none"; }, 350); }
   cadre.addEventListener("load", function () { setTimeout(finCharge, 1500); });
   // Le code d'accès se lit et s'écrit seulement depuis notre propre cadre (l'appli Tickets dans ses cadres Google).
