@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-28.93">
+<meta name="origami-version" content="2026-11-28.94">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -1181,7 +1181,7 @@ button.tuile:hover { border-color: var(--ligne); }
   var barreTk = null;
   if (FENETRE === "tickets") document.addEventListener("click", function (e) { var dt = barreTk && barreTk.querySelector("details[open]"); if (dt && !(e.target.closest && e.target.closest(".tk-choix"))) dt.open = false; }, true);
   if (FENETRE === "tickets") { barreTk = document.createElement("div"); barreTk.id = "tkComptes"; scene.insertBefore(barreTk, scene.firstChild); document.documentElement.classList.add("avec-tk-comptes"); }
-  function vueTk(id) { return id === "compagnie" && COMPTE_COMPAGNIE.applis.indexOf("tickets") >= 0 ? "tickets" : "tickets0"; }
+  function vueTk() { return "tickets0"; }   // 28.11 : une seule appli Tickets, la nouvelle, pour tous les comptes (la compagnie aussi)
   function dessinerBarreTk() {
     if (!barreTk) return;
     var c0 = compte(etat.compte), ouvert = !!barreTk.querySelector("details[open]");
@@ -1219,10 +1219,10 @@ button.tuile:hover { border-color: var(--ligne); }
   var versFrais = FENETRE === "frais" && !!cleFrais();
   // Appli Mac : Compta, Tickets et Frais s'ouvrent chacune dans sa fenêtre ; une fenêtre déjà ouverte revient devant.
   var FENETRES_MAC = { compta: 1, tickets: 1, frais: 1 };
-  function ouvrirFenetre(id) {
+  function ouvrirFenetre(id, de) {
     var W = MAC && MAC.webviewWindow && MAC.webviewWindow.WebviewWindow;
     if (!W || FENETRE || !FENETRES_MAC[id]) return false;
-    var label = "appli-" + id, url = new URL("?fenetre=" + id + (id === "compta" ? "&dans=origami" : id === "tickets" ? "&dans=origami&de=compagnie" : ""), location.href.split("#")[0].split("?")[0]).href;
+    var label = "appli-" + id, url = new URL("?fenetre=" + id + (id === "compta" ? "&dans=origami" : id === "tickets" ? "&dans=origami&de=" + encodeURIComponent(de && compte(de) ? de : "compagnie") : ""), location.href.split("#")[0].split("?")[0]).href;
     function creer() { try { new W(label, { url: url, title: APPLIS[id].nom, width: 1200, height: 860, minWidth: 380, minHeight: 520 }); } catch (e) {} }
     try {
       var p = typeof W.getByLabel === "function" ? W.getByLabel(label) : null;
@@ -1699,7 +1699,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function moteurAncien(id) { var e = id !== "compagnie" && etatMoteur(id), v = e && e.moteur ? Number(e.moteur.version) || 0 : 0; return v > 0 && v < MOTEUR_ACTUEL; }
   function offre(id, appli) { var e = etatMoteur(id); return !!(e && Array.isArray(e.installables) && e.installables.some(function (a) { return a && a.id === appli; })); }
   function installee(id, appli) { var e = etatMoteur(id); return (e && Array.isArray(e.applis) ? e.applis : []).filter(function (a) { return a && a.id === appli; })[0] || null; }
-  function applisDe(c) { var l = c.applis.slice(); if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets") || (c.applis.indexOf("tickets") >= 0 && !etatMoteur(c.id))) l.push("tickets0");   /* sans moteur relié sur cet appareil : la ligne reste, l'écran dit comment relier */ if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
+  function applisDe(c) { var l = c.applis.filter(function (x) { return x !== "tickets"; });   /* 28.11 : l'ancienne appli Tickets n'est plus dans les listes (ses tickets sont repris dans la nouvelle) */ if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets") || (c.applis.indexOf("tickets") >= 0 && !etatMoteur(c.id))) l.push("tickets0");   /* sans moteur relié sur cet appareil : la ligne reste, l'écran dit comment relier */ if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
   // Les modules d'un compte : pour l'instant ceux de la Diffusion du compte compagnie (son appli s'ouvre dans un cadre).
   var MODULES = ["spectacle", "prospection", "fichiers", "agenda"];
   function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) { if (modulesPrets(c.id)) m.push("spectacle", "prospection", "fichiers"); m.push("agenda"); } return m; }   // l'Agenda vient du moteur du compte ; Spectacle et Prospection, de ses modules installés (v15)
@@ -1708,7 +1708,6 @@ button.tuile:hover { border-color: var(--ligne); }
   function voletDe(c) { var m = modulesDe(c); return { modules: m, applis: applisDe(c).filter(function (id) { return !(m.length && id === "diffusion"); }) }; }
   function cadreDe(vue) { var a = APPLIS[vue]; return !a ? "" : a.genre === "cadre" ? vue : a.genre === "module" ? a.cadre : ""; }
   function nomAppli(c, id) {
-    if (id === "tickets0" && c.applis.indexOf("tickets") >= 0) return "Tickets (nouveau)";
     if (id === "diffusion0" && c.applis.indexOf("diffusion") >= 0) return "Diffusion (nouveau)";
     return APPLIS[id].nom;
   }
@@ -1785,7 +1784,6 @@ button.tuile:hover { border-color: var(--ligne); }
           hr += '<div class="actions"><button class="bouton fort" data-vue="relier" data-de="' + c.id + '">Relier Origami</button></div>';
         }
       }
-      if (c.applis.indexOf("tickets") >= 0 && !seul) hr += "<p>Ton appli Tickets habituelle reste dans « Tickets ».</p>";
       if (!racine || racine.getAttribute("data-cadre") !== cadreR) page.innerHTML = hr + "</div></div>";
       return;
     }
@@ -1794,7 +1792,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (!inst) {
         h += '</div><div class="carte"><p>Tickets garde tes justificatifs (photos de reçus, factures) et les envoie groupés par mail aux adresses que tu choisis, avec une confirmation de paiement si tu veux.</p>';
         h += "<p>L'installation crée, dans le dossier « Origami » du Drive de ce compte, un classeur « Tickets » et un dossier « Tickets - justificatifs ».</p>";
-        if (c.applis.indexOf("tickets") >= 0 && !seul) h += "<p>Ton appli Tickets actuelle n'est pas touchée : ses tickets restent où ils sont.</p>";
+        if (c.applis.indexOf("tickets") >= 0 && !seul) h += "<p>Les tickets de ton ancienne appli Tickets pourront ensuite être repris ici, en un geste.</p>";
         h += '<p id="tkSouci" class="souci" role="status"></p><div class="actions"><button class="bouton fort" data-tk="installer">Installer Tickets dans ce compte</button></div></div>';
       } else {
         h += '<div class="actions"><button class="bouton fort" data-tk="scan-direct">Scanner un ticket</button><button class="bouton" data-tk="nouveau">Nouveau ticket</button><button class="bouton" data-relever="' + c.id + '">Actualiser</button>' + (seul ? '<button class="bouton" data-autre="' + c.id + '">Relier un autre appareil</button>' : "") + '</div></div><div class="onglets" role="tablist">';
@@ -1807,7 +1805,7 @@ button.tuile:hover { border-color: var(--ligne); }
         } else if (tk.onglet === "historique") h += '<div id="tkHisto"></div>';
         else if (tk.onglet === "paiements") h += '<div id="tkPaie"></div>';
         else {
-          h += '<div id="tkBandeau"></div><div class="filtres"><input id="tkCherche" type="search" autocomplete="off" placeholder="Chercher un nom, un motif, un montant…" aria-label="Chercher dans les tickets" value="' + texte(tk.cherche) + '">';
+          h += '<div id="tkReprise"></div><div id="tkBandeau"></div><div class="filtres"><input id="tkCherche" type="search" autocomplete="off" placeholder="Chercher un nom, un motif, un montant…" aria-label="Chercher dans les tickets" value="' + texte(tk.cherche) + '">';
           h += '<select id="tkFiltre" aria-label="Quels tickets">' + [["tous", "Tous les tickets"], ["attente", "En attente d'envoi"], ["envoye", "Envoyés"], ["impaye", "Pas encore payés"], ["paye", "Payés"]].map(function (o) { return '<option value="' + o[0] + '"' + (tk.filtre === o[0] ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></div>";
           h += '<div id="tkAttente"></div><div id="tkEnvoyes"></div>';
         }
@@ -1922,6 +1920,7 @@ button.tuile:hover { border-color: var(--ligne); }
       (rate ? '<span class="etiquette rate">Pas enregistré</span><button class="lien" data-tk-reessayer="' + x.t.id + '">Réessayer</button><button class="lien rouge" data-tk-retirer="' + x.t.id + '">Retirer</button>' : '<span class="etiquette">Enregistrement…</span>') + "</span></div></div>";
   }
   function majTickets() {
+    majReprise();
     var id = etat.compte, z = document.getElementById("tkBandeau");
     var tous = ticketsDe(id), enFile = fileDe(id), attente = tous.filter(function (t) { return t.statut !== "envoye"; }), partis = tous.filter(function (t) { return t.statut === "envoye"; });
     if (z) {
@@ -1982,6 +1981,76 @@ button.tuile:hover { border-color: var(--ligne); }
       if (lienDrive(inst.dossier)) liens.push('<a class="lien" href="' + texte(inst.dossier) + '" target="_blank" rel="noopener">photos des tickets</a>');
       z.innerHTML = (releves[id] ? "Relevé en cours… " : m.panne ? '<span class="souci">' + texte(m.panne) + "</span> " : m.releve ? "Relevé à " + heure(m.releve) + ". " : "") + (liens.length ? "Dans le Drive de ce compte : " + liens.join(", ") + "." : "");
     }
+  }
+
+  // 28.11.2026 : une seule appli Tickets. Les tickets de l'ancienne appli de la compagnie (Apps Script, code d'accès) sont repris
+  // dans la nouvelle : la page lit l'ancienne (doPost « exporter », puis chaque justificatif) et les confie au moteur du compte
+  // (prise tickets.reprendre, identifiants « anc… » : rejouer ne fait aucun doublon). Aucun mail ne part ; l'ancienne n'est pas touchée.
+  var reprise = { cle: "", phase: "", texte: "", souci: "", masque: false };   // « Pas maintenant » : jusqu'à la prochaine ouverture
+  function repriseUtile(id) {
+    var c = compte(id);
+    if (!c || id !== "compagnie" || c.applis.indexOf("tickets") < 0 || !installee(id, "tickets")) return false;
+    if ((reprise.masque || lire("origami_tk_repris_" + id) === "1") && reprise.phase !== "fini") return false;
+    return reprise.phase === "fini" || reprise.phase === "encours" || !ticketsDe(id).some(function (t) { return /^anc/.test(t.id); });
+  }
+  function majReprise() {
+    var z = document.getElementById("tkReprise"), id = etat.compte;
+    if (!z) return;
+    var utile = repriseUtile(id), cle = utile ? [id, reprise.phase, reprise.texte, reprise.souci].join("|") : "";
+    if (cle === reprise.cle && (z.innerHTML !== "") === utile) return;
+    reprise.cle = cle;
+    if (!utile) { z.innerHTML = ""; return; }
+    var h = '<div class="carte tk-reprise"><h2>Tes tickets de l\'ancienne appli</h2>';
+    if (reprise.phase === "fini") h += "<p>" + texte(reprise.texte) + '</p><p class="aide-fine">L\'ancienne appli et son classeur restent dans ton Drive, rien n\'y a été effacé.</p><div class="actions"><button class="bouton" data-tk="reprise-fermer">D\'accord</button><button class="bouton" data-vue="tickets" data-de="compagnie">Voir l\'ancienne appli</button></div>';
+    else if (reprise.phase === "encours") h += '<p class="attend">' + roue() + texte(reprise.texte || "Lecture de l'ancienne appli…") + "</p>";
+    else {
+      h += "<p>Tickets est maintenant une seule appli. Les tickets, les envois et les adresses de l'ancienne appli Tickets peuvent être repris ici, avec leurs justificatifs. Aucun mail ne part, et l'ancienne appli n'est pas touchée.</p>";
+      if (!lire("tickets_code")) h += '<label class="champ">Code d\'accès de l\'ancienne appli<input id="tkRepriseCode" type="password" maxlength="100" autocomplete="off"></label>';
+      h += '<p class="souci" role="status">' + texte(reprise.souci) + '</p><div class="actions"><button class="bouton fort" data-tk="reprendre">Reprendre les anciens tickets</button><button class="bouton" data-tk="reprise-plus-tard">Pas maintenant</button></div>';
+    }
+    z.innerHTML = h + "</div>";
+  }
+  function ancienneTickets(code, q) {
+    return fetch(ADRESSES.tickets, { method: "POST", body: JSON.stringify(Object.assign({ code: code }, q)) }).then(function (r) { return r.json(); }).then(function (o) {
+      if (!o || !o.ok) throw new Error(o && o.code === "CODE" ? "Code d'accès incorrect." : (o && o.msg) || "L'ancienne appli n'a pas répondu.");
+      return o.data;
+    }, function (e) { if (e && /Code d'accès|répondu|Trop/.test(e.message)) throw e; throw new Error("L'ancienne appli ne répond pas encore à la reprise (elle doit d'abord être mise à jour), ou la connexion a coupé."); });
+  }
+  function reprendreAnciens() {
+    var id = "compagnie", code = lire("tickets_code") || valeur("tkRepriseCode"), compteur = { t: 0, f: 0, sansF: 0 };
+    if (!code) { reprise.souci = "Tape le code d'accès de l'ancienne appli."; majReprise(); return; }
+    reprise.phase = "encours"; reprise.souci = ""; reprise.texte = "Lecture de l'ancienne appli…"; majReprise();
+    ancienneTickets(code, { fn: "exporter" }).then(function (d) {
+      if (!lire("tickets_code")) garder("tickets_code", code);
+      var liste = (d.tickets || []).slice(), deja = {};
+      ticketsDe(id).forEach(function (t) { deja[t.id] = true; });
+      function suivant() {
+        var t = liste.shift();
+        if (!t) return moteurAppel(id, "tickets.reprendre", {
+          envois: (d.lots || []).map(function (l) { return { id: "anc" + l.lot, dateEnvoi: l.dateEnvoi, nbTickets: l.nbTickets, total: l.total, destinataires: l.destinataires }; }),
+          destinataires: d.destinataires || [] }, { lent: true });
+        var idN = "anc" + String(t.cle).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 37);
+        compteur.t++; reprise.texte = "Reprise du ticket " + compteur.t + " sur " + (d.tickets || []).length + "…"; majReprise();
+        if (deja[idN]) return suivant();
+        var fichier = t.fichier ? ancienneTickets(code, { fn: "exporterFichier", cle: t.cle }).then(function (f) { return f && f.base64 ? f : null; }, function () { return null; }) : Promise.resolve(null);
+        return fichier.then(function (f) {
+          if (f) compteur.f++; else if (t.fichier) compteur.sansF++;
+          return moteurAppel(id, "tickets.reprendre", { ticket: { id: idN, nom: t.nom, dateAjout: t.dateAjout, dateTicket: t.dateTicket, montant: t.montant, devise: t.devise, motif: t.motif, commentaire: t.commentaire,
+            statut: t.statut, envoi: t.lot ? "anc" + t.lot : "", dateEnvoi: t.dateEnvoi, datePaiement: t.datePaiement, fichierUrl: t.fichierUrl, fichierNom: t.fichierNom }, fichier: f }, { lent: true });
+        }).then(suivant);
+      }
+      return suivant().then(function () { return relever(id); }).then(function () {
+        garder("origami_tk_repris_" + id, "1");
+        reprise.phase = "fini";
+        reprise.texte = nombre(compteur.t, "ticket") + " repris" + (compteur.f ? ", avec " + nombre(compteur.f, "justificatif") : "") + "." + (compteur.sansF ? " " + nombre(compteur.sansF, "justificatif") + " n'a pas pu être copié : son lien vers le Drive est gardé." : "");
+        majReprise(); majTickets();
+      });
+    }).catch(function (e) {
+      reprise.phase = ""; var m = (e && e.message) || "";
+      reprise.souci = /Demande inconnue/.test(m) ? "Le moteur du compte doit d'abord être mis à jour pour reprendre les anciens tickets." : m || "La reprise n'a pas abouti. Réessaie : rien n'est en double.";
+      if (/Code d'accès incorrect/.test(m)) garder("tickets_code", "");
+      reprise.cle = ""; majReprise();
+    });
   }
 
   function installerTickets(b) {
@@ -2427,6 +2496,8 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.tkRelancer) { relancer(d.tkRelancer); return true; }
     if (d.tkOuvrir) { tk.ouverts[d.tkOuvrir] = !tk.ouverts[d.tkOuvrir]; majTickets(); return true; }
     if (d.tk === "installer") { installerTickets(b); return true; }
+    if (d.tk === "reprendre") { reprendreAnciens(); return true; }
+    if (d.tk === "reprise-fermer" || d.tk === "reprise-plus-tard") { if (d.tk === "reprise-plus-tard") reprise.masque = true; reprise.phase = ""; reprise.cle = ""; majReprise(); return true; }
     if (d.tk === "nouveau") { fermerMenuPlus(); ouvrirFormulaire(); return true; }
     if (d.tk === "envoyer") { envoyerTickets(); return true; }
     if (d.tk === "ajouter-dest") { ajouterDestinataire(b); return true; }
@@ -3929,7 +4000,7 @@ button.tuile:hover { border-color: var(--ligne); }
     } else if (id === "tickets") {
       if (installee(c.id, "tickets")) { ok = true; etatT = "Installé."; act = b('data-vue="tickets0" data-de="' + c.id + '"', "Ouvrir", true); }
       else if (offre(c.id, "tickets")) { etatT = "Pas encore installé."; act = b('data-vue="tickets0" data-de="' + c.id + '"', "Installer", true); }
-      else if (c.id === "compagnie") { ok = true; etatT = "Installé."; act = b('data-vue="tickets" data-de="compagnie"', "Ouvrir", true); }
+      else if (c.id === "compagnie") { ok = true; etatT = "Installé."; act = b('data-vue="tickets0" data-de="compagnie"', "Ouvrir", true); }
       else { etatT = relie ? "Pas proposé par ce moteur." : "Relie d'abord ce compte."; eteinte = true; }
     } else if (id === "frais") {
       if (c.id === "compagnie") { ok = true; etatT = "Prêt."; act = MAC && FENETRES_MAC.frais && !FENETRE ? b('data-vue="frais" data-de="compagnie"', "Ouvrir", true) : '<a class="bouton fort" href="' + APPLIS.frais.lien + '" target="_blank" rel="noopener">Ouvrir</a>'; }
@@ -5120,7 +5191,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (COMPTA_SEULE && etat.vue === "ajouter" && !parcours.phase && guide.etape === 0) etat.vue = "comptaAjout";   // l'écran « Ajouter un compte » d'Origami n'a pas sa place ici
     var vue = etat.vue, c0 = compte(etat.compte);
     var cadre = c0 && c0.id === "compagnie" ? cadreDe(vue) : c0 && vue === "compta" && comptaDe(c0.id) ? cleCadre(c0, vue) : c0 && VUES_MODULES[vue] && modulesPrets(c0.id) ? cleCadre(c0, vue) : "";
-    if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "desinstaller" && desinst.phase) && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0) && !(FENETRE === "tickets" && vue === "tickets0" && c0) && !(COMPTA_SEULE && vue === "comptaAjout")) { vue = etat.vue = "accueil"; cadre = ""; }
+    if (vue !== "accueil" && vue !== "reglages" && vue !== "applis" && vue !== "ajouter" && !(vue === "desinstaller" && desinst.phase) && !(vue === "relier" && c0) && !((vue === "agenda" || vue === "repertoire") && (etat.compte === "tous" || c0)) && !(APPLIS[vue] && c0 && vuesDe(c0).indexOf(vue) >= 0) && !(FENETRE === "tickets" && vue === "tickets0" && c0) && !(vue === "tickets" && c0 && c0.id === "compagnie" && c0.applis.indexOf("tickets") >= 0) && !(COMPTA_SEULE && vue === "comptaAjout")) { vue = etat.vue = "accueil"; cadre = ""; }
     // Appli Compta seule (26.11) : elle ne montre que la Compta, sa page « Ajouter ou retirer » et le parcours Google. Un compte relié
     // dont la Compta n'est pas encore installée mène à cette page, jamais au tableau de bord d'Origami.
     if (COMPTA_SEULE && ((vue === "compta" && !cadre) || (vue !== "compta" && vue !== "comptaAjout" && vue !== "ajouter" && vue !== "relier"))) { vue = etat.vue = "comptaAjout"; cadre = ""; }
@@ -5312,7 +5383,9 @@ button.tuile:hover { border-color: var(--ligne); }
       // La Boîte mail ne s'ouvre que sur un bouton « Ouvrir » ; le volet mène à sa page dans Origami (18.11, Sévane :
       // une vieille copie restée dans la corbeille s'ouvrait à la place, avec l'alerte de macOS).
       if (d.vue === "boite" && d.ouvrir && !FENETRE && boitePossible()) { lancerBoite(d.de || etat.compte); return; }
-      if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
+      // 28.11 : Tickets (une seule appli) s'ouvre dans sa fenêtre sur le Mac, pour chaque compte.
+      var fenV = d.vue === "tickets0" ? "tickets" : d.vue, deV = d.de || etat.compte;
+      if ((deV === "compagnie" || fenV === "tickets") && ouvrirFenetre(fenV, deV)) return;
       if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return;
     }
     if (d.frais) {
