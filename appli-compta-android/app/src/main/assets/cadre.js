@@ -35,6 +35,35 @@
       if (haut && haut + "|" + bas !== dernier) { dernier = haut + "|" + bas; try { window.ComptaTel.couleurs(haut, bas); } catch (e) {} }
     }
   }
+  // 4) « Télécharger le PDF » : la Compta fabrique le fichier dans la page (adresse blob:) et clique sur un lien « download ».
+  //    Android ne sait pas enregistrer ces adresses : le fichier est lu ici et confié à l'appli, qui l'enregistre dans Téléchargements.
+  function confier(a) {
+    var href = a && a.href || "";
+    if (!/^blob:/.test(href) || !a.hasAttribute("download") || !window.ComptaTel || !window.ComptaTel.enregistrer) return false;
+    var nom = a.getAttribute("download") || "document.pdf";
+    fetch(href).then(function (r) { return r.blob(); }).then(function (b) {
+      var lecteur = new FileReader();
+      lecteur.onload = function () {
+        var s = String(lecteur.result || ""), i = s.indexOf(",");
+        try { window.ComptaTel.enregistrer(nom, b.type || "application/octet-stream", i >= 0 ? s.slice(i + 1) : ""); } catch (e) {}
+      };
+      lecteur.readAsDataURL(b);
+    }).catch(function () {});
+    return true;
+  }
+  function brancher() {
+    var P = window.HTMLAnchorElement && HTMLAnchorElement.prototype;
+    if (!P || P.__comptaTel) return;
+    var clic = P.click;
+    P.click = function () { if (confier(this)) return; return clic.apply(this, arguments); };
+    P.__comptaTel = 1;
+    document.addEventListener("click", function (e) {
+      var a = e.target && e.target.closest ? e.target.closest("a[download]") : null;
+      if (a && confier(a)) e.preventDefault();
+    }, true);
+  }
+  brancher();
+  setInterval(brancher, 1000);
   setInterval(tour, 600);
   window.addEventListener("resize", function () { setTimeout(tour, 30); });
   window.addEventListener("focusin", function () { setTimeout(tour, 30); }, true);

@@ -2,6 +2,10 @@ package ch.origami.compta
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.util.Base64
 import android.content.pm.PackageManager
 import android.webkit.PermissionRequest
 import androidx.core.content.ContextCompat
@@ -154,6 +158,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Téléchargement d'une adresse web (pas une adresse blob:, que cadre.js confie à enregistrer) : ouvert dans l'appli qui convient.
+        vue.setDownloadListener { url, _, _, _, _ ->
+            val u = Uri.parse(url)
+            if (u.scheme == "https" || u.scheme == "http") ouvrirAilleurs(u)
+        }
+
         vue.webChromeClient = object : WebChromeClient() {
             // Fenêtre nouvelle (PDF, Drive, Gmail, WhatsApp, téléphone…) : ouverte dans l'appli qui convient.
             override fun onCreateWindow(view: WebView, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message): Boolean {
@@ -242,6 +252,28 @@ class MainActivity : ComponentActivity() {
     }
 
 
+    /** Android 10+ : dossier « Téléchargements » du téléphone. Avant : dossier Téléchargements propre à l'appli. */
+    private fun ecrireTelechargement(nom: String, type: String, octets: ByteArray): Uri? {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val v = ContentValues()
+            v.put(MediaStore.MediaColumns.DISPLAY_NAME, nom)
+            v.put(MediaStore.MediaColumns.MIME_TYPE, type)
+            v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            v.put(MediaStore.MediaColumns.IS_PENDING, 1)
+            val r = contentResolver
+            val u = r.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v) ?: return null
+            r.openOutputStream(u)?.use { it.write(octets) } ?: return null
+            v.clear()
+            v.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            r.update(u, v, null, null)
+            return u
+        }
+        val dossier = File(getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: File(filesDir, "telechargements"), "").apply { mkdirs() }
+        val f = File(dossier, nom)
+        f.writeBytes(octets)
+        return FileProvider.getUriForFile(this, "$packageName.photos", f)
+    }
+
     private fun poserScripts() {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
         try {
@@ -293,6 +325,26 @@ class MainActivity : ComponentActivity() {
             val ch = lireCouleur(h) ?: return
             val cb = lireCouleur(b) ?: ch
             runOnUiThread { mettreCouleurs(ch, cb) }
+        }
+
+        /** « Télécharger le PDF » de la Compta (cadre.js) : le fichier est enregistré dans Téléchargements, puis proposé à l'ouverture. */
+        @JavascriptInterface
+        fun enregistrer(nom: String, type: String, b64: String) {
+            val propre = nom.replace(Regex("""[\\/:*?"<>|\u0000-\u001f]"""), "_").trim().take(120).ifEmpty { "document.pdf" }
+            val genre = if (Regex("""^[a-z]+/[a-z0-9.+-]+$""").matches(type)) type else "application/octet-stream"
+            val octets = try { Base64.decode(b64, Base64.DEFAULT) } catch (e: Exception) { null }
+            if (octets == null || octets.isEmpty() || octets.size > 40_000_000) {
+                runOnUiThread { Toast.makeText(this@MainActivity, "Le fichier n'a pas pu être enregistré.", Toast.LENGTH_LONG).show() }
+                return
+            }
+            val uri = try { ecrireTelechargement(propre, genre, octets) } catch (e: Exception) { null }
+            runOnUiThread {
+                if (uri == null) { Toast.makeText(this@MainActivity, "Le fichier n'a pas pu être enregistré.", Toast.LENGTH_LONG).show(); return@runOnUiThread }
+                Toast.makeText(this@MainActivity, "« $propre » est dans Téléchargements.", Toast.LENGTH_LONG).show()
+                val voir = Intent(Intent.ACTION_VIEW).setDataAndType(uri, genre)
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                try { startActivity(Intent.createChooser(voir, propre).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (e: Exception) {}
+            }
         }
 
         /** L'appli Boîte mail Android est-elle installée (elle reçoit les adresses boitemail://) ? */
