@@ -3,7 +3,8 @@
 //
 // D'où viennent-ils : de l'appli du compte (Diffusion de la compagnie, ou les modules Spectacle et Prospection d'un autre
 // compte), par sa porte habituelle, en LECTURE seulement (la liste des documents, puis le fichier morceau par morceau).
-// Ajouter, remplacer, renommer : toujours dans Spectacle, « Gérer les fichiers ».
+// Depuis le 28.11 : ajouter, remplacer (l'ancienne version est gardée), renommer et ajouter une variante se font ICI, avec les
+// mêmes demandes que la fenêtre « Gérer les fichiers » de Spectacle (même porte, même jeton, mêmes règles côté serveur).
 //
 // Où sont-ils gardés : sur l'appareil, pour s'ouvrir tout de suite et sans connexion.
 //  - Dans l'appli Origami du Mac (0.5 et suivantes) : un vrai dossier du Finder (Documents › Origami › Fichiers, ou celui
@@ -20,7 +21,9 @@
   var AUTO_MAX_PETIT = 15 * MO;
   var APERCU_MAX = 40 * MO;      // aperçu dans la fiche : au plus 40 Mo
   var PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
-  var F = { compte: "", spectacle: "", raccourci: "", doc: "", cherche: "", ecran: "liste", fiche: false, menu: false };
+  var F = { compte: "", spectacle: "", raccourci: "", doc: "", cherche: "", ecran: "liste", fiche: false, menu: false, form: null };
+  var MORCEAU = 8 * 1024 * 1024;   // morceau envoyé par la porte (8 Mo, comme « Gérer les fichiers » hors de Google)
+  var SORTES = ["Dossier de présentation", "Fiche technique", "Photos", "Affiche", "Teaser", "Revue de presse", "CV"];
   var D = {};        // par compte : { projets, le, frais, panne, enCours, lu }
   var G = {};        // gardés, par compte : { idFichier: { c: chemin sur le Mac, t: taille, m: repère de version, n: nom, s: spectacle, y: type } }
   var CHOIX = {};    // par compte : { idFichier: "ligne" } (en ligne seulement)
@@ -106,6 +109,9 @@
     return (corps + ext) || "Sans nom";
   }
   function cheminPour(cid, projet, d, nomServeur) {
+    // 28.11 (Sévane : « garder le nom donné dans le Finder ») : une nouvelle version prend la place de l'ancienne, sous le nom qu'elle a sur le Mac.
+    var deja = gardes(cid)[d.fichierId];
+    if (deja && deja.c) return deja.c;
     var nom = propre(d.fichierNom || nomServeur || d.nom), extS = (/\.[A-Za-z0-9]{1,8}$/.exec(String(nomServeur || "")) || [""])[0];
     if (!/\.[A-Za-z0-9]{1,8}$/.test(nom) && extS) nom += extS;
     var dossier = propre(P.nomCompte(cid)) + "/" + propre(projet) + "/", pris = {}, g = gardes(cid);
@@ -121,10 +127,37 @@
     P.tousComptes().forEach(function (c) { var g = gardes(c.id); for (var k in g) if (g[k].c) liste.push([c.id, k, g[k].c]); });
     if (!liste.length) return Promise.resolve();
     return natif("fichiers_etat", { chemins: liste.map(function (x) { return x[2]; }) }).then(function (r) {
-      var touches = {};
-      liste.forEach(function (x, i) { if (!r || r[i] == null) { delete gardes(x[0])[x[1]]; touches[x[0]] = 1; } else gardes(x[0])[x[1]].t = Number(r[i]) || 0; });
-      Object.keys(touches).forEach(retenir);
+      var touches = {}, perdus = [];
+      liste.forEach(function (x, i) { if (!r || r[i] == null) perdus.push(x); else gardes(x[0])[x[1]].t = Number(r[i]) || 0; });
+      return retrouver(perdus).then(function () {
+        perdus.forEach(function (x) { var g = gardes(x[0])[x[1]]; if (g && g.c === x[2]) { delete gardes(x[0])[x[1]]; } touches[x[0]] = 1; });
+        Object.keys(touches).forEach(retenir);
+      });
     }, function () {});
+  }
+  // Un fichier renommé à la main dans le Finder (même dossier, même taille, pas suivi par ailleurs) : Origami le suit sous son nouveau nom
+  // (28.11). Il faut l'appli Origami du Mac 0.5.1 (commande « fichiers_lister ») ; plus ancienne, il redevient « en ligne » comme avant.
+  // Deux candidats possibles : on ne devine pas.
+  function retrouver(perdus) {
+    if (!perdus.length || mac.sansListe) return Promise.resolve();
+    var parDossier = {};
+    perdus.forEach(function (x) { var dos = x[2].slice(0, x[2].lastIndexOf("/") + 1); (parDossier[dos] = parDossier[dos] || []).push(x); });
+    return Object.keys(parDossier).reduce(function (suite, dos) {
+      return suite.then(function () {
+        return natif("fichiers_lister", { dossier: dos }).then(function (l) {
+          var suivis = {};
+          P.tousComptes().forEach(function (c) { var g = gardes(c.id); for (var k in g) if (g[k].c) suivis[g[k].c.toLowerCase()] = 1; });
+          var libres = (Array.isArray(l) ? l : []).filter(function (f) { return f && typeof f.nom === "string" && !suivis[(dos + f.nom).toLowerCase()]; });
+          parDossier[dos].forEach(function (x) {
+            var g = gardes(x[0])[x[1]]; if (!g) return;
+            var c = libres.filter(function (f) { return Number(f.taille) === Number(g.t) && Number(g.t) > 0; });
+            if (c.length !== 1) return;
+            g.c = dos + c[0].nom; g.finder = c[0].nom;
+            libres.splice(libres.indexOf(c[0]), 1);
+          });
+        }, function (e) { if (/inconnue|not found|unknown/i.test(message(e))) mac.sansListe = true; });
+      });
+    }, Promise.resolve());
   }
 
   // ---------- Les documents d'un compte ----------
@@ -267,15 +300,23 @@
   // ---------- Gestes ----------
   function choisie() { for (var i = 0; i < vueDocs.length; i++) if (cleDoc(vueDocs[i]) === F.doc) return vueDocs[i]; return null; }
   function cleDoc(x) { return (x.p.id || x.p.nom) + "\n" + x.d.nom; }
-  function ouvrir(x) {
+  // PDF et images : la visionneuse d'Origami (toutes les pages, zoom, pivoter) ; le reste, l'appli habituelle (28.11, Sévane).
+  function visionneuse(d) { var s = sorte(d)[0]; return s === "PDF" || s === "IMG"; }
+  function ouvrir(x, avecMac) {
     var cid = F.compte, d = x.d;
     if (!d.fichierId) { if (lienSur(d.lien)) P.dehors(d.lien); return; }
+    if (!avecMac && visionneuse(d)) {
+      var lire = aJour(cid, d) ? function () { return lireGarde(cid, d); } : function () { return lireEnLigne({ cid: cid, p: x.p.nom, d: d, garder: false }).catch(function (e) { if (message(e) === "LOURD") return { tropLourd: true }; throw e; }); };
+      P.apercu().then(function (A) { A.ouvrir({ nom: d.fichierNom || d.nom, lien: lienSur(d.lienFichier), lire: lire }); }, function (e) { P.avis(message(e), true); });
+      if (!aJour(cid, d) && choix(cid)[d.fichierId] !== "ligne" && !lourds[d.fichierId]) mettreEnFile(cid, x.p.nom, d, false).then(dessinerBientot, function () {});   // gardé ensuite, comme avant
+      return;
+    }
     function voir(lire) { P.apercu().then(function (A) { A.ouvrir({ nom: d.fichierNom || d.nom, lien: lienSur(d.lienFichier), lire: lire }); }, function (e) { P.avis(message(e), true); }); }
     function duMac() {
       var g = garde(cid, d);
       return natif("fichiers_ouvrir", { chemin: g.c }).catch(function (e) {
         var m = message(e);
-        if (/n'est plus/.test(m)) { oublier(cid, d.fichierId); dessiner(); P.avis("Ce fichier n'est plus dans le dossier du Mac : il est repris en ligne.", true); return ouvrir(x); }
+        if (/n'est plus/.test(m)) { oublier(cid, d.fichierId); dessiner(); P.avis("Ce fichier n'est plus dans le dossier du Mac : il est repris en ligne.", true); return ouvrir(x, true); }
         if (/montre-le/.test(m)) return natif("fichiers_montrer", { chemin: g.c }).catch(function (e2) { P.avis(message(e2), true); });
         P.avis(m, true);
       });
@@ -306,6 +347,284 @@
     }, function (e) { if (message(e) === "LOURD") { P.avis("Trop lourd pour passer par l'appli : je l'ouvre dans Drive."); if (lienSur(d.lienFichier)) P.dehors(d.lienFichier); } else P.avis(message(e), true); dessiner(); });
   }
 
+
+  // ---------- Écrire : ajouter, remplacer, renommer, variante (28.11) ----------
+  // Les mêmes demandes, dans le même ordre, que la fenêtre « Gérer les fichiers » de Spectacle : le serveur applique ses propres règles
+  // (noms en double refusés, ancienne version gardée avant un remplacement, fichier partagé par lien en lecture).
+  function memeNom(a, b) { return plat(String(a || "").trim()) === plat(String(b || "").trim()); }
+  function projetDe(cid, k) { return projets(cid).filter(function (y) { return (y.id || y.nom) === k; })[0] || null; }
+  function lireBase64(blob) {
+    return new Promise(function (ok, ko) {
+      var r = new FileReader();
+      r.onload = function () { var t = String(r.result || ""); ok(t.slice(t.indexOf(",") + 1)); };
+      r.onerror = function () { ko(new Error("Le fichier n'a pas pu être lu sur cet appareil.")); };
+      r.readAsDataURL(blob);
+    });
+  }
+  // Envoi par morceaux de 8 Mo (chaque morceau réessayé trois fois). suivi(pourcentage). Rend les infos du fichier enregistré.
+  function televerser(cid, nomProjet, nomDoc, fichier, remplace, suivi) {
+    if (!fichier || !fichier.size) return Promise.reject(new Error("Ce fichier est vide."));
+    if (fichier.size > 500 * MO) return Promise.reject(new Error("Fichier trop lourd : 500 Mo au plus."));
+    return P.porte(cid, "demarrerTeleversement", [nomProjet, fichier.name, fichier.type || "", fichier.size, nomDoc, remplace || "", ""]).then(function (r) {
+      if (!r || !r.id) throw new Error("Google Drive n'a pas ouvert l'envoi. Réessaie.");
+      var pas = Math.min(Number(r.morceau) || MORCEAU, MORCEAU);
+      function envoyer(debut, essai) {
+        return lireBase64(fichier.slice(debut, Math.min(fichier.size, debut + pas))).then(function (b64) {
+          return P.porte(cid, "envoyerMorceau", [r.id, debut, b64]);
+        }).then(function (m) {
+          if (!m) throw new Error("Pas de réponse.");
+          if (m.fini) return m;
+          var recu = Number(m.recu) || 0;
+          if (recu <= debut) throw new Error("Envoi interrompu.");
+          if (suivi) suivi(Math.min(99, Math.round(recu / fichier.size * 100)));
+          return envoyer(recu, 0);
+        }, function (e) {
+          if (essai < 2 && !/expiré|refuse|ACCES/i.test(message(e))) return new Promise(function (ok) { setTimeout(ok, 1500 * (essai + 1)); }).then(function () { return envoyer(debut, essai + 1); });
+          throw e;
+        });
+      }
+      return envoyer(0, 0);
+    }).then(function (fin) {
+      if (fin && fin.enregistre === false) throw new Error("Le fichier est parti dans Drive, mais n'a pas été rattaché au spectacle. Recharge la liste et réessaie.");
+      return fin;
+    });
+  }
+  function relireApres(cid, k, nomDoc) {
+    var d = D[cid]; if (d) { d.frais = 0; d.enCours = false; }
+    if (k && nomDoc) { F.spectacle = k; F.raccourci = ""; F.doc = k + "\n" + nomDoc; F.fiche = true; }
+    charger(cid);
+  }
+  function famillesDe(p) {
+    var l = [];
+    (p ? docsDe(p) : []).forEach(function (d) { var f = famille(d); if (l.indexOf(f) < 0) l.push(f); });
+    SORTES.forEach(function (f) { if (!l.some(function (x) { return memeNom(x, f); })) l.push(f); });
+    return l;
+  }
+  function dessinerForm(cid) {
+    var o = F.form, ps = projets(cid), p = projetDe(cid, o.spectacle), h = '<div class="f-tete"><button class="f-icone" data-f="form-annuler" aria-label="Annuler">' + ICO.retour + "</button><div><h2>";
+    var occupe = o.occupe ? '<p class="f-doux f-cours" role="status">' + texte(o.occupe) + (o.pct != null ? " " + o.pct + " %" : "") + "</p>" : "";
+    var souci = o.souci ? '<p class="f-souci" role="alert">' + texte(o.souci) + "</p>" : "";
+    if (o.genre === "renommer") {
+      h += "Renommer</h2><p>" + texte(o.ancien) + "</p></div></div>";
+      h += '<label class="f-champ">Nouveau nom<input id="fNom" type="text" value="' + texte(o.nom != null ? o.nom : o.ancien) + '" autocomplete="off"></label>';
+      h += '<p class="f-doux">Le fichier dans Drive prend aussi ce nom. Les campagnes qui le joignent suivent.</p>';
+      return h + occupe + souci + '<div class="f-gestes"><button class="bouton" data-f="form-annuler">Annuler</button><button class="bouton fort" data-f="form-ok"' + (o.occupe ? " disabled" : "") + ">Renommer</button></div>";
+    }
+    var rempl = o.genre === "remplacer";
+    var classe = o.genre === "classement";
+    h += (rempl ? (o.aFichier ? "Remplacer le fichier" : "Choisir le fichier") : classe ? "Nouveau classement" : o.genre === "variante" ? "Ajouter dans « " + texte(o.sorte) + " »" : "Ajouter un fichier") + "</h2><p>" + texte(rempl ? o.nomDoc : p ? p.nom : "") + "</p></div></div>";
+    if (!rempl) {
+      h += '<label class="f-champ">Spectacle<select id="fSpectacle"' + (o.genre === "variante" ? " disabled" : "") + ">" + ps.map(function (y) { var k = y.id || y.nom; return '<option value="' + texte(k) + '"' + (k === o.spectacle ? " selected" : "") + ">" + texte(y.nom) + "</option>"; }).join("") + "</select></label>";
+      if (classe) h += '<label class="f-champ">Nom du classement<input id="fSorte" type="text" value="' + texte(o.sorte || "") + '" placeholder="Calendrier de création, Plan de feu…" autocomplete="off"></label><p class="f-doux">Un classement regroupe plusieurs fichiers de la même sorte. Tu peux y mettre un premier fichier tout de suite, ou plus tard avec son « + ».</p>';
+      else {
+        h += '<label class="f-champ">Classement<input id="fSorte" type="text" list="fSortes" value="' + texte(o.sorte || "") + '" placeholder="Dossier de présentation, Fiche technique…" autocomplete="off"' + (o.genre === "variante" ? " readonly" : "") + '></label><datalist id="fSortes">' + famillesDe(p).map(function (f) { return '<option value="' + texte(f) + '">'; }).join("") + "</datalist>";
+        var cv = memeNom(o.sorte, "CV");
+        h += '<label class="f-champ">' + (cv ? "Nom de la personne" : "Nom de ce fichier dans le classement <small>(facultatif : « anglais », « version courte »…)</small>") + '<input id="fVariante" type="text" value="' + texte(o.variante || "") + '" autocomplete="off"></label>';
+      }
+    } else if (o.aFichier) h += '<p class="f-doux">L\'ancienne version est gardée dans les versions du document. Le lien Drive ne change pas : les mails déjà partis montrent la nouvelle.</p>';
+    h += '<label class="f-champ">' + (classe ? "Premier fichier <small>(facultatif)</small>" : "Fichier") + '<input id="fFichier" type="file"></label>' + (o.fichier ? '<p class="f-doux">' + texte(o.fichier.name) + " · " + poids(o.fichier.size) + "</p>" : "");
+    return h + occupe + souci + '<div class="f-gestes"><button class="bouton" data-f="form-annuler"' + (o.occupe ? " disabled" : "") + '>Annuler</button><button class="bouton fort" data-f="form-ok"' + (o.occupe || (!o.fichier && !classe) ? " disabled" : "") + ">" + (rempl ? "Envoyer" : classe ? "Créer" : "Ajouter") + "</button></div>";
+  }
+  function formOuvrir(genre, x) {
+    var cid = F.compte;
+    var k0 = F.spectacle || ((projets(cid)[0] || {}).id || (projets(cid)[0] || {}).nom || "");
+    if (genre === "ajouter" || genre === "classement") F.form = { genre: genre, spectacle: k0, sorte: "", variante: "" };
+    else if (genre === "dans") F.form = { genre: "variante", spectacle: k0, sorte: String(x || ""), variante: "" };
+    else if (!x) return;
+    if (genre === "dans" || genre === "ajouter" || genre === "classement") {}
+    else if (genre === "variante") F.form = { genre: "variante", spectacle: x.p.id || x.p.nom, sorte: famille(x.d), variante: "" };
+    else if (genre === "renommer") F.form = { genre: "renommer", spectacle: x.p.id || x.p.nom, ancien: x.d.nom };
+    else F.form = { genre: "remplacer", spectacle: x.p.id || x.p.nom, nomDoc: x.d.nom, aFichier: !!x.d.fichierId, fichierId: x.d.fichierId || "" };
+    F.fiche = true; dessiner();
+    var c = document.getElementById(genre === "renommer" ? "fNom" : genre === "remplacer" ? "fFichier" : genre === "variante" || genre === "dans" ? "fVariante" : "fSorte");
+    if (c) { try { c.focus(); } catch (e) {} if (genre === "remplacer") try { c.click(); } catch (e) {} }
+  }
+  function formLancer() {
+    var cid = F.compte, o = F.form; if (!o || o.occupe) return;
+    if (o.genre === "deposer") return depotLancer();
+    var p = projetDe(cid, o.spectacle);
+    if (!p) { o.souci = "Choisis un spectacle."; dessiner(); return; }
+    o.souci = "";
+    function rate(e) { o.occupe = ""; o.pct = null; o.souci = message(e) || "Ça n'a pas abouti."; dessiner(); }
+    function fini(nomDoc, dire) { F.form = null; P.avis(dire); relireApres(cid, p.id || p.nom, nomDoc); dessiner(); }
+    function suivi(n) { o.pct = n; var z = racine.querySelector(".f-cours"); if (z) z.textContent = o.occupe + " " + n + " %"; }
+    if (o.genre === "renommer") {
+      var nv = String((document.getElementById("fNom") || {}).value || "").trim();
+      if (!nv) { o.souci = "Donne un nom."; dessiner(); return; }
+      if (nv === o.ancien) { F.form = null; dessiner(); return; }
+      o.nom = nv; o.occupe = "Je renomme…"; dessiner();
+      return P.porte(cid, "renommerDocument", [p.nom, o.ancien, nv]).then(function () { fini(nv.replace(/[,;]+/g, " -").trim(), "Renommé."); }, rate);
+    }
+    if (!o.fichier && o.genre !== "classement") { o.souci = "Choisis un fichier."; dessiner(); return; }
+    if (o.genre === "remplacer") {
+      var gardee = "";
+      o.occupe = "Envoi…"; o.pct = 0; dessiner();
+      return (o.aFichier ? P.porte(cid, "garderVersion", [p.nom, o.nomDoc]) : Promise.resolve(null)).then(function (v) {
+        gardee = v && v.version ? v.version : "";
+        return televerser(cid, p.nom, o.nomDoc, o.fichier, o.fichierId, suivi);
+      }).then(function () { fini(o.nomDoc, o.aFichier ? "Nouvelle version envoyée. L'ancienne est gardée." : "Fichier ajouté."); }, function (e) {
+        if (gardee) P.porte(cid, "supprimerFichierDoc", [p.nom, o.nomDoc, gardee]).catch(function () {});   // comme « Gérer les fichiers » : la copie gardée pour rien repart
+        rate(e);
+      });
+    }
+    var sorte = String(o.sorte || "").trim(), variante = String(o.variante || "").trim();
+    if (!sorte) { o.souci = o.genre === "classement" ? "Donne un nom au classement." : "Dis dans quel classement le ranger."; dessiner(); return; }
+    if (o.genre === "classement") {
+      if (docsDe(p).some(function (d) { return memeNom(famille(d), sorte); })) { o.souci = "« " + sorte + " » existe déjà dans ce spectacle : ajoute tes fichiers avec son « + »."; dessiner(); return; }
+      o.occupe = o.fichier ? "Envoi…" : "Je crée le classement…"; o.pct = o.fichier ? 0 : null; dessiner();
+      return P.porte(cid, "ajouterVariante", [p.nom, sorte, ""]).then(function (r) {
+        var n0 = (r && r.nom) || sorte;
+        if (!o.fichier) return fini(n0, "Classement « " + n0 + " » créé.");
+        return televerser(cid, p.nom, n0, o.fichier, "", suivi).then(function () { fini(n0, "Classement « " + n0 + " » créé, avec son premier fichier."); });
+      }).then(null, function (e) { relireApres(cid, "", ""); rate(e); });
+    }
+    if (memeNom(sorte, "CV") && !variante) { o.souci = "Pour un CV, donne le nom de la personne."; dessiner(); return; }
+    SORTES.concat(famillesDe(p)).forEach(function (f) { if (memeNom(f, sorte)) sorte = f; });   // l'écriture de la liste, pas celle tapée
+    var nom = variante ? sorte + " – " + variante : sorte, deja = docsDe(p).filter(function (d) { return memeNom(d.nom, nom); })[0];
+    if (deja && deja.fichierId) { o.souci = "« " + deja.nom + " » existe déjà. Donne un nom de variante, ou choisis-le dans la liste et remplace-le."; dessiner(); return; }
+    o.occupe = "Envoi…"; o.pct = 0; dessiner();
+    (deja ? Promise.resolve({ nom: deja.nom }) : P.porte(cid, "ajouterVariante", [p.nom, sorte, variante])).then(function (r) {
+      nom = (r && r.nom) || nom;
+      return televerser(cid, p.nom, nom, o.fichier, "", suivi);
+    }).then(function () { fini(nom, "Fichier ajouté à « " + p.nom + " »."); }, function (e) {
+      if (!deja) relireApres(cid, "", "");   // la ligne a pu être créée sans fichier : elle apparaît « à fournir », on peut y remettre le fichier
+      rate(e);
+    });
+  }
+
+  // ---------- Glisser-déposer (28.11, Sévane : « je le dépose dans l'élément et ça me propose comment le classer ») ----------
+  // Sur un fichier de la liste : remplacer (l'ancienne version est gardée), ou l'ajouter à côté dans le même classement, ou un nouveau
+  // classement. Sur le titre d'un classement : dedans. Ailleurs dans la liste : « Ajouter un fichier », déjà rempli. Plusieurs fichiers :
+  // tous dans le même classement, chacun sous son nom.
+  function sansExt(n) { return String(n || "").replace(/\.[A-Za-z0-9]{1,8}$/, "").replace(/[,;]+/g, " -").trim(); }
+  function cibleDepot(t) { var z = t && t.closest ? t.closest("[data-depot]") : null; return z && racine.contains(z) ? z : null; }
+  function avecFichiers(ev) { try { return Array.prototype.indexOf.call(ev.dataTransfer.types || [], "Files") >= 0; } catch (e) { return false; } }
+  var survole = null;
+  function marquer(z) { if (survole === z) return; if (survole) survole.classList.remove("f-depot-ici"); survole = z; if (z) z.classList.add("f-depot-ici"); }
+  function dessus(ev) {
+    if (!avecFichiers(ev) || !F.compte || F.ecran !== "liste" || (F.form && F.form.occupe)) return;
+    ev.preventDefault(); try { ev.dataTransfer.dropEffect = "copy"; } catch (e) {}
+    marquer(cibleDepot(ev.target) || racine.querySelector(".f-liste"));
+  }
+  function sortie(ev) { if (!ev.relatedTarget || !racine.contains(ev.relatedTarget)) marquer(null); }
+  function depot(ev) {
+    if (!avecFichiers(ev)) return;
+    ev.preventDefault(); marquer(null);
+    if (!F.compte || F.ecran !== "liste" || (F.form && F.form.occupe)) return;
+    var l = Array.prototype.slice.call((ev.dataTransfer && ev.dataTransfer.files) || []).filter(function (f) { return f && f.size; });
+    if (!l.length) { P.avis("Rien à ajouter : dépose des fichiers (pas un dossier).", true); return; }
+    var z = cibleDepot(ev.target), cid = F.compte, k = F.spectacle;
+    if (z && z.getAttribute("data-depot") === "doc") {
+      var x = vueDocs[+z.getAttribute("data-f-doc")]; if (!x) return;
+      k = x.p.id || x.p.nom;
+      F.form = { genre: "deposer", spectacle: k, fichiers: l, nomDoc: x.d.nom, aFichier: !!x.d.fichierId, fichierId: x.d.fichierId || "", sorte: famille(x.d), choix: l.length > 1 ? "variante" : x.d.fichierId ? "remplacer" : "dedans", variante: l.length > 1 ? "" : sansExt(l[0].name) };
+    } else if (z && z.getAttribute("data-depot") === "famille") {
+      var f = z.getAttribute("data-famille"), p = projetDe(cid, k), base = p ? docsDe(p).filter(function (d) { return memeNom(d.nom, f); })[0] : null;
+      F.form = { genre: "deposer", spectacle: k, fichiers: l, nomDoc: base ? base.nom : "", aFichier: !!(base && base.fichierId), fichierId: base ? base.fichierId || "" : "", sorte: f, choix: base && !base.fichierId && l.length === 1 ? "dedans" : "variante", variante: l.length > 1 ? "" : sansExt(l[0].name) };
+    } else {
+      if (!projets(cid).length) return;
+      F.form = { genre: "deposer", spectacle: k || ((projets(cid)[0] || {}).id || (projets(cid)[0] || {}).nom), fichiers: l, nomDoc: "", sorte: "", choix: "classement", variante: l.length > 1 ? "" : sansExt(l[0].name) };
+    }
+    F.fiche = true; dessiner();
+  }
+  function dessinerDepot(cid) {
+    var o = F.form, p = projetDe(cid, o.spectacle), n = o.fichiers.length, un = n === 1;
+    var h = '<div class="f-tete"><button class="f-icone" data-f="form-annuler" aria-label="Annuler">' + ICO.retour + "</button><div><h2>" + (un ? texte(o.fichiers[0].name) : n + " fichiers") + "</h2><p>" + texte(p ? p.nom : "") + " · " + poids(o.fichiers.reduce(function (t, f) { return t + f.size; }, 0)) + "</p></div></div>";
+    h += '<p class="f-doux" style="margin-top:12px">Où le ranger ?</p><div class="f-choix-depot" role="radiogroup">';
+    function choix(v, titre, plus) { return '<label class="f-option"><input type="radio" name="fDepot" value="' + v + '"' + (o.choix === v ? " checked" : "") + "> <span>" + titre + (plus ? '<small>' + plus + "</small>" : "") + "</span></label>"; }
+    if (o.nomDoc && un && o.aFichier) h += choix("remplacer", "Remplacer « " + texte(o.nomDoc) + " »", "Nouvelle version au même lien. L'ancienne est gardée dans ses versions.");
+    if (o.nomDoc && un && !o.aFichier) h += choix("dedans", "Le mettre dans « " + texte(o.nomDoc) + " »", "Cet élément attend encore son fichier.");
+    if (o.sorte) h += choix("variante", (un ? "L'ajouter" : "Les ajouter") + " à côté, dans « " + texte(o.sorte) + " »", un ? "Une autre version : autre langue, autre format…" : "Chacun sous son nom de fichier.");
+    h += choix("classement", "Nouveau classement", un ? "Un nouveau groupe de fichiers dans ce spectacle." : "Un nouveau groupe avec ces " + n + " fichiers.");
+    if (!o.nomDoc && !o.sorte) h += choix("existant", "Dans un classement qui existe déjà");
+    h += "</div>";
+    if (!o.nomDoc && !o.sorte || o.choix === "existant") h += '<label class="f-champ">Spectacle<select id="fSpectacle">' + projets(cid).map(function (y) { var kk = y.id || y.nom; return '<option value="' + texte(kk) + '"' + (kk === o.spectacle ? " selected" : "") + ">" + texte(y.nom) + "</option>"; }).join("") + "</select></label>";
+    if (o.choix === "classement") h += '<label class="f-champ">Nom du classement<input id="fClasse" type="text" value="' + texte(o.classe || "") + '" placeholder="Calendrier de création…" autocomplete="off"></label>';
+    if (o.choix === "existant") h += '<label class="f-champ">Classement<select id="fExistant">' + famillesDe(p).filter(function (f) { return p && docsDe(p).some(function (d) { return memeNom(famille(d), f); }); }).map(function (f) { return '<option' + (f === o.existant ? " selected" : "") + ">" + texte(f) + "</option>"; }).join("") + "</select></label>";
+    if (un && (o.choix === "variante" || o.choix === "existant")) h += '<label class="f-champ">Nom de ce fichier dans le classement<input id="fVariante" type="text" value="' + texte(o.variante || "") + '" autocomplete="off"></label>';
+    var occupe = o.occupe ? '<p class="f-doux f-cours" role="status">' + texte(o.occupe) + (o.pct != null ? " " + o.pct + " %" : "") + "</p>" : "";
+    return h + occupe + (o.souci ? '<p class="f-souci" role="alert">' + texte(o.souci) + "</p>" : "") + '<div class="f-gestes"><button class="bouton" data-f="form-annuler"' + (o.occupe ? " disabled" : "") + '>Annuler</button><button class="bouton fort" data-f="form-ok"' + (o.occupe ? " disabled" : "") + ">Ranger</button></div>";
+  }
+  // Le choix fait, chaque fichier passe par les mêmes chemins que les boutons (remplacer, variante, classement).
+  function depotLancer() {
+    var cid = F.compte, o = F.form, p = projetDe(cid, o.spectacle);
+    if (!p) { o.souci = "Choisis un spectacle."; dessiner(); return; }
+    var l = o.fichiers.slice(), choixF = o.choix, sorte = o.sorte, faits = 0, premier = "";
+    if (choixF === "existant") { sorte = o.existant || ((document.getElementById("fExistant") || {}).value || ""); if (!sorte) { o.souci = "Ce spectacle n'a pas encore de classement : choisis « Nouveau classement »."; dessiner(); return; } choixF = "variante"; }
+    if (choixF === "classement") {
+      sorte = String(o.classe || "").trim();
+      if (!sorte) { o.souci = "Donne un nom au classement."; dessiner(); return; }
+      if (docsDe(p).some(function (d) { return memeNom(famille(d), sorte); })) { o.souci = "« " + sorte + " » existe déjà : choisis « Dans un classement qui existe déjà »."; dessiner(); return; }
+    }
+    if (choixF === "variante" && l.length === 1 && !String(o.variante || "").trim()) { o.souci = "Donne un nom à ce fichier dans le classement."; dessiner(); return; }
+    o.souci = ""; o.occupe = "Envoi…"; o.pct = 0; dessiner();
+    function suivi(n) { o.pct = n; var z = racine.querySelector(".f-cours"); if (z) z.textContent = o.occupe + " " + n + " %"; }
+    function un(f, i) {
+      o.occupe = l.length > 1 ? "Envoi " + (i + 1) + " sur " + l.length + "…" : "Envoi…"; o.pct = 0; dessiner();
+      if (choixF === "remplacer" || choixF === "dedans") {
+        var gardee = "";
+        return (o.aFichier ? P.porte(cid, "garderVersion", [p.nom, o.nomDoc]) : Promise.resolve(null)).then(function (v) { gardee = v && v.version ? v.version : ""; return televerser(cid, p.nom, o.nomDoc, f, o.fichierId, suivi); })
+          .then(function () { premier = o.nomDoc; }, function (e) { if (gardee) P.porte(cid, "supprimerFichierDoc", [p.nom, o.nomDoc, gardee]).catch(function () {}); throw e; });
+      }
+      var nomV = l.length === 1 ? String(o.variante || "").trim() : sansExt(f.name);
+      if (choixF === "classement" && i === 0) nomV = "";   // le premier fichier porte le nom du classement (sa version principale)
+      var nom = nomV ? sorte + " – " + nomV : sorte, deja = docsDe(p).filter(function (d) { return memeNom(d.nom, nom); })[0];
+      if (deja && deja.fichierId) { nom = nom + " (" + (i + 2) + ")"; nomV = nomV ? nomV + " (" + (i + 2) + ")" : String(i + 2); deja = null; }
+      return (deja ? Promise.resolve({ nom: deja.nom }) : P.porte(cid, "ajouterVariante", [p.nom, sorte, nomV])).then(function (r) {
+        nom = (r && r.nom) || nom; if (!premier) premier = nom;
+        return televerser(cid, p.nom, nom, f, "", suivi);
+      });
+    }
+    l.reduce(function (suite, f, i) { return suite.then(function () { return un(f, i).then(function () { faits++; }); }); }, Promise.resolve()).then(function () {
+      F.form = null; P.avis(faits > 1 ? faits + " fichiers rangés dans « " + p.nom + " »." : "Rangé dans « " + p.nom + " »."); relireApres(cid, p.id || p.nom, premier); dessiner();
+    }, function (e) {
+      o.occupe = ""; o.pct = null; o.souci = (faits ? faits + " fichier(s) rangé(s), puis : " : "") + (message(e) || "Ça n'a pas abouti."); relireApres(cid, "", ""); o.fichiers = l.slice(faits); dessiner();
+    });
+  }
+  function formSaisie(t) {
+    var o = F.form; if (!o) return false;
+    if (t.id === "fSpectacle") { o.spectacle = t.value; dessiner(); return true; }
+    if (t.name === "fDepot") { o.choix = t.value; o.souci = ""; dessiner(); return true; }
+    if (t.id === "fClasse") { o.classe = t.value; return true; }
+    if (t.id === "fExistant") { o.existant = t.value; return true; }
+    if (t.id === "fSorte") { var avant = memeNom(o.sorte, "CV"); o.sorte = t.value; if (avant !== memeNom(o.sorte, "CV")) { dessiner(); var c = document.getElementById("fSorte"); if (c) { c.focus(); try { c.setSelectionRange(c.value.length, c.value.length); } catch (e) {} } } return true; }
+    if (t.id === "fVariante") { o.variante = t.value; return true; }
+    if (t.id === "fNom") { o.nom = t.value; return true; }
+    if (t.id === "fFichier") { o.fichier = t.files && t.files[0] ? t.files[0] : null; o.souci = ""; dessiner(); return true; }
+    return false;
+  }
+
+  // ---------- Largeur des colonnes (28.11, Sévane : « gérer la largeur de chacune des choses », comme dans la Boîte mail) ----------
+  var LARG = lireJ("origami_fichiers_largeurs");
+  function largeursCss() {
+    if (largeur !== "large") return "";
+    var a = Number(LARG.a) || 0, b = Number(LARG.b) || 0, v = "";
+    if (a) v += "--f-c1:" + a + "px;";
+    if (b) v += "--f-c2:" + b + "px;";
+    return v ? ' style="' + v + '"' : "";
+  }
+  function poignee(n) { return largeur === "large" ? '<div class="f-poignee" data-poignee="' + n + '" role="separator" aria-orientation="vertical" aria-label="Glisser pour régler la largeur" title="Glisser pour régler la largeur · double-clic : largeur d\'origine"></div>' : ""; }
+  function glisser(ev) {
+    var h = ev.target.closest && ev.target.closest("[data-poignee]"); if (!h || !racine.contains(h)) return;
+    ev.preventDefault();
+    var zone = racine.querySelector(".f-zone"), n = h.getAttribute("data-poignee"), cols = zone.children, x0 = ev.clientX;
+    var a0 = cols[0].getBoundingClientRect().width, b0 = cols[2] ? cols[2].getBoundingClientRect().width : 0, tout = zone.getBoundingClientRect().width;
+    try { h.setPointerCapture(ev.pointerId); } catch (e) {}
+    h.classList.add("tire");
+    function bouge(e) {
+      var dx = e.clientX - x0;
+      if (n === "1") { var a = Math.max(150, Math.min(420, a0 + dx)); if (tout - a - (F.ecran === "mac" ? 0 : b0) < 300) return; LARG.a = Math.round(a); zone.style.setProperty("--f-c1", LARG.a + "px"); }
+      else { var b = Math.max(260, b0 + dx); if (tout - a0 - b < 300) return; LARG.b = Math.round(b); zone.style.setProperty("--f-c2", LARG.b + "px"); }
+    }
+    function lache() { h.classList.remove("tire"); h.removeEventListener("pointermove", bouge); h.removeEventListener("pointerup", lache); h.removeEventListener("pointercancel", lache); ecrireJ("origami_fichiers_largeurs", LARG); var x = choisie(); if (x) { viderApercu(); poserApercu(x); } }
+    h.addEventListener("pointermove", bouge); h.addEventListener("pointerup", lache); h.addEventListener("pointercancel", lache);
+  }
+  function largeurOrigine(ev) {
+    var h = ev.target.closest && ev.target.closest("[data-poignee]"); if (!h) return;
+    if (h.getAttribute("data-poignee") === "1") delete LARG.a; else delete LARG.b;
+    ecrireJ("origami_fichiers_largeurs", LARG); dessiner();
+  }
+
   // ---------- Aperçu dans la fiche (seulement pour un fichier gardé : rien n'est téléchargé pour un simple clic) ----------
   function viderApercu() { if (apercu.url) { try { URL.revokeObjectURL(apercu.url); } catch (e) {} } apercu = { cle: "", el: null, url: "" }; }
   function pdfjs() {
@@ -325,7 +644,7 @@
     var z = racine.querySelector(".f-apercu");
     if (!z) return;
     var cid = F.compte, d = x.d, g = garde(cid, d);
-    if (!g || !aJour(cid, d)) { viderApercu(); z.innerHTML = d.fichierId ? '<p class="f-doux">' + (tache(cid, d) ? "Récupération en cours…" : "Ce fichier est en ligne. « Ouvrir » le montre.") + "</p>" : ""; return; }
+    if (!g || !aJour(cid, d)) { viderApercu(); z.innerHTML = d.fichierId ? '<p class="f-doux">' + (tache(cid, d) ? "Récupération en cours…" : "Ce fichier est en ligne. " + ICO.voir + " le montre.") + "</p>" : ""; return; }
     var s = sorte(d)[0], cle = cid + "/" + d.fichierId + "/" + g.m;
     if (s !== "PDF" && s !== "IMG") { viderApercu(); z.innerHTML = '<p class="f-doux">Pas d\'aperçu ici pour ce type de fichier. « Ouvrir » le montre.</p>'; return; }
     if ((Number(g.t) || 0) > APERCU_MAX) { viderApercu(); z.innerHTML = '<p class="f-doux">Fichier lourd : « Ouvrir » le montre.</p>'; return; }
@@ -335,7 +654,8 @@
     lireGarde(cid, d).then(function (r) {
       if (apercu.cle !== cle) return;
       if (s === "IMG") {
-        var im = document.createElement("img"); im.alt = ""; apercu.url = URL.createObjectURL(r.blob); im.src = apercu.url; apercu.el = im;
+        var im = document.createElement("img"); im.alt = ""; apercu.url = URL.createObjectURL(r.blob); im.src = apercu.url;
+        var bi = document.createElement("button"); bi.className = "f-voir-tout"; bi.setAttribute("data-f", "ouvrir"); bi.title = "Voir en entier"; bi.appendChild(im); apercu.el = bi;
         return;
       }
       return r.blob.arrayBuffer().then(function (ab) { return pdfjs().then(function (lib) { return lib.getDocument({ data: new Uint8Array(ab) }).promise; }); }).then(function (doc) {
@@ -345,8 +665,8 @@
           c.width = Math.round(v.width); c.height = Math.round(v.height);
           return page.render({ canvasContext: c.getContext("2d"), viewport: v }).promise.then(function () {
             if (apercu.cle !== cle) return;
-            var boite = document.createElement("div"); boite.appendChild(c);
-            if (doc.numPages > 1) { var n = document.createElement("p"); n.className = "f-doux"; n.textContent = "Page 1 sur " + doc.numPages; boite.appendChild(n); }
+            var boite = document.createElement("button"); boite.className = "f-voir-tout"; boite.setAttribute("data-f", "ouvrir"); boite.title = "Voir en entier"; boite.appendChild(c);
+            var n = document.createElement("p"); n.className = "f-doux"; n.textContent = (doc.numPages > 1 ? "Page 1 sur " + doc.numPages + " · " : "") + "clique pour tout voir"; boite.appendChild(n);
             apercu.el = boite;
           });
         });
@@ -369,8 +689,17 @@
     plus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>',
     coche: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     retour: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5.5L8 12l6.5 6.5"/></svg>',
-    croix: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>'
+    croix: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    voir: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    finder: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>',
+    appli: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 4.5h6v6M19.5 4.5l-8 8M17.5 13.5v5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1h5"/></svg>',
+    drive: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.7 4.7 0 0 0 7 18.5z"/></svg>',
+    copie: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5v10M7.5 10.5l4.5 4.5 4.5-4.5M5 19.5h14"/></svg>',
+    remplacer: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19.5v-10M7.5 13.5L12 9l4.5 4.5M5 4.5h14"/></svg>',
+    renommer: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 19.5l1-4.5L15.5 5l3.5 3.5-10 10z"/><path d="M13 7.5l3.5 3.5"/></svg>',
+    variante: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5v-2a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/></svg>'
   };
+  function pic(f, ico, titre, plus) { return '<button class="f-pic" data-f="' + f + '"' + (plus || "") + ' title="' + texte(titre) + '" aria-label="' + texte(titre) + '">' + ICO[ico] + "</button>"; }
   function etatLigne(cid, d) {
     if (!d.fichierId) return d.lien ? '<span class="f-etat">en ligne</span>' : '<span class="f-etat manque">à fournir</span>';
     var fid = d.fichierId;
@@ -385,7 +714,7 @@
     if (d.fichierId) sous = [estCV(d) && d.role ? d.role : "", d.fichierNom || "fichier", d.taille ? poids(d.taille) : "", jourCourt(d.misAJour)].filter(Boolean).join(" · ");
     else sous = d.lien ? "lien : " + String(d.lien).replace(/^https?:\/\//, "").slice(0, 44) : "aucun fichier pour l'instant";
     if (avecSpectacle) sous = x.p.nom + " · " + sous;
-    return '<button class="f-rang' + (cleDoc(x) === F.doc ? " ouvert" : "") + '" data-f-doc="' + i + '"><span class="f-sorte ' + s[1] + '">' + s[0] + '</span><span class="f-qui"><strong>' + texte(avecSpectacle ? (famille(d) === d.nom || estCV(d) ? d.nom : d.nom) : variante(d)) + "</strong><span>" + texte(sous) + '</span></span><span class="f-marques">' +
+    return '<button class="f-rang' + (cleDoc(x) === F.doc ? " ouvert" : "") + '" data-f-doc="' + i + '" data-depot="doc"><span class="f-sorte ' + s[1] + '">' + s[0] + '</span><span class="f-qui"><strong>' + texte(avecSpectacle ? (famille(d) === d.nom || estCV(d) ? d.nom : d.nom) : variante(d)) + "</strong><span>" + texte(sous) + '</span></span><span class="f-marques">' +
       (plusieurs && d.parDefaut ? '<span class="f-puce bleu">par défaut</span>' : "") + (d.joindre && !serre() ? '<span class="f-puce vert">joint</span>' : "") + etatLigne(cid, d) + "</span></button>";
   }
   function dessinerListe(cid) {
@@ -404,9 +733,10 @@
     var ordre = [], par = {};
     docsDe(p).forEach(function (d) { var f = famille(d); if (!par[f]) { par[f] = []; ordre.push(f); } par[f].push(d); });
     ordre.sort(function (a, b) { return (a === "CV") - (b === "CV"); });
-    if (!ordre.length) return '<p class="f-vide">Ce spectacle n\'a pas encore de fichier. Ils s\'ajoutent dans Spectacle, « Gérer les fichiers ».</p>';
+    h += '<div class="f-classer"><button class="lien" data-f="classement">' + ICO.plus + " Nouveau classement</button></div>";
+    if (!ordre.length) return h + '<p class="f-vide">Ce spectacle n\'a pas encore de fichier. « Ajouter un fichier » ou « Nouveau classement » pour commencer.</p>';
     ordre.forEach(function (f) {
-      h += '<h3 class="f-famille"><span>' + texte(f === "CV" ? "CV de l'équipe" : f) + "</span></h3>";
+      h += '<h3 class="f-famille" data-depot="famille" data-famille="' + texte(f) + '"><span>' + texte(f === "CV" ? "CV de l'équipe" : f) + '</span><button class="f-pic petit" data-f="dans" data-famille="' + texte(f) + '" title="Ajouter un fichier dans « ' + texte(f) + ' »" aria-label="Ajouter un fichier dans « ' + texte(f) + ' »">' + ICO.plus + "</button></h3>";
       par[f].forEach(function (d) { vueDocs.push({ p: p, d: d }); h += ligneDoc(cid, vueDocs[vueDocs.length - 1], vueDocs.length - 1, par[f].length > 1, false); });
     });
     return h;
@@ -418,12 +748,20 @@
     var titre = famille(d) === d.nom || estCV(d) ? d.nom : famille(d) + ", " + variante(d).toLowerCase();
     var sous = d.fichierId ? [d.fichierNom || "fichier", d.taille ? poids(d.taille) : "", d.misAJour ? "mis à jour le " + jourLong(d.misAJour) : ""].filter(Boolean).join(" · ") : d.lien ? "Lien : " + String(d.lien).replace(/^https?:\/\//, "").slice(0, 60) : "Aucun fichier pour l'instant";
     var h = '<div class="f-tete">' + (petit() || largeur === "moyen" ? '<button class="f-icone" data-f="fermer-fiche" aria-label="Revenir à la liste">' + ICO.retour + "</button>" : "") + '<span class="f-sorte grand ' + s[1] + '">' + s[0] + '</span><div><h2>' + texte(titre) + "</h2><p>" + texte(x.p.nom) + " · " + texte(sous) + "</p></div></div>";
-    h += '<div class="f-gestes">';
-    if (d.fichierId || lienSur(d.lien)) h += '<button class="bouton fort" data-f="ouvrir">' + (d.fichierId ? "Ouvrir" : "Ouvrir le lien") + "</button>";
-    if (mac.ok && ok) h += '<button class="bouton" data-f="finder">Montrer dans le Finder</button>';
-    if (d.fichierId && lien) h += '<button class="bouton" data-f="drive">Ouvrir dans Drive</button>';
-    if (d.fichierId) h += '<button class="bouton" data-f="copie">' + (mac.ok && ok ? "Enregistrer une copie…" : "Télécharger") + "</button>";
+    // 28.11 (Sévane : « ces boutons pourraient être plus petits, faits avec des pictogrammes ») : une rangée de pictogrammes, le nom au survol.
+    var visible = d.fichierId && visionneuse(d);
+    h += '<div class="f-pics" role="toolbar" aria-label="Gestes sur ce fichier">';
+    if (d.fichierId || lienSur(d.lien)) h += pic("ouvrir", visible ? "voir" : "appli", d.fichierId ? (visible ? "Voir en entier (toutes les pages, zoom)" : "Ouvrir") : "Ouvrir le lien");
+    if (mac.ok && visible && !lourds[d.fichierId]) h += pic("ouvrir-mac", "appli", "Ouvrir avec une appli du Mac (Aperçu…)");
+    if (mac.ok && ok) h += pic("finder", "finder", "Montrer dans le Finder");
+    if (d.fichierId && lien) h += pic("drive", "drive", "Ouvrir dans Drive");
+    if (d.fichierId) h += pic("copie", "copie", mac.ok && ok ? "Enregistrer une copie…" : "Télécharger");
+    h += '<span class="f-pics-trait" aria-hidden="true"></span>';
+    h += pic("remplacer", "remplacer", d.fichierId ? "Remplacer par une nouvelle version (l'ancienne est gardée)" : "Choisir le fichier");
+    h += pic("renommer", "renommer", "Renommer");
+    if (!estCV(d)) h += pic("variante", "variante", "Ajouter une variante (autre langue, autre format…)");
     h += "</div>";
+    if (mac.ok && g && g.c) { var nomMac = g.c.slice(g.c.lastIndexOf("/") + 1); if (nomMac && nomMac !== (d.fichierNom || "")) h += '<p class="f-doux">Sur ce Mac, il s\'appelle « ' + texte(nomMac) + " ».</p>"; }
     if (d.fichierId) {
       var lourd = !!lourds[d.fichierId], cours = !!tache(cid, d);
       h += '<div class="f-ou"><span class="f-ou-titre">Où le garder</span><div class="f-choix" role="radiogroup" aria-label="Où garder ce fichier">' +
@@ -437,7 +775,6 @@
     if (nv) infos.push(nv + (nv > 1 ? " anciennes versions" : " ancienne version"));
     if (infos.length) h += '<p class="f-infos">' + infos.map(texte).join(" · ") + "</p>";
     h += '<div class="f-apercu"></div>';
-    h += '<p class="f-doux f-pied">Remplacer, renommer, ajouter une variante : <button class="lien" data-f="spectacle">dans Spectacle, « Gérer les fichiers »</button>.</p>';
     return h;
   }
   function carteGarde() {
@@ -489,18 +826,18 @@
     RACCOURCIS.forEach(function (r) { var n = tous.filter(function (x) { return r[2](cid, x); }).length; g += '<button class="f-rayon"' + (F.raccourci === r[0] ? ' aria-current="true"' : "") + ' data-f-raccourci="' + r[0] + '"><span>' + (r[0] === "absents" ? absentsTitre() : r[1]) + "</span><small>" + n + "</small></button>"; });
     g += "</div>" + carteGarde() + "</aside>";
     var m;
-    if (F.ecran === "mac") m = '<section class="f-panneau f-large-mac">' + dessinerMac() + "</section>";
+    if (F.ecran === "mac") m = poignee(1) + '<section class="f-panneau f-large-mac">' + dessinerMac() + "</section>";
     else {
       var corps = dessinerListe(cid), frais = d.enCours ? "Mise à jour…" : d.panne ? "Liste gardée sur l'appareil (pas de réponse en ligne)." : "";
-      m = '<section class="f-panneau f-liste"><div class="f-outils"><label class="f-cherche">' + ICO.cherche + '<input id="fCherche" type="search" placeholder="Chercher un fichier" autocomplete="off" value="' + texte(F.cherche) + '"></label><button class="bouton fort" data-f="ajouter" title="Les fichiers s\'ajoutent dans Spectacle, « Gérer les fichiers »">' + ICO.plus + (petit() ? "" : "<span>Ajouter un fichier</span>") + "</button></div>" +
+      m = poignee(1) + '<section class="f-panneau f-liste"><div class="f-outils"><label class="f-cherche">' + ICO.cherche + '<input id="fCherche" type="search" placeholder="Chercher un fichier" autocomplete="off" value="' + texte(F.cherche) + '"></label><button class="bouton fort" data-f="ajouter" title="Ajouter un fichier à un spectacle"' + (ps.length ? "" : " disabled") + '>' + ICO.plus + (petit() ? "" : "<span>Ajouter un fichier</span>") + "</button></div>" +
         (mac.ancienne ? '<p class="f-bandeau">Pour garder les fichiers dans un dossier du Finder, mets à jour l\'appli Origami : <button class="lien" data-f="applis">Applis, « Sur ce Mac »</button>.</p>' : "") +
         '<div class="f-rangs">' + corps + "</div>" + (frais ? '<p class="f-frais">' + frais + "</p>" : "") + "</section>" +
-        '<section class="f-panneau f-fiche' + (F.fiche && choisie() ? " montree" : "") + '">' + dessinerFiche(cid) + "</section>";
+        poignee(2) + '<section class="f-panneau f-fiche' + (F.fiche && (choisie() || F.form) ? " montree" : "") + '">' + (F.form ? (F.form.genre === "deposer" ? dessinerDepot(cid) : dessinerForm(cid)) : dessinerFiche(cid)) + "</section>";
     }
-    racine.innerHTML = '<div class="f-zone ' + largeur + (F.ecran === "mac" ? " ecran-mac" : "") + '">' + g + m + "</div>";
+    racine.innerHTML = '<div class="f-zone ' + largeur + (F.ecran === "mac" ? " ecran-mac" : "") + '"' + largeursCss() + ">" + g + m + "</div>";
     var r = racine.querySelector(".f-rangs"); if (r) r.scrollTop = defile;
     if (foyer) { var c = document.getElementById("fCherche"); if (c) { c.focus(); try { c.setSelectionRange(pos, pos); } catch (e) {} } }
-    var x = F.ecran === "liste" ? choisie() : null;
+    var x = F.ecran === "liste" && !F.form ? choisie() : null;
     if (x) poserApercu(x);
   }
 
@@ -510,16 +847,22 @@
     var cid = F.compte, d = b.dataset;
     if (d.fSpectacle != null) { F.spectacle = d.fSpectacle; F.raccourci = ""; F.ecran = "liste"; F.cherche = ""; F.fiche = false; dessiner(); return; }
     if (d.fRaccourci) { F.raccourci = d.fRaccourci; F.ecran = "liste"; F.cherche = ""; F.fiche = false; dessiner(); return; }
-    if (d.fDoc != null) { var x0 = vueDocs[+d.fDoc]; if (x0) { F.doc = cleDoc(x0); F.fiche = true; dessiner(); } return; }
+    if (d.fDoc != null) { var x0 = vueDocs[+d.fDoc]; if (x0 && !(F.form && F.form.occupe)) { F.form = null; F.doc = cleDoc(x0); F.fiche = true; dessiner(); } return; }
     var x = choisie();
     switch (d.f) {
       case "ouvrir": if (x) ouvrir(x); break;
+      case "ouvrir-mac": if (x) ouvrir(x, true); break;
+      case "remplacer": case "renommer": case "variante": if (x) formOuvrir(d.f, x); break;
+      case "form-annuler": if (!F.form || !F.form.occupe) { F.form = null; dessiner(); } break;
+      case "form-ok": formLancer(); break;
       case "finder": if (x && garde(cid, x.d)) natif("fichiers_montrer", { chemin: garde(cid, x.d).c }).catch(function (e) { if (/n'est plus/.test(message(e))) { oublier(cid, x.d.fichierId); dessiner(); } P.avis(message(e), true); }); break;
       case "drive": if (x) P.dehors(lienSur(x.d.lienFichier || x.d.lien)); break;
       case "copie": if (x) copie(x); break;
       case "choix": if (x) reglerChoix(x, d.v === "ligne" ? "ligne" : "ici"); break;
       case "spectacle": P.ouvrirVue(cid, "spectacle"); break;
-      case "ajouter": P.avis("Les fichiers s'ajoutent dans Spectacle : Dossier, puis « Gérer les fichiers »."); P.ouvrirVue(cid, "spectacle"); break;
+      case "ajouter": formOuvrir("ajouter"); break;
+      case "classement": formOuvrir("classement"); break;
+      case "dans": formOuvrir("dans", d.famille); break;
       case "applis": P.ouvrirVue(cid, "applis"); break;
       case "relire": if (D[cid]) { D[cid].frais = 0; D[cid].panne = ""; } charger(cid); dessiner(); break;
       case "fermer-fiche": F.fiche = false; dessiner(); break;
@@ -539,7 +882,9 @@
       case "retirer": b.disabled = true; retirer(d.c, d.id).then(function () { dessiner(); P.avis(mac.ok ? "Retiré de ce Mac (dans la Corbeille). Il reste en ligne." : "Retiré de cet appareil. Il reste en ligne."); }, function (e) { dessiner(); P.avis(message(e), true); }); break;
     }
   }
-  function saisie(ev) { if (ev.target && ev.target.id === "fCherche") { F.cherche = ev.target.value; F.fiche = false; dessiner(); } }
+  function saisie(ev) { if (ev.target && formSaisie(ev.target)) return; if (ev.target && ev.target.id === "fCherche") { F.cherche = ev.target.value; F.fiche = false; dessiner(); } }
+  function changement(ev) { var t = ev.target; if (t && (t.id === "fFichier" || t.id === "fSpectacle" || t.name === "fDepot" || t.id === "fExistant")) formSaisie(t); }
+  function touche(ev) { if (ev.key === "Enter" && F.form && ev.target && (ev.target.id === "fNom" || ev.target.id === "fVariante" || ev.target.id === "fSorte")) { ev.preventDefault(); formLancer(); } }
   function mesurer() {
     if (!racine) return;
     var w = racine.clientWidth || window.innerWidth, l = w >= 980 ? "large" : w >= 640 ? "moyen" : "etroit";
@@ -553,9 +898,16 @@
         racine = section;
         racine.addEventListener("click", clic);
         racine.addEventListener("input", saisie);
+        racine.addEventListener("change", changement);
+        racine.addEventListener("keydown", touche);
+        racine.addEventListener("pointerdown", glisser);
+        racine.addEventListener("dblclick", largeurOrigine);
+        racine.addEventListener("dragover", dessus);
+        racine.addEventListener("dragleave", sortie);
+        racine.addEventListener("drop", depot);
         try { new ResizeObserver(mesurer).observe(racine); } catch (e) { window.addEventListener("resize", mesurer); }
       }
-      if (cid !== F.compte) { F.compte = cid || ""; F.spectacle = ""; F.raccourci = ""; F.doc = ""; F.cherche = ""; F.ecran = "liste"; F.fiche = false; viderApercu(); }
+      if (cid !== F.compte) { F.compte = cid || ""; F.spectacle = ""; F.raccourci = ""; F.doc = ""; F.cherche = ""; F.ecran = "liste"; F.fiche = false; F.form = null; viderApercu(); }
       var w = racine.clientWidth || window.innerWidth; largeur = w >= 980 ? "large" : w >= 640 ? "moyen" : "etroit";
       dessiner();
       if (F.compte) { charger(F.compte); if (D[F.compte].projets) suite(F.compte); }
@@ -580,8 +932,34 @@
     "#fichiers{--f-vert:#15803d;--f-vert-clair:#e3f3e7;--f-ambre:#9a5b00}",
     "html.sombre #fichiers{--f-vert:#4ade80;--f-vert-clair:#17301f;--f-ambre:#f0b44c}",
     "#fichiers svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}",
-    ".f-zone{height:100%;display:grid;grid-template-columns:clamp(190px,21%,244px) minmax(0,1.05fr) minmax(0,1fr);gap:12px;padding:12px}",
-    ".f-zone.ecran-mac{grid-template-columns:clamp(190px,21%,244px) minmax(0,1fr)}",
+    ".f-zone{height:100%;display:grid;grid-template-columns:var(--f-c1,clamp(190px,21%,244px)) 12px var(--f-c2,minmax(0,1.05fr)) 12px minmax(280px,1fr);gap:0;padding:12px}",
+    ".f-zone.ecran-mac{grid-template-columns:var(--f-c1,clamp(190px,21%,244px)) 12px minmax(0,1fr)}",
+    ".f-poignee{cursor:col-resize;position:relative;touch-action:none}",
+    ".f-poignee::after{content:'';position:absolute;top:30%;bottom:30%;left:5px;width:2px;border-radius:2px;background:var(--ligne);opacity:0;transition:opacity .15s}",
+    ".f-poignee:hover::after,.f-poignee.tire::after{opacity:1}",
+    ".f-pics{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:12px 0 2px}",
+    ".f-pic{width:34px;height:32px;border:1px solid var(--ligne);border-radius:9px;background:var(--carte);color:var(--texte);display:inline-flex;align-items:center;justify-content:center;padding:0}",
+    ".f-pic:hover{background:var(--carte2)}",
+    ".f-pic svg{width:17px;height:17px}",
+    ".f-pics-trait{width:1px;height:20px;background:var(--ligne);margin:0 4px}",
+    ".f-voir-tout{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in;text-align:center}",
+    ".f-champ{display:flex;flex-direction:column;gap:4px;margin-top:12px;font-size:13px;font-weight:600}",
+    ".f-champ small{font-weight:400;color:var(--doux)}",
+    ".f-champ input[type=text],.f-champ select{min-height:34px;padding:4px 10px;border:1px solid var(--ligne);border-radius:9px;background:var(--carte);color:var(--texte);font:inherit;font-weight:400}",
+    ".f-champ input[type=file]{font:inherit;font-weight:400}",
+    ".f-souci{margin-top:10px;color:#b42318;font-size:13px}",
+    ".f-cours{margin-top:10px}",
+    ".f-depot-ici{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-clair)}",
+    "html.sombre .f-depot-ici{background:#26324f}",
+    ".f-choix-depot{display:flex;flex-direction:column;gap:6px;margin-top:8px}",
+    ".f-option{display:flex;gap:8px;align-items:flex-start;padding:9px 11px;border:1px solid var(--ligne);border-radius:10px;cursor:pointer;font-size:14px}",
+    ".f-option input{margin-top:3px;flex:none}",
+    ".f-option small{display:block;color:var(--doux);font-size:12.5px;margin-top:2px}",
+    ".f-classer{display:flex;justify-content:flex-end;padding:6px 10px 0}",
+    ".f-classer .lien{display:inline-flex;align-items:center;gap:4px;font-size:13px}",
+    ".f-famille{display:flex;align-items:center;justify-content:space-between;gap:8px}",
+    ".f-pic.petit{width:26px;height:24px;border-radius:7px}",
+    ".f-pic.petit svg{width:14px;height:14px}",
     ".f-panneau{background:var(--carte);border-radius:14px;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}",
     ".f-rayons{padding:14px 10px 10px}",
     ".f-rayons h1,.f-info h1{font-size:18px;margin:0 0 10px;padding:0 8px}",
@@ -666,7 +1044,7 @@
     ".f-dossier>div:first-child span{color:var(--doux);font-size:13px}",
     ".f-dossier .f-gestes{margin:10px 0 8px}",
     // Largeur moyenne : les spectacles en puces au-dessus, la liste et la fiche côte à côte
-    ".f-zone.moyen{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr)}",
+    ".f-zone.moyen{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:12px}",
     ".f-zone.moyen.ecran-mac,.f-zone.etroit.ecran-mac{grid-template-columns:minmax(0,1fr)}",
     ".f-zone.moyen .f-rayons,.f-zone.etroit .f-rayons{grid-column:1/-1;padding:10px 10px 8px;background:none;border-radius:0;overflow:visible}",
     ".f-zone.moyen .f-rayons h1,.f-zone.etroit .f-rayons h1{font-size:20px;margin-bottom:8px}",

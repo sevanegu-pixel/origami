@@ -439,6 +439,17 @@ fn fichiers_etat(chemins: Vec<String>) -> Vec<Option<u64>> {
     fichiers::etat(&racine_fichiers(), &chemins)
 }
 
+// Les fichiers d'un dossier de spectacle (nom, poids) : pour suivre un fichier renommé à la main dans le Finder (0.5.1, 28.11).
+#[derive(serde::Serialize)]
+struct FichierListe {
+    nom: String,
+    taille: u64,
+}
+#[tauri::command]
+fn fichiers_lister(dossier: String) -> Result<Vec<FichierListe>, String> {
+    fichiers::lister(&racine_fichiers(), &dossier).map(|l| l.into_iter().map(|(nom, taille)| FichierListe { nom, taille }).collect())
+}
+
 // Reçoit un fichier, morceau par morceau. Rend la taille reçue.
 #[tauri::command]
 async fn fichiers_ecrire(chemin: String, base64: String, debut: u64, fin: bool) -> Result<u64, String> {
@@ -746,6 +757,7 @@ pub fn run() {
             fichiers_choisir_dossier,
             fichiers_dossier_defaut,
             fichiers_etat,
+            fichiers_lister,
             fichiers_ecrire,
             fichiers_lire,
             fichiers_ouvrir,
