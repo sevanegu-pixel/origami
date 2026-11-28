@@ -387,6 +387,8 @@ a.lien { color: var(--accent); }
 .tk-menu .ic { display: inline-flex; width: 24px; justify-content: center; flex: none; }
 @media (max-width: 760px) { html:not(.fenetre) .tk-fab { bottom: calc(80px + env(safe-area-inset-bottom)); } html:not(.fenetre) .tk-menu { bottom: calc(150px + env(safe-area-inset-bottom)); } }
 .depots .depot { flex: 1 1 200px; min-width: 0; }
+.roulette { display: inline-block; width: 14px; height: 14px; margin-right: 8px; vertical-align: -2px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: tourne .8s linear infinite; }
+.depot.prepare small { color: var(--doux); }
 .depots .depot.scan { flex: 0 0 auto; border-style: solid; border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .groupe { margin: 0 0 14px; }
 .etiquette.vu { background: var(--accent-clair); color: #173ea8; }
@@ -2346,18 +2348,41 @@ p.aide-fine.lu { margin: 6px 0 0; }
   function fermerMenuPlus() { var mp = document.getElementById("tkMenuPlus"), f = document.querySelector(".tk-fab"); if (mp) mp.hidden = true; if (f) f.setAttribute("aria-expanded", "false"); }
   document.addEventListener("click", function (ev) { var mp = document.getElementById("tkMenuPlus"); if (mp && !mp.hidden && !(ev.target.closest && ev.target.closest(".tk-menu, .tk-fab"))) fermerMenuPlus(); }, true);
   // direct : ouvert depuis « Scanner un ticket » ; annulé, la fenêtre du ticket se referme aussi.
+  var scanEnCours = null;
   function scanner(direct) {
     var nom = (valeur("tkMotif") || valeur("tkNom") || "ticket").replace(/[^\w\u00C0-\u017F -]+/g, " ").trim().slice(0, 40) || "ticket";
-    chargerScanner().then(function (S) { return S.ouvrir({ nom: nom, titre: "Scanner le reçu", couleur: "#1f5cff", lecture: true, camera: MAC ? CAMERA_MAC : undefined, sansCamera: MAC && !CAMERA_MAC ? 'Pour photographier avec la caméra du Mac, il faut la nouvelle version de l\'appli pour Mac : <a href="' + DMG_TOUT + '" target="_blank" rel="noopener" style="color:#9db8ff">la télécharger</a>, l\'ouvrir et glisser les applis dans Applications (elles remplacent les anciennes). En attendant : « Choisir une image ».' : "" }); }).then(function (r) {
+    chargerScanner().then(function (S) { return S.ouvrir({ nom: nom, titre: "Scanner le reçu", couleur: "#1f5cff", lecture: true, arrierePlan: true, formats: true, camera: MAC ? CAMERA_MAC : undefined, sansCamera: MAC && !CAMERA_MAC ? 'Pour photographier avec la caméra du Mac, il faut la nouvelle version de l\'appli pour Mac : <a href="' + DMG_TOUT + '" target="_blank" rel="noopener" style="color:#9db8ff">la télécharger</a>, l\'ouvrir et glisser les applis dans Applications (elles remplacent les anciennes). En attendant : « Choisir une image ».' : "" }); }).then(function (r) {
       var z = document.getElementById("tkDepot");
       if (!r && direct) { fermerVoile(); return; }
       if (!r || !z) return;
-      if (r.pdf.size > 15 * 1024 * 1024) { avis("Ce scan est trop lourd (15 Mo au plus) : retire une page.", true); return; }
+      // 28.11 : le PDF se prépare en arrière-plan (scanner fermé tout de suite) ; la pièce est déjà à sa place, avec une roulette.
+      var lot = {}, libelle = r.nom + (r.pages > 1 ? " (" + r.pages + " pages)" : "");
+      scanEnCours = lot;
       tk.fichierNom = r.nom; tk.sansFichier = false;
-      tk.fichier = r.base64().then(function (b) { return { base64: b, nom: r.nom, type: "application/pdf" }; }); tk.fichier.catch(function () {});
-      z.textContent = r.nom + (r.pages > 1 ? " (" + r.pages + " pages)" : ""); z.classList.add("ok");
-      remplirLu(r);
+      var pret = r.pret ? r.pret : Promise.resolve(r);
+      tk.fichier = pret.then(function (f) {
+        var bl = f.fichier || f.pdf;
+        if (bl.size > 15 * 1024 * 1024) throw new Error("Ce scan est trop lourd (15 Mo au plus) : refais-le avec moins de pages.");
+        return f.base64().then(function (b) { return { base64: b, nom: f.nom, type: f.type || "application/pdf" }; });
+      });
+      tk.fichier.catch(function () {});
+      z.innerHTML = '<span class="roulette" aria-hidden="true"></span>' + texte(libelle) + ' <small>(préparation…)</small>'; z.classList.add("ok"); z.classList.add("prepare"); z.setAttribute("aria-busy", "true");
+      var dl = document.getElementById("tkLu"); if (dl) dl.remove();
       if (direct) { var n = document.getElementById("tkNom"); if (n) try { n.focus(); } catch (e) {} }
+      var fichierDuLot = tk.fichier;
+      fichierDuLot.then(function () {
+        if (scanEnCours !== lot || tk.fichier !== fichierDuLot) return;
+        var z2 = document.getElementById("tkDepot"); if (z2) { z2.textContent = libelle; z2.classList.remove("prepare"); z2.removeAttribute("aria-busy"); }
+        return pret.then(function (f) {
+          if (f.lecturePrete && z2) { var n0 = document.createElement("p"); n0.id = "tkLu"; n0.className = "aide-fine"; n0.setAttribute("role", "status"); n0.innerHTML = '<span class="roulette" aria-hidden="true"></span> Lecture du ticket…'; z2.insertAdjacentElement("afterend", n0); }
+          return f.lecturePrete || f;
+        }).then(function (f) { if (scanEnCours === lot && tk.fichier === fichierDuLot) remplirLu(f); });
+      }, function (e) {
+        if (scanEnCours !== lot || tk.fichier !== fichierDuLot) return;
+        tk.fichier = null; tk.fichierNom = "";
+        var z2 = document.getElementById("tkDepot"); if (z2) { z2.textContent = "Ajouter une photo ou un fichier du reçu"; z2.classList.remove("ok"); z2.classList.remove("prepare"); z2.removeAttribute("aria-busy"); }
+        avis((e && e.message) || "Le scan n'a pas pu être préparé.", true);
+      });
     }, function (e) { avis(e.message, true); });
   }
   // 28.11 : « Lire les informations » du scanner. Seuls les champs encore vides sont remplis, et marqués « lu sur le ticket » :
