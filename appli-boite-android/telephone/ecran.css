@@ -175,7 +175,14 @@ html.telephone .vars button, html.telephone .vars .btn { min-height: 0 !importan
 html.telephone .vars .aide { font-size: 12px; }
 /* Bascules (Éditer / Aperçu, Modèles / Pieds de page, Fiches / Groupes…) : décollées des bords, sur toute la largeur. */
 html.telephone .segment:not(.cache) { width: auto !important; margin: 8px 0 !important; padding: 3px !important; gap: 2px; box-sizing: border-box; }
-html.telephone .segment > button { flex: 1 1 auto; white-space: nowrap; min-height: 0 !important; padding: 7px 10px !important; font-size: 13.5px !important; }
+html.telephone .segment:not(.mc-format) > button { flex: 1 1 auto; white-space: nowrap; min-height: 0 !important; padding: 7px 10px !important; font-size: 13.5px !important; }
 html.telephone #onglets-atelier { margin: 8px 0 10px !important; z-index: 6; box-shadow: 0 0 0 6px var(--carte); }
 /* Boutons des autres rubriques : plus fins. */
 html.telephone:not(.tel-vue-boite) .vue .btn { min-height: 34px; padding: 6px 12px; font-size: 14px; }
+
+/* Éditer / Aperçu (modèles) et Écrire / Aperçu (mail) : deux petits logos, crayon et œil, au lieu des mots. */
+html.telephone #onglets-atelier, html.telephone #modale .mc-bascule { display: inline-flex !important; width: auto !important; }
+html.telephone #onglets-atelier > button, html.telephone #modale .mc-bascule > button { flex: 0 0 auto !important; width: 48px; height: 32px; padding: 0 !important; font-size: 0 !important; display: inline-flex; align-items: center; justify-content: center; }
+html.telephone #onglets-atelier > button::before, html.telephone #modale .mc-bascule > button::before { content: ""; width: 18px; height: 18px; background: currentColor; -webkit-mask: var(--tel-ico) center / contain no-repeat; mask: var(--tel-ico) center / contain no-repeat; }
+html.telephone #onglets-atelier > [data-panneau="editer"], html.telephone #modale .mc-bascule > [data-mc-vue="ecrire"] { --tel-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20h4L19 9l-4-4L4 16z'/%3E%3Cpath d='M13.5 6.5l4 4'/%3E%3C/svg%3E"); }
+html.telephone #onglets-atelier > [data-panneau="apercu"], html.telephone #modale .mc-bascule > [data-mc-vue="apercu"] { --tel-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E"); }
