@@ -5149,6 +5149,12 @@ button.tuile:hover { border-color: var(--ligne); }
     },
     // Un partage a changé : l'écran du compte d'en face (Fichiers, contacts) le montre à sa prochaine ouverture.
     changement: function () { dessinerMenu(); },
+    // Un spectacle partagé en entier s'ouvre dans le Spectacle de son compte d'origine (le volet passe sur ce compte, c'est dit).
+    ouvrirSpectacle: function (src) {
+      var c = compte(src); if (!c) return;
+      if (vuesDe(c).indexOf("spectacle") < 0) { avis("Spectacle n'est pas encore ouvert sur cet appareil pour " + c.nom + ".", true); return; }
+      etat.compte = src; etat.vue = "spectacle"; montrer(); avis("Spectacle de " + c.nom + ".");
+    },
     ouvrirFichiers: function (cid, src, cle) {
       if (!compte(cid) || !compte(src)) return;
       if (window.OrigamiFichiers && window.OrigamiFichiers.voirPartage) window.OrigamiFichiers.voirPartage(cid, src, cle);

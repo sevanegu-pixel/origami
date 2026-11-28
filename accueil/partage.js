@@ -137,9 +137,9 @@
     if (!P.adresse(c.id)) h += '<p class="vide">L\'adresse Google de ce compte n\'est pas encore connue sur cet appareil : relie-le à Google pour recevoir des partages.</p>';
     else if (!recus.length) h += '<p class="vide">Rien pour l\'instant. Ce que tes autres comptes partagent avec celui-ci apparaîtra ici.</p>';
     else recus.forEach(function (r) {
-      var ouvrir = r.quoi === "contacts" ? "contacts" : r.quoi === "fichiers" || r.quoi === "fichier" || r.quoi === "spectacle" ? "fichiers" : "";
+      var ouvrir = r.quoi === "contacts" ? "contacts" : r.quoi === "fichiers" || r.quoi === "fichier" ? "fichiers" : r.quoi === "spectacle" ? "spectacle" : "";
       h += '<div class="rangee pa-recu"><div><span class="quoi">' + texte(r.quoi === "contacts" ? "Contacts communs" : r.titre || QUOIS[r.quoi]) + '</span><span class="etiquette">' + texte(QUOIS[r.quoi]) + '</span><span class="detail"><span class="point" style="background:' + r.couleur + '"></span> de ' + texte(r.srcNom) + "</span>" +
-        (ouvrir ? '<span class="gestes"><button class="lien" data-pa="ouvrir" data-v="' + ouvrir + '" data-c="' + c.id + '" data-s="' + r.src + '" data-k="' + texte(r.cle) + '">Ouvrir</button></span>' : "") + "</div></div>";
+        (ouvrir ? '<span class="gestes">' + (ouvrir === "spectacle" ? '<button class="lien" data-pa="ouvrir" data-v="fichiers" data-c="' + c.id + '" data-s="' + r.src + '" data-k="' + texte(r.cle) + '">Ses fichiers</button>' : "") + '<button class="lien" data-pa="ouvrir" data-v="' + ouvrir + '" data-c="' + c.id + '" data-s="' + r.src + '" data-k="' + texte(r.cle) + '">' + (ouvrir === "spectacle" ? "Ouvrir le spectacle" : "Ouvrir") + "</button></span>" : "") + "</div></div>";
     });
     // Ce que ce compte partage avec les autres
     h += '<h2 class="pa-titre">Partager depuis ' + texte(c.nom) + "</h2>";
@@ -281,6 +281,7 @@
     if (d.pa === "relire") { delete spectacles[d.c]; lireSpectacles(d.c); dessiner(); return; }
     if (d.pa === "ouvrir") {
       if (d.v === "contacts") { onglet = "contacts"; dessiner(); montrerContacts(); return; }
+      if (d.v === "spectacle") { P.ouvrirSpectacle(d.s); return; }
       P.ouvrirFichiers(d.c, d.s, d.k);
     }
   });
