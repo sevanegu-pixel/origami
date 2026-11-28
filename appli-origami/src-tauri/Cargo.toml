@@ -1,6 +1,6 @@
 [package]
 name = "origami-appli"
-version = "0.5.0"
+version = "0.5.1"
 description = "Appli Origami (toutes les applis dans une fenêtre, installateur des applis, icône dans la barre des menus, connexion à Google par le navigateur, fichiers des spectacles gardés dans un dossier du Finder)"
 edition = "2021"
 

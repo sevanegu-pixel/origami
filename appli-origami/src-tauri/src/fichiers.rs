@@ -158,6 +158,40 @@ pub fn ecrire(racine: &Path, relatif: &str, base64: &str, debut: u64, fin: bool)
     Ok(total)
 }
 
+/// Les fichiers d'un dossier de la racine (nom, poids), sans les fichiers cachés ni les sous-dossiers : pour suivre un fichier
+/// renommé à la main dans le Finder (28.11). Un dossier absent rend une liste vide.
+pub fn lister(racine: &Path, relatif: &str) -> Result<Vec<(String, u64)>, String> {
+    let rel = relatif.trim_end_matches('/');
+    if rel.is_empty() {
+        return Err("Chemin de dossier refusé.".into());
+    }
+    let d = chemin_sur(racine, rel)?;
+    let mut l = Vec::new();
+    if !d.is_dir() {
+        return Ok(l);
+    }
+    dedans(racine, &d)?;
+    let entrees = match fs::read_dir(&d) {
+        Ok(e) => e,
+        Err(_) => return Ok(l),
+    };
+    for e in entrees.flatten() {
+        let nom = e.file_name().to_string_lossy().into_owned();
+        if nom.starts_with('.') {
+            continue;
+        }
+        if let Ok(m) = fs::symlink_metadata(e.path()) {
+            if m.is_file() {
+                l.push((nom, m.len()));
+            }
+        }
+        if l.len() >= 2000 {
+            break;
+        }
+    }
+    Ok(l)
+}
+
 /// Un morceau d'un fichier gardé, pour l'aperçu dans l'appli : (texte base64, taille du fichier entier).
 pub fn lire(racine: &Path, relatif: &str, debut: u64, longueur: u64) -> Result<(String, u64), String> {
     let p = chemin_sur(racine, relatif)?;
