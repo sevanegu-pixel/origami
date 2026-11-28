@@ -13,11 +13,16 @@
  *     r.base64() // Promise<string> : le PDF en base64, prêt pour google.script.run ou fetch
  *   });
  * Options : nom, titre, couleur (accent), fichier (File d'image : saute l'écran de départ), multipage (true par défaut).
+ * 28.11.2026, option « lecture » : true (ou { url: adresse de lecture.js }) montre la case « Lire les informations » sur l'écran
+ * des effets. Cochée (le choix est gardé sur l'appareil), le texte du ticket est lu sur l'appareil (lecture.js, OrigamiLecture) et
+ * le résultat porte r.infos = { montant, devise, date, fournisseur, tva, texte }, ou r.lecture = { souci } si la lecture a échoué.
+ * Le scan est rendu dans tous les cas : la lecture n'est qu'une aide, à vérifier.
  */
 (function (global) {
   "use strict";
   if (global.OrigamiScanner) return;
-  var VERSION = "2026-11-18.2";
+  var VERSION = "2026-11-28.1";
+  var ICI = (document.currentScript && document.currentScript.src) || "";   // lecture.js est à côté de ce fichier
   var MAX_SOURCE = 2600, MAX_SORTIE = 2000, MAX_APERCU = 1100, QUALITE = 0.86;
   var EFFETS = [
     { id: "original", nom: "Original" },
@@ -47,6 +52,7 @@
     ".osc-rang.fin{justify-content:space-between;flex-wrap:nowrap}",
     ".osc-rang.fin>div{display:flex;gap:8px}",
     ".osc-aide{font-size:13px;color:#b8b8b8;text-align:center}",
+    ".osc-lire{display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;color:#e8e8e8;cursor:pointer;min-height:32px}.osc-lire input{width:20px;height:20px;margin:0;accent-color:var(--osc-accent,#1f6fd1)}.osc-lire small{color:#9a9a9a}",
     ".osc-effets{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;justify-content:safe center}",
     ".osc-effets::-webkit-scrollbar{display:none}",
     ".osc-effet{flex:0 0 auto;width:76px;border:0;background:none;color:#ddd;font:inherit;font-size:12px;cursor:pointer;padding:0;display:flex;flex-direction:column;align-items:center;gap:4px}",
@@ -372,9 +378,27 @@
 
   // ---------------------------------------------------------------- l'écran
   var cssPose = false;
+  // Case « Lire les informations » : le choix reste sur l'appareil.
+  function lireCoche() { try { return localStorage.getItem("origami_scanner_lire") === "1"; } catch (e) { return false; } }
+  function lireGarder(oui) { try { if (oui) localStorage.setItem("origami_scanner_lire", "1"); else localStorage.removeItem("origami_scanner_lire"); } catch (e) {} }
+  var lectureChargee = null;
+  function chargerLecture() {
+    if (global.OrigamiLecture) return Promise.resolve(global.OrigamiLecture);
+    if (lectureChargee) return lectureChargee;
+    var o = optionsLecture && typeof optionsLecture === "object" && optionsLecture.url ? String(optionsLecture.url) : ICI.split("?")[0].replace(/[^\/]*$/, "") + "lecture.js" + (ICI.indexOf("?") > 0 ? ICI.slice(ICI.indexOf("?")) : "");
+    lectureChargee = new Promise(function (ok, ko) {
+      var s = document.createElement("script"); s.src = o; s.async = true; s.charset = "utf-8";
+      s.onload = function () { if (global.OrigamiLecture) ok(global.OrigamiLecture); else ko(new Error("La lecture n'est pas disponible.")); };
+      s.onerror = function () { lectureChargee = null; ko(new Error("La lecture n'a pas pu être chargée (connexion ?).")); };
+      document.head.appendChild(s);
+    });
+    return lectureChargee;
+  }
+  var optionsLecture = null;
   function poserCss() { if (cssPose) return; cssPose = true; var s = document.createElement("style"); s.id = "origami-scanner-css"; s.textContent = CSS; document.head.appendChild(s); }
 
   function ouvrir(options) {
+    optionsLecture = options && options.lecture;
     options = options || {};
     poserCss();
     return new Promise(function (resoudre) {
@@ -636,7 +660,7 @@
         plusTard(function () { preparerPage(pg); }).then(function () {
           fin(); etape = "effets"; courante = i;
           contenu.innerHTML = '<div class="osc-haut">' + bouton("recadrer", "Recadrer", "", "t") + '<div class="osc-titre">Effets' + (pages.length > 1 ? " · page " + (i + 1) + " sur " + pages.length : "") + "</div>" + bouton("terminer", multipage ? "Terminer" : "Valider", "", "p") + "</div>" +
-            '<div class="osc-scene"><canvas></canvas></div><div class="osc-bas"><div class="osc-effets" role="group" aria-label="Effets"></div><div class="osc-reglages"></div>' +
+            '<div class="osc-scene"><canvas></canvas></div><div class="osc-bas"><div class="osc-effets" role="group" aria-label="Effets"></div><div class="osc-reglages"></div>' + (options.lecture ? '<label class="osc-lire"><input type="checkbox" data-osc-lire' + (lireCoche() ? " checked" : "") + '> Lire les informations <small>(montant, date, fournisseur, TVA)</small></label>' : "") +
             (multipage ? '<div class="osc-rang fin"><div class="osc-pages"></div><div>' + (pages.length > 1 ? bouton("suppr-page", "Retirer", "corbeille", "", "Retirer cette page") : "") + bouton("ajouter", "Page", "plus", "t", "Ajouter une page") + "</div></div>" : "") + "</div>";
           var zEffets = contenu.querySelector(".osc-effets");
           EFFETS.forEach(function (e) {
@@ -689,11 +713,19 @@
         }, Promise.resolve()).then(function () {
           var pdf = fabriquerPdf(jpegs);
           fin();
-          fermer({ pdf: pdf, nom: nomBase + "-" + aujourdhui() + ".pdf", type: "application/pdf", pages: pages.length, images: images, base64: function () { return base64De(pdf); } });
+          var resultat = { pdf: pdf, nom: nomBase + "-" + aujourdhui() + ".pdf", type: "application/pdf", pages: pages.length, images: images, base64: function () { return base64De(pdf); } };
+          if (!(options.lecture && lireCoche())) return fermer(resultat);
+          // Lecture des informations : sur l'appareil ; un échec n'empêche jamais de garder le scan.
+          var finL = attente("Lecture du ticket…"), zone = racine.querySelector(".osc-attente:last-child");
+          chargerLecture().then(function (L) {
+            return L.lire(images, { suivi: function (quoi, p) { if (zone) zone.textContent = (/recogni/.test(quoi) ? "Lecture du ticket… " : "Préparation du lecteur (une seule fois)… ") + Math.round(p * 100) + " %"; } });
+          }).then(function (infos) { resultat.infos = infos; }, function (e) { resultat.lecture = { souci: (e && e.message) || "La lecture n'a pas abouti." }; })
+            .then(function () { finL(); fermer(resultat); });
         }).catch(function (e) { fin(); avertir("Le PDF n'a pas pu être préparé : " + (e && e.message || e)); });
       }
 
       // ---- gestes
+      racine.addEventListener("change", function (ev) { if (ev.target && ev.target.hasAttribute && ev.target.hasAttribute("data-osc-lire")) lireGarder(ev.target.checked); });
       racine.addEventListener("click", function (ev) {
         var b = ev.target.closest("[data-osc],[data-effet],[data-page]");
         if (!b || !racine.contains(b)) return;
