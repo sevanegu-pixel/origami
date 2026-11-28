@@ -136,3 +136,82 @@
       T.core.invoke('plugin:boite-android|telechargements').catch(function () { dire('La liste des téléchargements n\'a pas pu être ouverte.'); });
     });
   }
+  /* 6. Comptes, comme dans les applis mail de téléphone : la barre des comptes du haut s'efface quand une boîte est à l'écran ;
+        chaque écran montre à droite de sa recherche un petit rond (photo du profil Google si le moteur sait la donner, sinon
+        l'initiale sur la couleur du compte). Un toucher ouvre le volet des comptes : changer de boîte, toutes les boîtes,
+        ajouter un compte, comptes reliés, réglages de l'appli. Les photos sont gardées 6 h dans l'appareil. */
+  if (ANDROID) {
+    var TEL_PHOTOS = 'boite-mail-photos', telPhotos = {};
+    try { telPhotos = JSON.parse(localStorage.getItem(TEL_PHOTOS) || '{}') || {}; } catch (e) { telPhotos = {}; }
+    var telPhotoDemandee = {};
+    var telPhotoDe = function (c) {
+      var p = telPhotos[c.id];
+      if ((!p || Date.now() - (p.le || 0) > 6 * 3600 * 1000) && !telPhotoDemandee[c.id] && c.url && c.jeton) {
+        telPhotoDemandee[c.id] = true;
+        porte(c, 'photoProfil', []).then(function (r) {
+          telPhotos[c.id] = { photo: String((r && r.photo) || ''), le: Date.now() };
+          try { localStorage.setItem(TEL_PHOTOS, JSON.stringify(telPhotos)); } catch (x) { /* plein */ }
+          telCompteDire(c);
+        }, function () { /* moteur sans photo (avant la version 41) : l'initiale reste */ });
+      }
+      return (p && p.photo) || '';
+    };
+    var telCompteDire = function (c, fenetre) {
+      var w = fenetre || (cadres[c.id] && cadres[c.id].contentWindow); if (!w) return;
+      try { w.postMessage({ boiteMail: 'compte', nom: nomCourt(c), email: c.email || '', couleur: c.couleur || '', photo: telPhotoDe(c) }, '*'); } catch (x) { /* fermé */ }
+    };
+    window.addEventListener('message', function (ev) {
+      var d = ev.data || {};
+      if (d.boiteMail !== 'compte?' && d.boiteMail !== 'comptes?') return;
+      var c = comptes.filter(function (x) { return cadres[x.id] && cadres[x.id].contentWindow === ev.source; })[0];
+      if (!c) return;
+      if (d.boiteMail === 'compte?') telCompteDire(c, ev.source); else telVoletComptes(true);
+    });
+    var telRond = function (c, taille) {
+      var p = telPhotoDe(c), n = nomCourt(c), m = String(n || c.email || '').match(/[A-Za-zÀ-ÖØ-öø-ÿ0-9]/);
+      return '<span class="tel-rond" style="width:' + taille + 'px;height:' + taille + 'px;background:' + esc(c.couleur || '#1a73e8') + '">' +
+        (p ? '<img src="' + esc(p) + '" alt="" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '<b>' + esc(m ? m[0].toUpperCase() : '?') + '</b></span>';
+    };
+    var telVoletComptes = function (ouvrir) {
+      var f = $('tel-comptes');
+      if (!ouvrir) { if (f) f.classList.remove('ouvert'); return; }
+      if (!f) {
+        f = document.createElement('div'); f.id = 'tel-comptes'; f.setAttribute('role', 'dialog'); f.setAttribute('aria-label', 'Comptes');
+        document.body.appendChild(f);
+        f.addEventListener('click', function (e) {
+          if (e.target === f) return telVoletComptes(false);
+          var b = e.target.closest('[data-tel-vue]'); if (b) { telVoletComptes(false); return montrer(b.getAttribute('data-tel-vue')); }
+          if (e.target.closest('[data-tel-reglages]')) { telVoletComptes(false); setTimeout(ouvrirMenuRoue, 60); }
+        });
+      }
+      var actuel = comptes.filter(function (c) { return c.id === vue; })[0] || comptes[0];
+      var h = '<div class="tel-comptes-boite"><span class="tel-comptes-poignee"></span>';
+      if (actuel) h += '<div class="tel-comptes-moi">' + telRond(actuel, 44) + '<div><b>' + esc(nomCourt(actuel)) + '</b><small>' + esc(actuel.email || '') + '</small></div></div>';
+      h += '<div class="tel-comptes-liste">';
+      comptes.forEach(function (c) {
+        if (actuel && c.id === actuel.id) return;
+        h += '<button type="button" data-tel-vue="' + esc(c.id) + '">' + telRond(c, 32) + '<span><b>' + esc(nomCourt(c)) + '</b><small>' + esc(c.email || '') + '</small></span></button>';
+      });
+      if (comptes.length > 1) h += '<button type="button" data-tel-vue="toutes"><span class="tel-comptes-ico">≡</span><span><b>Toutes les boîtes</b></span></button>';
+      h += '<button type="button" data-tel-vue="ajouter"><span class="tel-comptes-ico">＋</span><span><b>Ajouter un compte</b></span></button>';
+      if (comptes.length) h += '<button type="button" data-tel-vue="comptes"><span class="tel-comptes-ico">⚇</span><span><b>Gérer les comptes</b></span></button>';
+      h += '<button type="button" data-tel-reglages><span class="tel-comptes-ico">⚙</span><span><b>Réglages de l\'appli</b></span></button>';
+      h += '</div></div>';
+      f.innerHTML = h;
+      requestAnimationFrame(function () { f.classList.add('ouvert'); });
+    };
+    // Barre des comptes du haut : effacée tant qu'une boîte est à l'écran (le rond la remplace), visible ailleurs.
+    setInterval(function () {
+      var boite = comptes.some(function (c) { return c.id === vue; });
+      document.documentElement.classList.toggle('tel-sans-nav', boite);
+    }, 300);
+    // Le bouton retour ferme d'abord le volet des comptes ; hors d'une boîte, il ramène à la dernière boîte.
+    var telRetourAvantComptes = window.__telRetour;
+    window.__telRetour = function () {
+      var f = $('tel-comptes');
+      if (f && f.classList.contains('ouvert')) { telVoletComptes(false); return true; }
+      if (telRetourAvantComptes && telRetourAvantComptes()) return true;
+      if (!comptes.some(function (c) { return c.id === vue; }) && comptes.length && (vue === 'ajouter' || vue === 'comptes')) { montrer(comptes[0].id); return true; }
+      return false;
+    };
+  }
