@@ -27,3 +27,7 @@ html.telephone.tel-sans-nav nav#nav { display: none !important; }
 .tel-comptes-ico { flex: 0 0 32px; width: 32px; text-align: center; font-size: 20px; color: var(--doux, #5f6368); }
 /* Menu des réglages (roue) sur le téléphone : un volet par le bas, quelle que soit la place de la roue. */
 html.telephone .menu-roue.visible { position: fixed !important; left: 0 !important; right: 0 !important; top: auto !important; bottom: 0 !important; max-width: none !important; max-height: 85vh; overflow-y: auto; border-radius: 18px 18px 0 0 !important; padding: 10px 10px calc(12px + env(safe-area-inset-bottom, 0px)) !important; z-index: 210 !important; }
+
+/* Pas de barre de défilement visible dans l'appli (les écrans des boîtes font de même). */
+html.telephone, html.telephone * { scrollbar-width: none !important; }
+html.telephone ::-webkit-scrollbar, html.telephone *::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }

@@ -56,8 +56,17 @@ class VeillePlugin(private val activity: Activity) : Plugin(activity) {
 
     /** Android 15+ dessine l'appli sous la barre d'état (heure, batterie) et sous les boutons du bas : on laisse leur place,
      *  ainsi que celle du clavier quand il est ouvert, pour que rien de l'appli ne soit caché. */
+    private var vue: WebView? = null
+
+    /** Retour dans l'appli (après une autre appli, l'écran éteint…) : la boîte à l'écran relit ses mails tout de suite. */
+    override fun onResume() {
+        super.onResume()
+        vue?.evaluateJavascript("(function(){try{window.__telReveil&&window.__telReveil()}catch(e){}})()", null)
+    }
+
     override fun load(webView: WebView) {
         super.load(webView)
+        vue = webView
         val contenu = activity.findViewById<View>(android.R.id.content) ?: return
         ViewCompat.setOnApplyWindowInsetsListener(contenu) { v, insets ->
             val b = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime())

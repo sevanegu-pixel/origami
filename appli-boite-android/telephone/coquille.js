@@ -215,3 +215,9 @@
       return false;
     };
   }
+  /* 7. Retour dans l'appli (appelé par le module Kotlin) : chaque boîte relit sa liste de mails, sans attendre. */
+  if (ANDROID) {
+    window.__telReveil = function () {
+      Object.keys(cadres).forEach(function (k) { try { cadres[k].contentWindow.postMessage({ boiteMail: 'reveil' }, '*'); } catch (e) { /* fermé */ } });
+    };
+  }

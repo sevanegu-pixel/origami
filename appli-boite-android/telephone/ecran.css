@@ -301,3 +301,13 @@ html.telephone .tel-pop { animation: tel-pop .28s ease-out; }
 /* Rond du compte, dans la barre de recherche à droite. */
 html.telephone .msg-colonne > .barre .tel-compte { flex: 0 0 auto; width: 32px; height: 32px; margin: 0 8px 0 4px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; color: #fff; font-size: 15px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; -webkit-tap-highlight-color: transparent; }
 html.telephone .msg-colonne > .barre .tel-compte img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Tirer pour actualiser : petit rond blanc avec la flèche qui tourne, sous la recherche. */
+html.telephone .tel-tirer { position: fixed; left: 50%; top: 60px; z-index: 45; width: 38px; height: 38px; border-radius: 50%; background: var(--carte, #fff); color: var(--accent, #1a73e8); box-shadow: 0 2px 8px rgba(0,0,0,.22); display: none; align-items: center; justify-content: center; opacity: 0; transform: translate(-50%, 0); pointer-events: none; }
+html.telephone .tel-tirer svg { width: 20px; height: 20px; }
+html.telephone .tel-tirer:not(.pret).tire svg { opacity: .55; }
+html.telephone .tel-tirer.tourne svg { animation: tel-roule .8s linear infinite; }
+
+/* Pas de barre de défilement visible, nulle part (comme les applis du téléphone) : on défile au doigt. */
+html.telephone, html.telephone * { scrollbar-width: none !important; }
+html.telephone ::-webkit-scrollbar, html.telephone *::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; background: transparent !important; }

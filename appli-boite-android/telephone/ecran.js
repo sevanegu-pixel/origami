@@ -689,3 +689,86 @@
   try { if (window.parent !== window) window.parent.postMessage({ boiteMail: 'compte?' }, '*'); } catch (e) { /* seul */ }
   setInterval(dessiner, 1000);
 })();
+
+/* Actualiser la liste des mails :
+   - tirer la liste vers le bas quand on est tout en haut : une roulette descend, puis tourne pendant la lecture de Gmail ;
+   - toute seule chaque minute quand la liste est à l'écran (et qu'on ne fait rien d'autre), et dès le retour dans l'appli.
+   Même chemin que l'écran (chargerFils, chargerDossiers) ; si on avait descendu plusieurs pages, on repart de la première. */
+(function () {
+  if (window.__telActualiser) return; window.__telActualiser = true;
+  var dernier = Date.now(), tic = Date.now();
+  function id(x) { return document.getElementById(x); }
+  function pret() { return typeof chargerFils === 'function' && typeof bx === 'object' && bx && id('msg-liste'); }
+  function listeVisible() { var l = id('msg-liste'), g = id('msg-grille'); return !!(l && l.offsetParent !== null && !(g && g.classList.contains('detail'))); }
+  function libre() {
+    var m = id('modale'), fa = id('feuille-actions');
+    return (!m || m.classList.contains('cache')) && !(fa && fa.classList.contains('ouverte')) && !document.documentElement.classList.contains('tel-selection') && !document.querySelector('#msg-liste .conv.tel-glisse');
+  }
+  function actualiser(fort) {
+    if (!pret() || bx.charge) return false;
+    try { if (typeof etat === 'object' && etat && etat.vue !== 'messages') return false; } catch (e) { /* écran sans vues */ }
+    if ((bx.pile || []).length) { if ((window.scrollY || 0) > 400 && !fort) return false; bx.pile = []; bx.debut = 0; bx.jeton = ''; window.scrollTo(0, 0); }
+    dernier = Date.now();
+    try { chargerFils(); } catch (e) { return false; }
+    try { chargerDossiers(); } catch (e) { /* compteurs plus tard */ }
+    return true;
+  }
+  window.__telActualiserListe = actualiser;
+  // Toute seule : chaque minute, et au retour (minuteries arrêtées pendant le sommeil : grand écart entre deux tics).
+  setInterval(function () {
+    var t = Date.now(), reveil = t - tic > 30000; tic = t;
+    if (document.hidden || !listeVisible() || !libre()) return;
+    if (reveil || t - dernier > 60000) actualiser(false);
+  }, 5000);
+  window.addEventListener('message', function (ev) {
+    if (ev.source !== window.parent || (ev.data || {}).boiteMail !== 'reveil') return;
+    if (listeVisible() && libre() && Date.now() - dernier > 5000) actualiser(false);
+    else if (typeof rafraichirFilOuvert === 'function' && typeof msg === 'object' && msg && msg.fil) { try { rafraichirFilOuvert(true); } catch (e) { /* plus tard */ } }
+  });
+  // Tirer pour actualiser.
+  var rond = document.createElement('div'); rond.className = 'tel-tirer';
+  rond.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/></svg>';
+  function demarrer() {
+    var l = id('msg-liste'); if (!l || !document.body) return setTimeout(demarrer, 300);
+    document.body.appendChild(rond);
+    var t = null, MAX = 90, SEUIL = 64;
+    function haut() { var b = document.querySelector('.msg-colonne > .barre'), r = b && b.getBoundingClientRect(); return Math.max(0, r ? r.bottom : 60); }
+    function poser(d) {
+      rond.style.top = (haut() - 40) + 'px';
+      rond.style.transform = 'translate(-50%, ' + d + 'px) rotate(' + (d * 4) + 'deg)';
+      rond.style.opacity = String(Math.min(1, d / SEUIL));
+      rond.classList.toggle('pret', d >= SEUIL);
+    }
+    function ranger() { rond.classList.remove('tourne', 'pret', 'tire'); rond.style.transition = 'transform .2s, opacity .2s'; rond.style.transform = 'translate(-50%, 0) scale(.6)'; rond.style.opacity = '0'; setTimeout(function () { rond.style.transition = ''; rond.style.display = 'none'; }, 220); }
+    l.addEventListener('touchstart', function (e) {
+      t = null;
+      if (e.touches.length !== 1 || (window.scrollY || 0) > 0 || !libre() || rond.classList.contains('tourne')) return;
+      t = { y: e.touches[0].clientY, x: e.touches[0].clientX, d: 0, actif: false };
+    }, { passive: true });
+    l.addEventListener('touchmove', function (e) {
+      if (!t) return;
+      var dy = e.touches[0].clientY - t.y, dx = e.touches[0].clientX - t.x;
+      if (!t.actif) {
+        if (dy < 8 || Math.abs(dx) > dy || (window.scrollY || 0) > 0) { if (Math.abs(dx) > 10 || dy < -4) t = null; return; }
+        t.actif = true; rond.style.display = 'flex'; rond.style.transition = ''; rond.classList.add('tire');
+        if (window.__telAnnulerPression) window.__telAnnulerPression();
+      }
+      if (e.cancelable) e.preventDefault();
+      t.d = Math.min(MAX, Math.max(0, (dy - 8) * 0.5)); poser(t.d);
+    }, { passive: false });
+    function fin() {
+      if (!t || !t.actif) { t = null; return; }
+      var d = t.d; t = null;
+      if (d < SEUIL) return ranger();
+      rond.classList.remove('tire'); rond.classList.add('tourne'); rond.style.transition = 'transform .15s'; rond.style.transform = 'translate(-50%, ' + SEUIL + 'px)'; rond.style.opacity = '1';
+      actualiser(true); var debut = Date.now(), vu = false;
+      var guet = setInterval(function () {
+        if (bx.charge) vu = true;
+        if ((!bx.charge && (vu || Date.now() - debut > 600)) || Date.now() - debut > 15000) { clearInterval(guet); ranger(); }
+      }, 150);
+    }
+    l.addEventListener('touchend', fin, { passive: true });
+    l.addEventListener('touchcancel', fin, { passive: true });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
+})();
