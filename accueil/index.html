@@ -767,6 +767,67 @@ button.tuile:hover { border-color: var(--ligne); }
   // Autorisés par leur propriétaire (dernière étape du guide) : cet appareil retient pour QUELLE adresse, une réinstallation repart de zéro.
   function modulesAutorises(id) { var a = modulesAdresse(id); return !!a && lire("origami_modules_autorises@" + id) === a; }
   function modulesPrets(id) { return modulesAutorises(id); }
+  // ---- La compagnie par Origami (28.11, moteur v19) : son moteur annonce des modules « adoptés » (sa Diffusion, à l'adresse que
+  // cette page connaît déjà). Un appareil relié à ce moteur n'a alors plus besoin du code PIN : le moteur lui donne un jeton de
+  // quelques heures, rangé à la même place que le jeton à code PIN (tout le reste de la page le lit là). Un jeton à code PIN déjà
+  // sur l'appareil est mis de côté, et repris si le moteur ne donne rien : rien n'est perdu pour un appareil qui marchait.
+  var FORME_JETON_ORIGAMI = /^[a-f0-9]{48}$/, jetonCieEnCours = null, jetonCieRefait = 0, cieRefuseJusqua = 0, cieDernierRefuse = "";
+  function compagnieParOrigami() { if (Date.now() < cieRefuseJusqua) return false; var mm = modulesMoteur("compagnie"); return !!(mm && mm.adoptes === true && mm.adresse === ADRESSES.diffusion); }
+  // L'appli de la compagnie refuse deux fois de suite le jeton du moteur (son entrée par Origami n'est pas, ou plus, en ligne) :
+  // pendant dix minutes cet appareil fait comme avant, avec son jeton à code PIN s'il en a un. Rend vrai s'il en a repris un.
+  function compagnieRefusee() {
+    cieRefuseJusqua = Date.now() + 600000;
+    var pin = lire("diffusion_jeton_pin"), j = lire("diffusion_jeton");
+    if (!j || FORME_JETON_ORIGAMI.test(j)) { garder("diffusion_jeton", /^[a-f0-9]{96}$/.test(pin) ? pin : ""); garder("diffusion_jeton_fin", ""); }
+    return /^[a-f0-9]{96}$/.test(lire("diffusion_jeton"));
+  }
+  function jetonCompagnie(neuf) {
+    if (!compagnieParOrigami()) return Promise.reject(new Error("La compagnie n'est pas reliée par Origami sur cet appareil."));
+    var j = lire("diffusion_jeton"), fin = Number(lire("diffusion_jeton_fin")) || 0;
+    if (!neuf && FORME_JETON_ORIGAMI.test(j) && fin - Date.now() > 900000) return Promise.resolve(j);
+    if (jetonCieEnCours) return jetonCieEnCours;
+    jetonCieEnCours = moteurAppel("compagnie", "jeton.appli", { app: "modules" }, { sans: true }).then(function (r) {
+      jetonCieEnCours = null;
+      if (!r || !FORME_JETON_ORIGAMI.test(r.jeton) || r.adresse !== ADRESSES.diffusion) throw new Error("Le moteur du compte n'a pas ouvert Spectacle et Prospection.");
+      var avant = lire("diffusion_jeton");
+      if (/^[a-f0-9]{96}$/.test(avant)) garder("diffusion_jeton_pin", avant);   // le jeton à code PIN de cet appareil, mis de côté
+      garder("diffusion_jeton", r.jeton); garder("diffusion_jeton_fin", String(Number(r.fin) || 0));
+      return r.jeton;
+    }, function (e) { jetonCieEnCours = null; throw e; });
+    return jetonCieEnCours;
+  }
+  // Le moteur n'a rien donné : l'appareil reprend son jeton à code PIN s'il en avait un (sinon l'écran demandera le code, comme avant).
+  function compagnieRepli() { var pin = lire("diffusion_jeton_pin"); if (FORME_JETON_ORIGAMI.test(lire("diffusion_jeton"))) { garder("diffusion_jeton", /^[a-f0-9]{96}$/.test(pin) ? pin : ""); garder("diffusion_jeton_fin", ""); } }
+  // Le cadre de la compagnie dit que son accès ne vaut plus. « sansRecharger » : il attend seulement un jeton neuf (rien n'est fermé).
+  // « refuse » : le jeton d'Origami que le cadre vient de refuser à son ouverture.
+  function compagnieAccesPerdu(sansRecharger, refuse) {
+    if (!compagnieParOrigami()) return;
+    var t = Date.now();
+    if (!sansRecharger) {
+      if (refuse ? refuse === cieDernierRefuse : (jetonCieRefait && t - jetonCieRefait < 60000)) return;   // le même refus, redit par le cadre
+      if (refuse && cieDernierRefuse && t - jetonCieRefait < 300000) {   // un deuxième jeton, tout neuf, refusé lui aussi : on n'insiste pas
+        cieDernierRefuse = refuse;
+        if (compagnieRefusee() && cadres.diffusion) cadres.diffusion.src = adresse("diffusion");
+        return;
+      }
+      cieDernierRefuse = refuse || "";
+    }
+    jetonCieRefait = t;
+    jetonCompagnie(true).then(function (j) {
+      if (sansRecharger && fenDiffusion) { try { fenDiffusion.w.postMessage({ origami: "jeton", jeton: j }, fenDiffusion.o); return; } catch (e) {} }
+      if (cadres.diffusion) cadres.diffusion.src = adresse("diffusion");
+    }, function () {
+      compagnieRepli();
+      if (cadres.diffusion) cadres.diffusion.src = adresse("diffusion");
+      if (!lire("diffusion_jeton")) avis("Spectacle et Prospection de la compagnie ne s'ouvrent pas par Origami sur cet appareil : vérifie dans Réglages que le compte est bien relié.", true);
+    });
+  }
+  // Tant que le cadre de la compagnie est ouvert, son jeton est renouvelé avant la fin et donné au cadre, sans rien recharger.
+  setInterval(function () {
+    if (!cadres.diffusion || !fenDiffusion || !compagnieParOrigami() || !FORME_JETON_ORIGAMI.test(lire("diffusion_jeton"))) return;
+    if ((Number(lire("diffusion_jeton_fin")) || 0) - Date.now() > 1800000) return;
+    jetonCompagnie(true).then(function (j) { try { fenDiffusion.w.postMessage({ origami: "jeton", jeton: j }, fenDiffusion.o); } catch (e) {} }, function () {});
+  }, 600000);
   function cleCadre(c, vue) { return vue === "compta" && c && c.id !== "compagnie" ? "compta@" + c.id : VUES_MODULES[vue] && c && c.id !== "compagnie" ? "modules@" + c.id : vue; }
   function cleJetonCompta(id) { return id === "compagnie" ? "origami_jeton" : "origami_jeton@" + id; }
   if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
@@ -821,6 +882,12 @@ button.tuile:hover { border-color: var(--ligne); }
     f.hidden = true;
     if (!discret) attente.hidden = false;
     f.addEventListener("load", function () { setTimeout(function () { attente.hidden = true; }, 1200); });
+    if (id === "diffusion" && compagnieParOrigami()) {   // la compagnie par Origami (28.11) : d'abord le jeton du moteur, puis l'adresse
+      scene.appendChild(f); cadres[id] = f;
+      var poser = function () { if (cadres[id] !== f) return; if (!discret) attente.hidden = false; f.src = adresse(id); };
+      jetonCompagnie().then(poser, function () { compagnieRepli(); poser(); });
+      return f;
+    }
     f.src = adresse(id);
     scene.appendChild(f);
     cadres[id] = f;
@@ -1280,7 +1347,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var boite = String(d.boite || "");
     function debut(geste) { u = "boitemail://" + geste + "?"; if (boite === "diffusion" || /^[^\s@"<>]{1,64}@[^\s@"<>]{1,120}$/.test(boite)) champ("boite", boite, 190); }
     if (d.geste === "conversation") { if (!ID_GMAIL.test(d.id || "")) return ""; debut("conversation"); champ("id", d.id, 40); return u; }
-    if (d.geste === "brouillon") { if (!ID_GMAIL.test(d.conversation || "")) return ""; debut("brouillon"); champ("conversation", d.conversation, 40); return u; }   // la Boîte mail retrouve le brouillon par sa conversation
+    if (d.geste === "brouillon") { if (!ID_GMAIL.test(d.conversation || "")) return ""; debut("brouillon"); champ("conversation", d.conversation, 40); if (d.fenetre === "seule") champ("fenetre", "seule", 5); return u; }   // la Boîte mail retrouve le brouillon par sa conversation
     if (d.geste === "joindre") {   // un fichier du Drive rejoint la fenêtre d'écriture qui l'attend (ou : il ne viendra pas)
       if (!ID_GMAIL.test(d.attente || "")) return "";
       u = "boitemail://joindre?"; champ("attente", d.attente, 40);
@@ -1392,7 +1459,15 @@ button.tuile:hover { border-color: var(--ligne); }
         return;
       }
       if (d.diffusion === "apparence" && d.apparence) { garder("diffusion_apparence", JSON.stringify({ apparence: d.apparence, theme: d.theme === "sombre" ? "sombre" : "clair", couleurs: d.couleurs || {} })); attente.hidden = true; return; }
-      if (d.origami === "jeton" || d.diffusion === "jeton") garder("diffusion_jeton", FORME_DIFFUSION.test(d.jeton || "") ? d.jeton : "");
+      if (d.diffusion === "acces") { compagnieAccesPerdu(d.sansRecharger === true); return; }   // 28.11 : jeton d'Origami fini pendant une action
+      if (d.origami === "jeton" || d.diffusion === "jeton") {
+        var vide = !FORME_DIFFUSION.test(d.jeton || ""), avantJ = lire("diffusion_jeton"), pose = "";   // « pose » : le jeton avec lequel le cadre a été ouvert
+        try { pose = new URL(cadres.diffusion.src).searchParams.get("jeton") || ""; } catch (e) { pose = ""; }
+        var parOrigami = FORME_JETON_ORIGAMI.test(pose);
+        if (vide && pose && pose === lire("diffusion_jeton_pin")) garder("diffusion_jeton_pin", "");   // ce jeton à code PIN ne vaut plus : ne pas le reprendre plus tard
+        if (!vide || !parOrigami || avantJ === pose) garder("diffusion_jeton", vide ? "" : d.jeton);   // un refus ne vide pas un jeton plus neuf, arrivé entre-temps
+        if (vide && parOrigami) compagnieAccesPerdu(false, pose);   // 28.11 : le jeton d'Origami ne valait pas à l'ouverture : un neuf, et le cadre se recharge
+      }
       return;
     }
     if (id.indexOf("modules@") === 0) {
@@ -1435,7 +1510,7 @@ button.tuile:hover { border-color: var(--ligne); }
       if (autre && d.origami === "boite-demande") { try { ev.source.postMessage({ origami: "boite", dispo: BOITE_BROUILLON && boitePossible(), directe: boiteDirecte() && !!adresseCompteBoite(cid), liens: boitePossible() }, ev.origin); } catch (e) {} return; }
       if (autre && d.origami === "boite-ouvrir") {
         var adrB = adresseCompteBoite(cid), directB = boiteDirecte() && !!adrB;
-        if (BOITE_BROUILLON && d.geste === "brouillon") ouvrirBoite({ n: d.n, geste: "brouillon", boite: /@/.test(String(d.boite || "")) ? d.boite : adrB, id: d.id, conversation: d.conversation }, ev.source, ev.origin);
+        if (BOITE_BROUILLON && d.geste === "brouillon") ouvrirBoite({ n: d.n, geste: "brouillon", boite: /@/.test(String(d.boite || "")) ? d.boite : adrB, id: d.id, conversation: d.conversation, fenetre: "seule" }, ev.source, ev.origin);
         else if (directB && d.geste === "ecrire") ouvrirBoite({ n: d.n, geste: "ecrire", boite: adrB, mode: "nouveau", a: d.a, cc: d.cc, cci: d.cci, objet: d.objet, texte: d.texte, attente: String(d.attente || ""), fenetre: "seule" }, ev.source, ev.origin);
         else if (directB && d.geste === "joindre") ouvrirBoite({ n: d.n, geste: "joindre", attente: String(d.attente || ""), fichier: d.fichier, nom: d.nom, encore: d.encore === true, echec: d.echec === true, raison: d.raison }, ev.source, ev.origin);
         else { try { ev.source.postMessage({ origami: "boite-refus", n: typeof d.n === "number" ? d.n : 0 }, ev.origin); } catch (e) {} }
@@ -1444,7 +1519,7 @@ button.tuile:hover { border-color: var(--ligne); }
       // La Compta demande si un brouillon (PDF joint) peut s'ouvrir dans l'appli Boîte mail, puis le demande.
       if (d.origami === "boite-demande") { fenCompta = { w: ev.source, o: ev.origin }; direBoiteCompta(); return; }
       if (d.origami === "boite-ouvrir") {
-        if (BOITE_BROUILLON && d.geste === "brouillon") ouvrirBoite({ n: d.n, geste: "brouillon", boite: d.boite, id: d.id, conversation: d.conversation }, ev.source, ev.origin);
+        if (BOITE_BROUILLON && d.geste === "brouillon") ouvrirBoite({ n: d.n, geste: "brouillon", boite: d.boite, id: d.id, conversation: d.conversation, fenetre: "seule" }, ev.source, ev.origin);
         // Chemin direct : la fenêtre d'écriture seule, dans la boîte de la compagnie, puis les fichiers qui la rejoignent.
         else if (boiteDirecte() && d.geste === "ecrire") ouvrirBoite({ n: d.n, geste: "ecrire", boite: "diffusion", mode: "nouveau", a: d.a, cc: d.cc, cci: d.cci, objet: d.objet, texte: d.texte, attente: String(d.attente || ""), fenetre: "seule" }, ev.source, ev.origin);
         else if (boiteDirecte() && d.geste === "joindre") ouvrirBoite({ n: d.n, geste: "joindre", attente: String(d.attente || ""), fichier: d.fichier, nom: d.nom, encore: d.encore === true, echec: d.echec === true, raison: d.raison }, ev.source, ev.origin);
@@ -1672,7 +1747,7 @@ button.tuile:hover { border-color: var(--ligne); }
   function etatMoteur(id) { var m = memoires[id]; return (moteurs[id] && m && m.etat) || null; }
   // Version du moteur modèle en ligne (25.11 : v12, la Compta porte l'appli du personnel). Un compte installé par l'appli avec un
   // moteur plus ancien se met à jour avec sa Compta (bouton « Mettre à jour » de la tuile Compta) ; la compagnie, depuis le Mac.
-  var MOTEUR_ACTUEL = 18;
+  var MOTEUR_ACTUEL = 19;
   // ---- La famille (25.11, moteur v13) : un nouvel appareil retrouve tes autres comptes ----
   // Chaque moteur relié garde la liste des AUTRES comptes Google de la personne (adresse, nom, couleur ; jamais de clé ni d'adresse
   // de moteur). Un appareil neuf, relié à un seul compte par « Continuer avec Google », lit cette liste et propose les autres :
@@ -4188,14 +4263,14 @@ button.tuile:hover { border-color: var(--ligne); }
   // Applis où cet appareil est connecté (code PIN déjà donné, code d'accès gardé) : on peut s'en déconnecter ici.
   function connexions() {
     var l = [];
-    if (FORME_DIFFUSION.test(lire("diffusion_jeton"))) l.push({ id: "diffusion", nom: "Diffusion", texte: "Connectée sur cet appareil : elle s'ouvre sans redemander le code.", bouton: "Se déconnecter" });
+    if (FORME_DIFFUSION.test(lire("diffusion_jeton")) && !(FORME_JETON_ORIGAMI.test(lire("diffusion_jeton")) && compagnieParOrigami())) l.push({ id: "diffusion", nom: "Diffusion", texte: "Connectée sur cet appareil : elle s'ouvre sans redemander le code.", bouton: "Se déconnecter" });
     comptes().forEach(function (c) { if (comptaDe(c.id) && FORME_COMPTA.test(lire(cleJetonCompta(c.id)))) l.push({ id: "compta:" + c.id, nom: "Compta" + (comptes().length > 1 ? " · " + c.nom : ""), texte: "Connectée sur cet appareil : elle s'ouvre sans redemander le code PIN.", bouton: "Se déconnecter" }); });
     if (lire("tickets_code")) l.push({ id: "tickets", nom: "Tickets (appli d'origine)", texte: "Son code d'accès est gardé sur cet appareil.", bouton: "Oublier le code" });
     return l;
   }
   function fermerCadre(k) { if (cadres[k]) { cadres[k].remove(); delete cadres[k]; } }
   function deconnecter(id) {
-    if (id === "diffusion") { garder("diffusion_jeton", ""); ecrireCache(""); diffBord = null; diffLu = false; fermerCadre("diffusion"); return "Diffusion"; }
+    if (id === "diffusion") { garder("diffusion_jeton", ""); garder("diffusion_jeton_pin", ""); garder("diffusion_jeton_fin", ""); ecrireCache(""); diffBord = null; diffLu = false; fermerCadre("diffusion"); return "Diffusion"; }
     if (id === "tickets") { garder("tickets_code", ""); fermerCadre("tickets"); return "Tickets"; }
     var cid = id.slice(7);
     if (id.indexOf("compta:") !== 0 || !compte(cid)) return "";
@@ -5148,8 +5223,9 @@ button.tuile:hover { border-color: var(--ligne); }
   var PORTE_FICHIERS = { donneesTableauDeBord: 1, apercuMorceau: 1, ajouterVariante: 1, garderVersion: 1, supprimerFichierDoc: 1, renommerDocument: 1, demarrerTeleversement: 1, envoyerMorceau: 1 };
   function porteSpectacle(cid, f, args, encore) {
     if (!PORTE_FICHIERS[f]) return Promise.reject(new Error("Demande refusée."));
+    var parJeton = function () { return FORME_DIFFUSION.test(lire("diffusion_jeton")) ? Promise.resolve({ adresse: ADRESSES.diffusion, jeton: lire("diffusion_jeton") }) : Promise.reject(new Error("ACCES_REFUSE")); };
     var acces = cid === "compagnie"
-      ? (FORME_DIFFUSION.test(lire("diffusion_jeton")) ? Promise.resolve({ adresse: ADRESSES.diffusion, jeton: lire("diffusion_jeton") }) : Promise.reject(new Error("ACCES_REFUSE")))
+      ? (compagnieParOrigami() ? jetonCompagnie(!!encore).then(parJeton, function () { compagnieRepli(); return parJeton(); }) : parJeton())
       : (modulesPrets(cid) ? jetonModules(cid, !!encore) : Promise.reject(new Error("ACCES_REFUSE")));
     return acces.then(function (j) {
       var envoi = { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ f: f, jeton: j.jeton, args: Array.isArray(args) ? args : [] }) }, minuterie = 0;
@@ -5158,7 +5234,8 @@ button.tuile:hover { border-color: var(--ligne); }
         clearTimeout(minuterie);
         if (o && o.ok === true) return o.r;
         var m = o && typeof o.erreur === "string" ? o.erreur.slice(0, 200) : "";
-        if (/ACCES_REFUSE/.test(m) && cid !== "compagnie" && !encore) return porteSpectacle(cid, f, args, true);   // jeton fini : un neuf, une fois
+        if (/ACCES_REFUSE/.test(m) && (cid !== "compagnie" || compagnieParOrigami()) && !encore) return porteSpectacle(cid, f, args, true);   // jeton fini : un neuf, une fois
+        if (/ACCES_REFUSE/.test(m) && cid === "compagnie" && encore === true && FORME_JETON_ORIGAMI.test(j.jeton) && compagnieRefusee()) return porteSpectacle(cid, f, args, 2);   // jeton neuf refusé : le jeton à code PIN de l'appareil
         throw new Error(m || "L'appli du compte ne répond pas (connexion ?).");
       });
     });
