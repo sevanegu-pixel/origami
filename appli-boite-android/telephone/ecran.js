@@ -169,6 +169,7 @@
     function basculer(conv) { var c = conv && conv.querySelector('input[type="checkbox"]'); if (c) { c.click(); setTimeout(maj, 0); } }
     var minuterie = null, x0 = 0, y0 = 0, avale = false;
     function stop() { if (minuterie) { clearTimeout(minuterie); minuterie = null; } }
+    window.__telAnnulerPression = stop;
     l.addEventListener('touchstart', function (e) {
       stop(); var conv = e.target.closest && e.target.closest('.conv');
       if (!conv || e.target.closest('[data-etoile], [data-fiche-cle], input')) return;
@@ -277,6 +278,96 @@
       } catch (e) { /* menu sans rubriques */ }
       return r;
     };
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
+})();
+
+/* Glisser un mail vers la droite ou vers la gauche (comme Gmail) : seul le mail sous le doigt glisse ; derrière lui apparaît
+   le logo de l'action (archiver, corbeille, lu, suivre). Au-delà d'un tiers de la largeur, l'action est faite par le même
+   chemin que les boutons de l'écran (actionBoite). Actions choisies dans le menu ⚙ de l'appli (envoyées par la coquille). */
+(function () {
+  if (window.__telGlisser) return; window.__telGlisser = true;
+  var CLE = 'boite-mail-glisser', reglage = { droite: 'archiver', gauche: 'corbeille' };
+  try { var g = JSON.parse(localStorage.getItem(CLE) || '{}') || {}; if (g.droite) reglage.droite = g.droite; if (g.gauche) reglage.gauche = g.gauche; } catch (e) { /* défaut */ }
+  window.addEventListener('message', function (ev) {
+    var d = ev.data || {};
+    if (ev.source !== window.parent || d.boiteMail !== 'glisser') return;
+    if (d.droite) reglage.droite = d.droite; if (d.gauche) reglage.gauche = d.gauche;
+    try { localStorage.setItem(CLE, JSON.stringify(reglage)); } catch (e) { /* plein */ }
+  });
+  try { if (window.parent !== window) window.parent.postMessage({ boiteMail: 'glisser?' }, '*'); } catch (e) { /* seul */ }
+  var ICO = {
+    archiver: '<path d="M3 4h18v4H3z"/><path d="M5 8v11h14V8"/><path d="M10 12h4"/>',
+    corbeille: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/>',
+    lu: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
+    suivre: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/>'
+  };
+  var COULEUR = { archiver: '#188038', corbeille: '#d93025', lu: '#1a73e8', suivre: '#e37400' };
+  function demarrer() {
+    var l = document.getElementById('msg-liste');
+    if (!l || typeof actionBoite !== 'function') return setTimeout(demarrer, 300);
+    if (getComputedStyle(l).position === 'static') l.style.position = 'relative';
+    var fond = document.createElement('div'); fond.className = 'tel-glisse-fond'; fond.style.display = 'none'; l.appendChild(fond);
+    var g = null;
+    function actionPour(dx) { return dx > 0 ? reglage.droite : reglage.gauche; }
+    function vraieAction(a, conv) {
+      if (a === 'lu') return conv.classList.contains('non-lu') ? 'lu' : 'nonLu';
+      if (a === 'suivre') { var e = conv.querySelector('[data-etoile]'); return e && e.classList.contains('on') ? 'nePlusSuivre' : 'suivre'; }
+      return a;
+    }
+    function montrerFond(conv, dx) {
+      var a = actionPour(dx);
+      if (!a || a === 'rien') { fond.style.display = 'none'; return; }
+      var loin = Math.abs(dx) > conv.offsetWidth / 3;
+      fond.style.display = 'flex'; fond.style.top = conv.offsetTop + 'px'; fond.style.height = conv.offsetHeight + 'px';
+      fond.style.justifyContent = dx > 0 ? 'flex-start' : 'flex-end';
+      fond.style.background = loin ? (COULEUR[a] || '#5f6368') : 'color-mix(in srgb, ' + (COULEUR[a] || '#5f6368') + ' 55%, var(--carte))';
+      fond.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICO[a] || '') + '</svg>';
+    }
+    l.addEventListener('touchstart', function (e) {
+      g = null;
+      if (e.touches.length !== 1 || document.documentElement.classList.contains('tel-selection')) return;
+      var conv = e.target.closest && e.target.closest('.conv');
+      if (!conv || conv.classList.contains('en-envoi') || e.target.closest('input')) return;
+      g = { conv: conv, x: e.touches[0].clientX, y: e.touches[0].clientY, dx: 0, actif: false, non: false };
+    }, { passive: true });
+    l.addEventListener('touchmove', function (e) {
+      if (!g || g.non) return;
+      var dx = e.touches[0].clientX - g.x, dy = e.touches[0].clientY - g.y;
+      if (!g.actif) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { g.non = true; return; }   // défilement de la liste
+        if (Math.abs(dx) < 14) return;
+        g.actif = true; g.conv.classList.add('tel-glisse');
+        if (window.__telAnnulerPression) window.__telAnnulerPression();
+      }
+      if (e.cancelable) e.preventDefault();
+      g.dx = dx; g.conv.style.transform = 'translateX(' + dx + 'px)';
+      montrerFond(g.conv, dx);
+    }, { passive: false });
+    function fin() {
+      if (!g || !g.actif) { g = null; return; }
+      var conv = g.conv, dx = g.dx, a = actionPour(dx), loin = Math.abs(dx) > conv.offsetWidth / 3;
+      g = null;
+      window.__telAvaleClic = Date.now();
+      conv.style.transition = 'transform .18s ease-out';
+      if (loin && a && a !== 'rien') {
+        var act = vraieAction(a, conv), retire = act === 'archiver' || act === 'corbeille';
+        conv.style.transform = 'translateX(' + (dx > 0 ? '' : '-') + (retire ? '110%' : '0') + ')';
+        setTimeout(function () {
+          fond.style.display = 'none'; conv.style.transition = ''; conv.style.transform = ''; conv.classList.remove('tel-glisse');
+          try { actionBoite(act, '', [conv.dataset.conv]); } catch (e) { /* l'écran le dira */ }
+        }, 190);
+      } else {
+        conv.style.transform = 'translateX(0)';
+        setTimeout(function () { fond.style.display = 'none'; conv.style.transition = ''; conv.style.transform = ''; conv.classList.remove('tel-glisse'); }, 190);
+      }
+    }
+    l.addEventListener('touchend', fin, { passive: true });
+    l.addEventListener('touchcancel', fin, { passive: true });
+    // Le toucher qui termine un glissement n'ouvre pas le mail.
+    l.addEventListener('click', function (e) {
+      if (window.__telAvaleClic && Date.now() - window.__telAvaleClic < 400) { e.preventDefault(); e.stopPropagation(); }
+    }, true);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
 })();

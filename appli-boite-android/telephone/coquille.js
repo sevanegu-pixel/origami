@@ -64,3 +64,37 @@
       return true;
     };
   }
+  /* 4. Glisser un mail vers la droite ou vers la gauche (liste des mails) : action choisie dans le menu ⚙, pour toutes les boîtes.
+        Gardé ici (mémoire de la coquille) et envoyé à chaque écran de boîte ; un écran qui démarre le demande. */
+  if (ANDROID) {
+    var TEL_GLISSER = 'boite-mail-glisser';
+    var TEL_ACTIONS = [['archiver', 'Archiver'], ['corbeille', 'Supprimer (corbeille)'], ['lu', 'Marquer lu / non lu'], ['suivre', 'Suivre / ne plus suivre'], ['rien', 'Rien']];
+    var telGlisserLire = function () {
+      var r = { droite: 'archiver', gauche: 'corbeille' };
+      try { var x = JSON.parse(localStorage.getItem(TEL_GLISSER) || '{}') || {}; if (x.droite) r.droite = x.droite; if (x.gauche) r.gauche = x.gauche; } catch (e) { /* défaut */ }
+      return r;
+    };
+    var telGlisserDire = function (cible) {
+      var r = telGlisserLire(), msg = { boiteMail: 'glisser', droite: r.droite, gauche: r.gauche };
+      if (cible) { try { cible.postMessage(msg, '*'); } catch (e) { /* fermé */ } return; }
+      Object.keys(cadres).forEach(function (k) { try { cadres[k].contentWindow.postMessage(msg, '*'); } catch (e) { /* fermé */ } });
+    };
+    var telGlisserChoix = function (sens, choisi) {
+      return '<label class="ou"><span style="flex:0 0 auto;min-width:92px">' + (sens === 'droite' ? 'Vers la droite' : 'Vers la gauche') + '</span>' +
+        '<select data-glisser="' + sens + '" style="flex:1;min-width:0;font-size:12.5px;padding:3px 6px;border:1px solid var(--ligne);border-radius:8px;background:var(--carte);color:var(--texte)">' +
+        TEL_ACTIONS.map(function (a) { return '<option value="' + a[0] + '"' + (a[0] === choisi ? ' selected' : '') + '>' + a[1] + '</option>'; }).join('') + '</select></label>';
+    };
+    var htmlTeleAvantGlisser = htmlTele;
+    htmlTele = function () {
+      var r = telGlisserLire();
+      return htmlTeleAvantGlisser.apply(this, arguments) +
+        '<div class="tele"><span class="nom">Glisser un mail dans la liste</span>' + telGlisserChoix('droite', r.droite) + telGlisserChoix('gauche', r.gauche) + '</div>';
+    };
+    $('menu-roue').addEventListener('change', function (e) {
+      var s = e.target.closest('[data-glisser]'); if (!s) return;
+      var r = telGlisserLire(); r[s.dataset.glisser] = s.value;
+      try { localStorage.setItem(TEL_GLISSER, JSON.stringify(r)); } catch (x) { /* plein */ }
+      telGlisserDire();
+    });
+    window.addEventListener('message', function (ev) { if ((ev.data || {}).boiteMail === 'glisser?') telGlisserDire(ev.source); });
+  }
