@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-27.92">
+<meta name="origami-version" content="2026-11-28.93">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -224,6 +224,12 @@ html.sombre .famille { background: #1e2a4a; }
 .info .note.maj-origami { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 8px 0 12px; }
 .info .note.maj-origami .maj-souci { flex-basis: 100%; font-size: 13px; }
 [data-boite-retirer] p { margin: 8px 0; }
+[data-boite-ranger] p { margin: 8px 0; }
+.rangs-copies { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 10px; }
+.rangs-copies li { padding: 10px 12px; border: 1px solid var(--ligne); border-radius: 10px; }
+.choix-copie { display: flex; gap: 8px; align-items: flex-start; margin: 2px 0; overflow-wrap: anywhere; }
+.choix-copie input { margin-top: 4px; flex: none; }
+.choix-copie.jeter { font-size: 14px; color: var(--doux); }
 .pas-autoriser { margin: 6px 0 8px; padding-left: 20px; } .pas-autoriser li { margin: 3px 0; }
 .info details ul { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
 .lien { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
@@ -596,10 +602,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-27.92"></script>
-<script src="repertoire.js?v=2026-11-27.92"></script>
-<script src="fichiers.js?v=2026-11-27.92"></script>
-<script src="google.js?v=2026-11-27.92"></script>
+<script src="agenda.js?v=2026-11-28.93"></script>
+<script src="repertoire.js?v=2026-11-28.93"></script>
+<script src="fichiers.js?v=2026-11-28.93"></script>
+<script src="google.js?v=2026-11-28.93"></script>
 <script>
 (function () {
   "use strict";
@@ -715,6 +721,8 @@ button.tuile:hover { border-color: var(--ligne); }
   // …/accueil/?fenetre=boite-retirer (et « &email=… ») : l'onglet que « Désinstaller… » de l'appli Boîte mail ouvre pour le dernier geste
   // (26.11, Sévane : « supprimer boîte mail, du drive totalement »). Il ne montre que sa feuille. Voir boiteRetirerDemarrer.
   var BOITE_RETIRER = /[?&]fenetre=boite-retirer(&|$)/.test(location.search), CLE_RETIRER = "boiteretirer";
+  // …/accueil/?fenetre=boite-ranger (et « &email=… ») : ranger une Boîte mail copiée à la main dans Origami › Boîte mail › Données (28.11).
+  var BOITE_RANGER = /[?&]fenetre=boite-ranger(&|$)/.test(location.search), CLE_RANGER = "boiteranger";
   function tkComptesGardes() { var l = []; try { l = JSON.parse(lire("origami_tk_comptes") || "[]"); } catch (e) { l = []; } return (Array.isArray(l) ? l : []).filter(function (c) { return c && /^c[0-9a-z]{4,12}$/.test(c.id) && typeof c.nom === "string" && c.nom.trim() && COULEURS.indexOf(c.couleur) >= 0; }).slice(0, 12); }
   if (TK_SEUL) tkComptesGardes().forEach(function (c) { if (!etat.ajoutes.some(function (x) { return x.id === c.id; })) etat.ajoutes.push({ id: c.id, nom: c.nom.slice(0, 40), couleur: c.couleur, applis: ["boite"] }); });
   function tkRetenir() { if (TK_SEUL) garder("origami_tk_comptes", JSON.stringify(etat.ajoutes.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }))); }
@@ -2435,7 +2443,7 @@ button.tuile:hover { border-color: var(--ligne); }
     }
     return false;
   }
-  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && !voile.hidden && !BOITE_SEULE && !BOITE_RETIRER) fermerVoile(); });
+  document.addEventListener("keydown", function (ev) { if (ev.key === "Escape" && !voile.hidden && !BOITE_SEULE && !BOITE_RETIRER && !BOITE_RANGER) fermerVoile(); });
   voile.addEventListener("input", function () { var z = document.getElementById("tkSouci"); if (z && voile.contains(z)) z.textContent = ""; });
 
   // ---- Diffusion « à zéro » : son propre moteur, dans le compte ; l'appareil y entre avec un jeton du moteur du compte ----
@@ -3389,7 +3397,7 @@ button.tuile:hover { border-color: var(--ligne); }
         '<div class="actions"><a class="bouton" href="' + REGLAGES_API + (googleAdresse(id) ? "?authuser=" + encodeURIComponent(googleAdresse(id)) : "") + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-boite-installer="1">C\'est allumé, continuer</button></div>' + brut
       : seule && guideB.origami ? boiteSeuleAccord(nom)
       : (seule ? "<p>Ta Boîte mail s'installe dans ton Drive, dans un dossier « Origami » (Origami › Boîte mail), et se met en ligne. Si tu installes Origami un jour, il se servira du même dossier.</p><p>Deux à trois minutes. Google te demandera encore ton accord deux fois en chemin.</p>" : "<p>Origami crée ta Boîte mail dans ton Drive (dossier Origami › Boîte mail) et la met en ligne. Une minute environ.</p>") +
-        "<p class=\"aide-fine\">Si ce compte a déjà une Boîte mail copiée à la main, la nouvelle prend sa place dans l'appli du Mac. L'ancienne reste dans ton Drive, sans rien perdre.</p>" + '<div class="actions"><button class="bouton fort" data-boite-installer="1">Installer la Boîte mail</button></div>' + brut;
+        "<p class=\"aide-fine\">Si ce compte a déjà une Boîte mail copiée à la main (« Copie de Boîte mail (vierge) »), tu n'as pas besoin d'en installer une autre : <a class=\"lien\" href=\"" + texte(urlRanger(seule ? "" : googleAdresse(id))) + "\" target=\"_blank\" rel=\"noopener\">range-la dans Origami</a>. Si tu en installes quand même une, elle prend sa place dans l'appli du Mac et l'ancienne reste dans ton Drive, sans rien perdre.</p>" + '<div class="actions"><button class="bouton fort" data-boite-installer="1">Installer la Boîte mail</button></div>' + brut;
     var lienA = b && G ? G.lienAutorisation(b.projet, googleAdresse(id)) : "";
     var e3 = "<p>Google te demande d'autoriser ta Boîte mail à lire et envoyer tes mails. Vérifie que c'est bien le compte <strong>" + nom + "</strong>, puis accepte. S'il dit que l'appli n'est pas validée : « Paramètres avancés », puis « Accéder à Boîte mail » (c'est ta propre appli, dans ton compte).</p>" +
       '<div class="actions">' + (lienA ? '<a class="bouton" href="' + texte(lienA) + '" target="_blank" rel="noopener">Autoriser ma Boîte mail</a>' : "") + '<button class="bouton fort" data-boite-ping="1">C\'est fait, vérifier</button></div>' + aidePlusieursComptes(lienA, "<strong>" + nom + "</strong>");
@@ -3596,7 +3604,7 @@ button.tuile:hover { border-color: var(--ligne); }
     } else if (R.phase === "travail") h += occupeHtml(R.occupe || "Arrêt de la Boîte mail…", true);
     else if (R.phase === "rien") {
       h += "<p>Dans le compte " + nomQ + ", Origami ne trouve aucune Boîte mail installée par « Continuer avec Google ». Elle est peut-être déjà à la corbeille.</p>" +
-        "<p>Si cette Boîte mail a été copiée à la main, Origami ne peut pas la voir. Pour la retirer : ouvre son classeur dans Drive, puis « Fichier », « Placer dans la corbeille ».</p>" +
+        "<p>Si cette Boîte mail a été copiée à la main, Origami ne peut pas la voir. Pour la retirer : ouvre son classeur dans Drive, puis « Fichier », « Placer dans la corbeille ». Pour la garder et la ranger dans Origami : <a class=\"lien\" href=\"" + texte(urlRanger(R.adresse)) + "\">ranger une Boîte mail copiée à la main</a>.</p>" +
         '<div class="actions"><a class="bouton" href="https://drive.google.com/drive/search?q=Bo%C3%AEte%20mail" target="_blank" rel="noopener">Chercher dans Drive</a><button class="bouton" data-retb="autre">Essayer un autre compte</button></div>' + souci;
     } else if (R.phase === "fini") {
       var f = R.fin || {};
@@ -3661,6 +3669,148 @@ button.tuile:hover { border-color: var(--ligne); }
       if (fait.jetes || fait.reste.length) { R.phase = "fini"; R.occupe = ""; R.fin = fait; }
       else { G.oublier(CLE_RETIRER); R.phase = "depart"; R.occupe = ""; R.adresse = ""; R.trouve = null; R.souci = (exp ? "La connexion à Google a expiré." : String((e && e.message) || e)) + (fait.arretee ? " La Boîte mail est arrêtée, mais son classeur n'est pas encore à la corbeille. Recommence." : " Rien n'a été retiré. Recommence."); }
       boiteRetirerMontrer();
+    });
+  }
+  // ---- Ranger une Boîte mail copiée à la main (28.11, Sévane : « faire qu'Origami range tout seul une boîte mail copiée à la main ») ----
+  // La copie (« Copie de Boîte mail (vierge) », à la racine du Drive) est invisible pour Origami : la personne la choisit dans le
+  // sélecteur de Google. Origami la range dans le dossier préparé par l'Origami du compte, la nomme « Boîte mail » et propose de
+  // mettre à la corbeille les autres copies choisies (un doublon vide, par exemple). Rien n'est effacé : la corbeille garde 30 jours.
+  // L'appli Boîte mail du Mac continue de marcher : elle parle à la mise en ligne de la copie, qui ne change pas.
+  var rangB = null;
+  function urlRanger(adresse) { return location.href.split("?")[0].split("#")[0] + "?fenetre=boite-ranger" + (adresse ? "&email=" + encodeURIComponent(adresse) : ""); }
+  function boiteRangerDemarrer() {
+    var m = /[?&]email=([^&#]{3,200})(&|$)/.exec(location.search), voulu = "";
+    try { voulu = m ? decodeURIComponent(m[1]).trim().toLowerCase() : ""; } catch (e) { voulu = ""; }
+    if (!/^[^\s@"<>]{1,64}@[^\s@"<>]{1,120}$/.test(voulu)) voulu = "";
+    document.documentElement.classList.add("fenetre"); document.title = "Ranger la Boîte mail";
+    try { history.replaceState(null, "", location.href.split("?")[0] + "?fenetre=boite-ranger"); } catch (e) {}
+    rangB = { voulu: voulu, phase: "depart", occupe: "", souci: "", adresse: "", copies: [], garder: "", jeter: {}, fin: null, origami: "" };
+    boiteRangerMontrer();
+  }
+  function tailleLisible(o) { return o < 1024 ? "moins de 1 Ko" : o < 1048576 ? Math.round(o / 1024) + " Ko" : (o / 1048576).toFixed(1).replace(".", ",") + " Mo"; }
+  function boiteRangerMontrer() {
+    var R = rangB; if (!R) return;
+    var G = window.OrigamiGoogle, qui = R.adresse || R.voulu, nomQ = qui ? "<strong>" + texte(qui) + "</strong>" : "";
+    var h = '<div data-boite-ranger="' + R.phase + '"><h2>Ranger une Boîte mail copiée à la main</h2>';
+    var souci = R.souci ? '<p class="souci-guide" role="alert">' + texte(R.souci) + "</p>" : "";
+    if (R.phase === "depart") {
+      h += "<p>Une Boîte mail copiée à la main s'appelle « Copie de Boîte mail (vierge) » et reste à la racine du Drive. Ici, Origami la range dans " +
+        "« Origami › Boîte mail › Données » et la renomme « Boîte mail ». Rien n'est perdu, et l'appli Boîte mail du Mac continue de marcher.</p>" +
+        (R.occupe ? occupeHtml(R.occupe, true) : !G ? "<p>La connexion à Google n'est pas chargée. Recharge cette page.</p>"
+          : "<p>D'abord, Google ouvre une fenêtre : choisis " + (nomQ ? "le compte " + nomQ : "le compte Google concerné") + " et accepte, en laissant toutes les cases cochées.</p>" +
+            '<div class="actions"><button class="bouton fort" data-rang="connecter">Continuer avec Google</button></div>') + souci;
+    } else if (R.phase === "sans-origami") {
+      h += "<p>Dans le compte " + nomQ + ", Origami n'est pas encore installé : il n'y a pas de dossier « Origami » où ranger la Boîte mail.</p>" +
+        "<p>Installe d'abord Origami dans ce compte (appli Origami, « Ajouter un compte », « Continuer avec Google »), puis reviens ici.</p>" +
+        '<div class="actions"><button class="bouton" data-rang="autre">Essayer un autre compte</button></div>' + souci;
+    } else if (R.phase === "compagnie") {
+      h += '<p class="souci-guide" role="alert">C\'est le compte de la compagnie : Origami n\'y a pas été installé par Google, il ne peut pas préparer le dossier d\'ici.</p>' +
+        "<p>Range la copie à la main dans le Drive : clic droit, « Organiser », « Déplacer », dossier « Origami › Boîte mail », puis « Renommer » en « Boîte mail ». Rien ne casse.</p>" +
+        '<div class="actions"><button class="bouton" data-rang="autre">Essayer un autre compte</button></div>';
+    } else if (R.phase === "choisir") {
+      h += "<p>Compte : " + nomQ + ".</p><p>Google ouvre maintenant son sélecteur de fichiers. Choisis <strong>toutes</strong> tes copies de la Boîte mail (« Copie de Boîte mail (vierge) ») : " +
+        "maintiens la touche ⌘ pour en choisir plusieurs, puis clique « Sélectionner ». Origami ne verra que les fichiers que tu choisis.</p>" +
+        (R.occupe ? occupeHtml(R.occupe, true) : '<div class="actions"><button class="bouton" data-rang="autre">Ce n\'est pas le bon compte</button><button class="bouton fort" data-rang="choisir">Choisir mes copies</button></div>') + souci;
+    } else if (R.phase === "liste") {
+      var n = R.copies.length;
+      h += "<p>Compte : " + nomQ + ". " + (n > 1 ? "Tu as choisi " + n + " classeurs. Celle qui a le plus de contenu est sûrement ta vraie Boîte mail : c'est elle qui est cochée." : "Voici le classeur choisi.") + "</p>";
+      h += '<ul class="rangs-copies">' + R.copies.map(function (c) {
+        var garde = R.garder === c.id, petit = c.taille < 5 * 1024;
+        return '<li><label class="choix-copie"><input type="radio" name="garderCopie" value="' + texte(c.id) + '"' + (garde ? " checked" : "") + ' data-rang="garder" data-id="' + texte(c.id) + '"> <span><strong>' + texte(c.nom) + "</strong> · " + tailleLisible(c.taille) + (c.date ? " · modifiée le " + dateCourte(c.date) : "") + (petit ? " · <em>presque vide</em>" : "") + (garde ? " — <strong>à ranger</strong>" : "") + "</span></label>" +
+          (!garde ? '<label class="choix-copie jeter"><input type="checkbox" data-rang="jeter" data-id="' + texte(c.id) + '"' + (R.jeter[c.id] ? " checked" : "") + "> Mettre à la corbeille (30 jours pour la reprendre)</label>" : "") +
+          ' <a class="lien" href="https://docs.google.com/spreadsheets/d/' + texte(c.id) + '/edit" target="_blank" rel="noopener">Ouvrir pour vérifier</a></li>';
+      }).join("") + "</ul>";
+      h += '<p class="aide-fine">Pas sûre ? Ouvre-les pour vérifier : ta vraie Boîte mail contient tes réglages (pieds de page, modèles, contacts).</p>';
+      h += '<div class="actions"><button class="bouton" data-rang="rechoisir">Choisir d\'autres fichiers</button><button class="bouton fort" data-rang="lancer"' + (R.garder ? "" : " disabled") + ">Ranger</button></div>" + souci;
+    } else if (R.phase === "travail") h += occupeHtml(R.occupe || "Rangement…", true);
+    else if (R.phase === "fini") {
+      var f = R.fin || {};
+      h += f.range ? "<p><strong>C'est rangé.</strong> Ta Boîte mail est dans « Origami › Boîte mail › Données » et s'appelle « Boîte mail ». L'appli Boîte mail du Mac continue de marcher comme avant.</p>"
+        : '<p class="souci-guide" role="alert">Google a refusé de la déplacer. Fais-le à la main : clic droit, « Organiser », « Déplacer », puis « Renommer ».</p>';
+      if (f.jetes) h += "<p>" + (f.jetes > 1 ? f.jetes + " copies en trop sont" : "La copie en trop est") + " à la corbeille du Drive : 30 jours pour la reprendre.</p>";
+      if (f.restes && f.restes.length) h += '<p class="souci-guide" role="alert">Google a refusé de mettre ' + (f.restes.length > 1 ? "ces copies" : "cette copie") + " à la corbeille. Fais-le à la main : ouvre-la, puis « Fichier », « Placer dans la corbeille ».</p>";
+      h += '<p class="aide-fine">Tu peux fermer cet onglet.</p>';
+    }
+    ouvrirVoile(h + "</div>");
+  }
+  function boiteRangerClic(q, b) {
+    var R = rangB, G = window.OrigamiGoogle;
+    if (!R || !G) return;
+    if (q === "autre") { if (R.occupe) return; G.oublier(CLE_RANGER); rangB = { voulu: "", phase: "depart", occupe: "", souci: "", adresse: "", copies: [], garder: "", jeter: {}, fin: null, origami: "" }; boiteRangerMontrer(); return; }
+    if (q === "garder") { R.garder = b.dataset.id; delete R.jeter[R.garder]; boiteRangerMontrer(); return; }
+    if (q === "jeter") { R.jeter[b.dataset.id] = !!b.checked; return; }
+    if (q === "connecter") return boiteRangerConnecter();
+    if (q === "choisir" || q === "rechoisir") return boiteRangerChoisir();
+    if (q === "lancer") return boiteRangerLancer();
+  }
+  function boiteRangerConnecter() {
+    var R = rangB, G = window.OrigamiGoogle;
+    if (!R || R.occupe || R.phase !== "depart") return;
+    var p = G.connecter(CLE_RANGER, { adresse: R.voulu, drive: true });   // dans le clic même
+    R.souci = ""; R.occupe = "La fenêtre de Google est ouverte : choisis le compte et accepte…"; boiteRangerMontrer();
+    p.then(function (s) {
+      var a = String((s && s.adresse) || "").trim().toLowerCase();
+      if (rangB !== R) return null;
+      if (!a) throw new Error("Google n'a pas dit quel compte tu as choisi. Réessaie.");
+      if (R.voulu && a !== R.voulu) throw new Error("Dans la fenêtre de Google, tu as choisi " + a + ", pas " + R.voulu + ". Recommence en choisissant bien " + R.voulu + ".");
+      R.adresse = a; R.occupe = "Je regarde l'Origami de ce compte…"; boiteRangerMontrer();
+      return empreinteAdresse(a).then(function (h) {
+        if (rangB !== R) return null;
+        if (h === EMPREINTE_COMPAGNIE) { R.occupe = ""; R.phase = "compagnie"; boiteRangerMontrer(); return null; }
+        return G.chercherOrigami(CLE_RANGER).then(function (vu) {
+          if (rangB !== R) return;
+          R.occupe = ""; R.origami = vu && vu.adresse ? vu.adresse : "";
+          R.phase = R.origami ? "choisir" : "sans-origami"; boiteRangerMontrer();
+        });
+      });
+    }).catch(function (e) { if (rangB !== R) return; G.oublier(CLE_RANGER); R.occupe = ""; R.adresse = ""; R.phase = "depart"; R.souci = String((e && e.message) || e); boiteRangerMontrer(); });
+  }
+  function boiteRangerChoisir() {
+    var R = rangB, G = window.OrigamiGoogle;
+    if (!R || R.occupe) return;
+    if (!G.selecteurRegle()) { R.souci = "Le sélecteur de fichiers de Google n'est pas encore réglé pour Origami. Range la copie à la main en attendant : clic droit, « Organiser », « Déplacer », puis « Renommer »."; boiteRangerMontrer(); return; }
+    R.souci = ""; R.occupe = "Le sélecteur de Google est ouvert…"; R.phase = "choisir"; boiteRangerMontrer();
+    G.choisirCopies(CLE_RANGER).then(function (ids) {
+      if (rangB !== R) return null;
+      if (!ids.length) { R.occupe = ""; boiteRangerMontrer(); return null; }
+      R.occupe = "Lecture des fichiers choisis…"; boiteRangerMontrer();
+      return G.lireCopies(CLE_RANGER, ids).then(function (l) {
+        if (rangB !== R) return;
+        R.occupe = "";
+        if (!l.length) { R.souci = "Aucun des fichiers choisis n'est un classeur de ce compte. Recommence en choisissant tes « Copie de Boîte mail (vierge) »."; boiteRangerMontrer(); return; }
+        R.copies = l; R.garder = l[0].id; R.jeter = {};
+        l.slice(1).forEach(function (c) { if (c.taille < 5 * 1024) R.jeter[c.id] = true; });   // un doublon presque vide : proposé à la corbeille
+        R.phase = "liste"; boiteRangerMontrer();
+      });
+    }).catch(function (e) { if (rangB !== R) return; R.occupe = ""; R.souci = String((e && e.message) || e); boiteRangerMontrer(); });
+  }
+  function boiteRangerLancer() {
+    var R = rangB, G = window.OrigamiGoogle;
+    if (!R || R.occupe || R.phase !== "liste" || !R.garder) return;
+    var fin = { range: false, jetes: 0, restes: [] }, lie = null;
+    var aJeter = R.copies.filter(function (c) { return c.id !== R.garder && R.jeter[c.id]; }).map(function (c) { return c.id; });
+    R.phase = "travail"; R.souci = ""; R.occupe = "Préparation du dossier « Origami › Boîte mail › Données »…"; boiteRangerMontrer();
+    // Un appareil de passage pour demander le dossier à l'Origami du compte ; il se retire lui-même à la fin.
+    G.relierParGoogle({ cle: CLE_RANGER, adresse: R.origami, nom: "Rangement de la Boîte mail" }).then(function (l) {
+      lie = l;
+      return G.demanderMoteur(lie, "rangement.preparer", { appli: "boite" });
+    }).then(function (rg) {
+      var dossier = rg && rg.donnees && /^[\w-]{6,120}$/.test(String(rg.donnees.id || "")) ? rg.donnees.id : "";
+      if (!dossier) throw new Error("L'Origami de ce compte n'a pas rendu le dossier. Rien n'a bougé. Réessaie dans un instant.");
+      R.occupe = "Rangement de ta Boîte mail…"; boiteRangerMontrer();
+      return G.rangerCopie(CLE_RANGER, R.garder, dossier);
+    }).then(function () {
+      fin.range = true;
+      return aJeter.reduce(function (suite, id) { return suite.then(function () { return G.jeterCopie(CLE_RANGER, id).then(function (ok) { if (ok) fin.jetes++; else fin.restes.push(id); }); }); }, Promise.resolve());
+    }).then(function () {
+      if (lie && lie.id) G.demanderMoteur(lie, "appareils.retirer", { id: lie.id }).catch(function () {});
+      if (rangB !== R) return;
+      R.phase = "fini"; R.occupe = ""; R.fin = fin; boiteRangerMontrer();
+    }, function (e) {
+      if (lie && lie.id) G.demanderMoteur(lie, "appareils.retirer", { id: lie.id }).catch(function () {});
+      if (rangB !== R) return;
+      R.phase = "liste"; R.occupe = ""; R.souci = (e && (e.code === "expire" || e.code === "connexion") ? "La connexion à Google a expiré. Recharge cette page et recommence." : String((e && e.message) || e)) + (fin.range ? "" : " Rien n'a bougé.");
+      boiteRangerMontrer();
     });
   }
   function boiteRetirerAcces() {
@@ -4964,7 +5114,7 @@ button.tuile:hover { border-color: var(--ligne); }
     ouvrirVue: function (cid, vue) { if (!compte(cid)) return; etat.compte = cid; etat.vue = vue; montrer(); }
   };
   function montrer() {
-    if (BOITE_SEULE || BOITE_RETIRER) return;   // ces onglets de la Boîte mail ne montrent que leur feuille
+    if (BOITE_SEULE || BOITE_RETIRER || BOITE_RANGER) return;   // ces onglets de la Boîte mail ne montrent que leur feuille
     if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
     if (COMPTA_SEULE && !comptes().length && etat.vue !== "ajouter") etat.vue = "comptaAjout";   // appli Compta sans aucune Compta : elle dit comment en avoir une
     if (COMPTA_SEULE && etat.vue === "ajouter" && !parcours.phase && guide.etape === 0) etat.vue = "comptaAjout";   // l'écran « Ajouter un compte » d'Origami n'a pas sa place ici
@@ -5109,6 +5259,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.tkGererFermer) { fermerVoile(); return; }
     if (d.tkRetirerCompte) { tkRetirerIci(d.tkRetirerCompte); return; }
     if (d.tkp) { if (d.tkp === "fermer") fermerVoile(); else if (d.tkp === "installer") ticketsProposerInstaller(b, d.de); return; }
+    if (d.rang) { boiteRangerClic(d.rang, b); return; }
     if (d.retb) { if (d.retb === "connecter") boiteRetirerConnecter(); else if (d.retb === "lancer") boiteRetirerLancer(); else if (d.retb === "acces") boiteRetirerAcces(); else if (d.retb === "autre") boiteRetirerAutre(); return; }
     if (d.boiteAutre && guideB.id === ID_BOITE_SEULE && !guideB.occupe) { boiteSeuleOublier(); boiteGuide(ID_BOITE_SEULE); return; }
     if (d.guideComptaConnecter) { guideComptaConnecter(); return; }
@@ -5590,6 +5741,7 @@ button.tuile:hover { border-color: var(--ligne); }
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (BOITE_SEULE) boiteSeuleDemarrer();
   else if (BOITE_RETIRER) boiteRetirerDemarrer();
+  else if (BOITE_RANGER) boiteRangerDemarrer();
   else if (versFrais) location.replace(APPLIS.frais.lien);   // fenêtre Frais avec un lien déjà connu : la page Frais prend la place
   else if (Object.keys(moteurs).length) Promise.all(Object.keys(moteurs).map(lireMemoire)).then(function () { montrer(); }, function () { montrer(); });
   else montrer();
