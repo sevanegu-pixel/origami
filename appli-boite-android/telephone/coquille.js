@@ -143,16 +143,20 @@
   if (ANDROID) {
     var TEL_PHOTOS = 'boite-mail-photos', telPhotos = {};
     try { telPhotos = JSON.parse(localStorage.getItem(TEL_PHOTOS) || '{}') || {}; } catch (e) { telPhotos = {}; }
+    /* Une photo reçue est gardée 6 h. Une réponse sans photo (droit Google pas encore accepté) n'est gardée que 5 minutes,
+       pour que la photo arrive peu après l'accord sans attendre ; un moteur qui ne connaît pas la photo (avant la version 41)
+       n'est redemandé qu'au bout de 30 minutes. */
     var telPhotoDemandee = {};
     var telPhotoDe = function (c) {
-      var p = telPhotos[c.id];
-      if ((!p || Date.now() - (p.le || 0) > 6 * 3600 * 1000) && !telPhotoDemandee[c.id] && c.url && c.jeton) {
-        telPhotoDemandee[c.id] = true;
+      var p = telPhotos[c.id], t = Date.now(), garde = p && p.photo ? 6 * 3600 * 1000 : 5 * 60 * 1000;
+      if ((!p || t - (p.le || 0) > garde) && t > (telPhotoDemandee[c.id] || 0) && c.url && c.jeton) {
+        telPhotoDemandee[c.id] = t + 60 * 1000;
         porte(c, 'photoProfil', []).then(function (r) {
+          var ancienne = (telPhotos[c.id] || {}).photo || '';
           telPhotos[c.id] = { photo: String((r && r.photo) || ''), le: Date.now() };
           try { localStorage.setItem(TEL_PHOTOS, JSON.stringify(telPhotos)); } catch (x) { /* plein */ }
-          telCompteDire(c);
-        }, function () { /* moteur sans photo (avant la version 41) : l'initiale reste */ });
+          if (telPhotos[c.id].photo !== ancienne) telCompteDire(c);
+        }, function () { telPhotoDemandee[c.id] = Date.now() + 30 * 60 * 1000; /* moteur sans photo : l'initiale reste */ });
       }
       return (p && p.photo) || '';
     };
@@ -219,5 +223,7 @@
   if (ANDROID) {
     window.__telReveil = function () {
       Object.keys(cadres).forEach(function (k) { try { cadres[k].contentWindow.postMessage({ boiteMail: 'reveil' }, '*'); } catch (e) { /* fermé */ } });
+      /* au retour dans l'appli, la photo du profil est redemandée si elle manque encore (par exemple juste après l'accord Google) */
+      if (typeof telCompteDire === 'function') comptes.forEach(function (c) { if (cadres[c.id]) telCompteDire(c); });
     };
   }
