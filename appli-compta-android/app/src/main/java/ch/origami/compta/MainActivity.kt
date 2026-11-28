@@ -253,6 +253,27 @@ class MainActivity : ComponentActivity() {
             val cb = lireCouleur(b) ?: ch
             runOnUiThread { mettreCouleurs(ch, cb) }
         }
+
+        /** L'appli Boîte mail Android est-elle installée (elle reçoit les adresses boitemail://) ? */
+        @JavascriptInterface
+        fun boiteInstallee(): Boolean = try {
+            packageManager.queryIntentActivities(Intent(Intent.ACTION_VIEW, Uri.parse("boitemail://ouvrir")), 0).isNotEmpty()
+        } catch (e: Exception) { false }
+
+        /** « Ouvrir dans Boîte mail » : seulement un brouillon (boitemail://brouillon?…), rien d'autre. */
+        @JavascriptInterface
+        fun ouvrirBoite(url: String): Boolean {
+            if (url.length > 2000 || !Regex("""^boitemail://brouillon\?(boite=[A-Za-z0-9._%+-]{3,400}&)?conversation=[A-Za-z0-9_-]{6,40}&fenetre=seule$""").matches(url)) return false
+            if (!boiteInstallee()) return false
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            runOnUiThread {
+                try { startActivity(i) } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "La Boîte mail ne s'est pas ouverte.", Toast.LENGTH_LONG).show()
+                }
+            }
+            return true
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
