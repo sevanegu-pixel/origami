@@ -1,6 +1,10 @@
 package ch.origami.compta
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.pm.PackageManager
+import android.webkit.PermissionRequest
+import androidx.core.content.ContextCompat
 import android.app.Activity
 import android.content.ClipData
 import android.provider.MediaStore
@@ -53,6 +57,24 @@ class MainActivity : ComponentActivity() {
     private var photo: Uri? = null
     private var photoFichier: File? = null
     private var mort = false
+    private var apresCamera: ((Boolean) -> Unit)? = null
+
+    // Permission « appareil photo » d'Android, demandée la première fois qu'elle sert (scanner, photo d'un justificatif).
+    private val permissionCamera = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        val a = apresCamera
+        apresCamera = null
+        a?.invoke(ok)
+    }
+
+    private fun cameraPermise(): Boolean =
+        ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+    private fun avecCamera(suite: (Boolean) -> Unit) {
+        if (cameraPermise()) { suite(true); return }
+        apresCamera?.invoke(false)
+        apresCamera = suite
+        try { permissionCamera.launch(Manifest.permission.CAMERA) } catch (e: Exception) { apresCamera = null; suite(false) }
+    }
 
     private val choisirFichier = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
         var res: Array<Uri>? = null
@@ -160,10 +182,39 @@ class MainActivity : ComponentActivity() {
             override fun onShowFileChooser(view: WebView, cb: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
                 choix?.onReceiveValue(null)
                 choix = cb
+                val types = params.acceptTypes.joinToString(",")
+                val image = types.isBlank() || types.contains("image")
+                // L'appareil photo n'est proposé qu'avec la permission d'Android (demandée une fois) ; sinon fichiers et galerie.
+                if (image && !cameraPermise()) { avecCamera { ok -> lancerChoix(params, ok) }; return true }
+                return lancerChoix(params, image)
+            }
+
+            // Scanner de la Compta (caméra en direct dans la page) : permis seulement aux cadres Google de la Compta.
+            override fun onPermissionRequest(request: PermissionRequest) {
+                runOnUiThread {
+                    val hote = request.origin?.host ?: ""
+                    val google = hote.endsWith(".googleusercontent.com") || hote == "script.google.com"
+                    if (!google || !request.resources.contains(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) { request.deny(); return@runOnUiThread }
+                    avecCamera { ok -> if (ok) request.grant(arrayOf(PermissionRequest.RESOURCE_VIDEO_CAPTURE)) else request.deny() }
+                }
+            }
+        }
+
+        // Bouton retour d'Android : la Compta revient à l'écran d'avant (ou ferme la fenêtre ouverte) ; si un formulaire est
+        // modifié, elle pose la question avant. À l'écran de départ, l'appli passe en arrière-plan sans se fermer.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (vue.canGoBack()) vue.goBack() else moveTaskToBack(true)
+            }
+        })
+
+        if (savedInstanceState == null || vue.restoreState(savedInstanceState) == null) vue.loadUrl(ACCUEIL)
+    }
+
+    private fun lancerChoix(params: WebChromeClient.FileChooserParams, image: Boolean): Boolean {
                 return try {
                     val chooser = Intent.createChooser(params.createIntent(), "Photo ou fichier")
-                    val types = params.acceptTypes.joinToString(",")
-                    if (types.isBlank() || types.contains("image")) {
+                    if (image && cameraPermise()) {
                         // Prendre la photo du justificatif tout de suite, comme dans Chrome.
                         try {
                             val dossier = File(cacheDir, "photos").apply { mkdirs() }
@@ -184,22 +235,12 @@ class MainActivity : ComponentActivity() {
                     choisirFichier.launch(chooser)
                     true
                 } catch (e: Exception) {
+                    choix?.onReceiveValue(null)
                     choix = null
                     false
                 }
-            }
-        }
-
-        // Bouton retour d'Android : la Compta revient à l'écran d'avant (ou ferme la fenêtre ouverte) ; si un formulaire est
-        // modifié, elle pose la question avant. À l'écran de départ, l'appli passe en arrière-plan sans se fermer.
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (vue.canGoBack()) vue.goBack() else moveTaskToBack(true)
-            }
-        })
-
-        if (savedInstanceState == null || vue.restoreState(savedInstanceState) == null) vue.loadUrl(ACCUEIL)
     }
+
 
     private fun poserScripts() {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return

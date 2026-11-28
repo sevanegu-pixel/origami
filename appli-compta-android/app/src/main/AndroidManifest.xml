@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Scanner de la Compta et photo des justificatifs : demandée la première fois qu'elle sert. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <!-- Ouvrir le téléphone, les SMS, WhatsApp, le mail ou un PDF dans l'appli qui convient (Android 11+). -->
     <queries>
