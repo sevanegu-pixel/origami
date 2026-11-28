@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-28.100">
+<meta name="origami-version" content="2026-11-28.101">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -606,11 +606,11 @@ p.aide-fine.lu { margin: 6px 0 0; }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-28.100"></script>
-<script src="repertoire.js?v=2026-11-28.100"></script>
-<script src="partage.js?v=2026-11-28.100"></script>
-<script src="fichiers.js?v=2026-11-28.100"></script>
-<script src="google.js?v=2026-11-28.100"></script>
+<script src="agenda.js?v=2026-11-28.101"></script>
+<script src="repertoire.js?v=2026-11-28.101"></script>
+<script src="partage.js?v=2026-11-28.101"></script>
+<script src="fichiers.js?v=2026-11-28.101"></script>
+<script src="google.js?v=2026-11-28.101"></script>
 <script>
 (function () {
   "use strict";
@@ -4030,6 +4030,8 @@ p.aide-fine.lu { margin: 6px 0 0; }
         if (rangB !== R) return;
         R.occupe = "";
         if (!l.length) { R.souci = "Aucun des fichiers choisis n'est un classeur de ce compte. Recommence en choisissant tes « Copie de Boîte mail (vierge) »."; boiteRangerMontrer(); return; }
+        var enUsage = l.filter(function (c) { return c.nom === "Boîte mail"; });   // 28.11.2026 : le classeur déjà nommé « Boîte mail » est celui que l'appli utilise
+        if (enUsage.length === 1) l = enUsage.concat(l.filter(function (c) { return c !== enUsage[0]; }));
         R.copies = l; R.garder = l[0].id; R.jeter = {};
         l.slice(1).forEach(function (c) { if (c.taille < 5 * 1024) R.jeter[c.id] = true; });   // un doublon presque vide : proposé à la corbeille
         R.phase = "liste"; boiteRangerMontrer();

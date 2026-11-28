@@ -796,9 +796,11 @@
     var s = session(cle);
     if (!s || !s.drive) return Promise.reject(souci("La connexion à Google a expiré.", "expire"));
     if (!/^[\w-]{20,120}$/.test(String(id || "")) || !/^[\w-]{6,120}$/.test(String(dossier || ""))) return Promise.reject(souci("Il manque le classeur ou le dossier.", "refus"));
-    return drive(s, "GET", "files/" + enc(id) + "?fields=parents").then(function (f) {
-      var p = ((f && f.parents) || []).filter(function (x) { return x !== dossier; });
-      return drive(s, "PATCH", "files/" + enc(id) + "?addParents=" + enc(dossier) + (p.length ? "&removeParents=" + enc(p.join(",")) : "") + "&fields=" + enc("id,name,parents"), { name: NOM_BOITE, appProperties: { origami: MARQUE_BOITE_MAIN, origamiDossier: dossier } });
+    return drive(s, "GET", "files/" + enc(id) + "?fields=" + enc("parents,appProperties")).then(function (f) {
+      var p = ((f && f.parents) || []).filter(function (x) { return x !== dossier; }), a = (f && f.appProperties) || {};
+      // 28.11.2026 : un classeur qui porte déjà une marque d'Origami (installé par Origami) garde sa marque : on le déplace seulement.
+      var corps = a.origami && a.origami !== MARQUE_BOITE_MAIN ? { name: NOM_BOITE } : { name: NOM_BOITE, appProperties: { origami: MARQUE_BOITE_MAIN, origamiDossier: dossier } };
+      return drive(s, "PATCH", "files/" + enc(id) + "?addParents=" + enc(dossier) + (p.length ? "&removeParents=" + enc(p.join(",")) : "") + "&fields=" + enc("id,name,parents"), corps);
     }).then(function (g) {
       if (((g && g.parents) || []).indexOf(dossier) < 0) throw souci("Google n'a pas déplacé le classeur.", "rangement");
       return true;
