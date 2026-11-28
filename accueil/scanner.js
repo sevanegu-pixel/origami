@@ -13,11 +13,28 @@
  *     r.base64() // Promise<string> : le PDF en base64, prêt pour google.script.run ou fetch
  *   });
  * Options : nom, titre, couleur (accent), fichier (File d'image : saute l'écran de départ), multipage (true par défaut).
+ * 28.11.2026, option « lecture » : true (ou { url: adresse de lecture.js }) montre la case « Lire les informations » sur l'écran
+ * des effets. Cochée (le choix est gardé sur l'appareil), le texte du ticket est lu sur l'appareil (lecture.js, OrigamiLecture) et
+ * le résultat porte r.infos = { montant, devise, date, fournisseur, tva, texte }, ou r.lecture = { souci } si la lecture a échoué.
+ * Le scan est rendu dans tous les cas : la lecture n'est qu'une aide, à vérifier.
+ * 28.11.2026 (version .2), demande de Sévane : le scanner filme lui-même avec la caméra, sur téléphone aussi (aperçu en direct, le
+ * ticket est repéré et entouré pendant qu'on vise, déclencheur, lampe si le téléphone en a une). Il s'ouvre directement sur la caméra :
+ * plus d'écran « Prendre une photo / Choisir une image » (l'appli qui l'appelle a déjà son bouton pour un fichier). Cet écran ne revient
+ * que si la caméra ne peut pas s'ouvrir ici (refusée, absente, page qui n'y a pas droit) : on y propose alors l'appareil photo du
+ * téléphone ou une image. options.camera : false = jamais la caméra en direct.
+ * Option « arrierePlan » (28.11 .2) : true = « Terminer » ferme le scanner tout de suite ; la promesse rend aussitôt
+ *   { enPreparation: true, nom, pages, pret }   où pret est une Promise du résultat complet (pdf, images, base64, infos…).
+ * L'appli montre la pièce à sa place avec une roulette jusqu'à ce que pret soit tenue. Sans l'option : comme avant.
+ * 28.11 (.2) : « Terminer » demande le NOM du fichier (prérempli, modifiable). Option « formats » : true = on choisit aussi le format,
+ *   PDF (par défaut), JPEG, PNG, WebP (si l'appareil sait le faire) ; plusieurs pages en image = mises l'une sous l'autre dans une
+ *   seule image. Le résultat porte alors r.fichier (Blob), r.type et r.format ; r.pdf n'existe que pour un PDF. Sans « formats » :
+ *   toujours un PDF, comme avant (r.pdf, et aussi r.fichier). Le dernier format choisi est gardé sur l'appareil.
  */
 (function (global) {
   "use strict";
   if (global.OrigamiScanner) return;
-  var VERSION = "2026-11-18.2";
+  var VERSION = "2026-11-28.2";
+  var ICI = (document.currentScript && document.currentScript.src) || "";   // lecture.js est à côté de ce fichier
   var MAX_SOURCE = 2600, MAX_SORTIE = 2000, MAX_APERCU = 1100, QUALITE = 0.86;
   var EFFETS = [
     { id: "original", nom: "Original" },
@@ -47,6 +64,7 @@
     ".osc-rang.fin{justify-content:space-between;flex-wrap:nowrap}",
     ".osc-rang.fin>div{display:flex;gap:8px}",
     ".osc-aide{font-size:13px;color:#b8b8b8;text-align:center}",
+    ".osc-lire{display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;color:#e8e8e8;cursor:pointer;min-height:32px}.osc-lire input{width:20px;height:20px;margin:0;accent-color:var(--osc-accent,#1f6fd1)}.osc-lire small{color:#9a9a9a}",
     ".osc-effets{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 4px;scrollbar-width:none;justify-content:safe center}",
     ".osc-effets::-webkit-scrollbar{display:none}",
     ".osc-effet{flex:0 0 auto;width:76px;border:0;background:none;color:#ddd;font:inherit;font-size:12px;cursor:pointer;padding:0;display:flex;flex-direction:column;align-items:center;gap:4px}",
@@ -67,12 +85,17 @@
     ".osc-depose.sur{border-color:var(--osc-accent);color:#fff}",
     ".osc-attente{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);font-weight:600;z-index:3}",
     ".osc-question{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#232323;border-radius:16px;padding:18px;width:min(360px,calc(100% - 32px));box-shadow:0 10px 40px rgba(0,0,0,.6);z-index:4}",
+    ".osc-nom label{display:block;font-size:13px;color:#b8b8b8;margin:0 0 4px}.osc-nom input[type=text]{width:100%;font:inherit;font-size:16px;padding:9px 10px;border-radius:10px;border:1px solid #555;background:#141414;color:#f1f1f1;margin:0 0 12px}",
+    ".osc-formats{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.osc-formats label{display:inline-flex;align-items:center;gap:5px;padding:7px 11px;border-radius:999px;background:#2b2b2b;cursor:pointer;font-size:14px;color:#f1f1f1}.osc-formats input{accent-color:var(--osc-accent)}.osc-formats label:has(input:checked){background:#f1f1f1;color:#141414}",
+    ".osc-nom small{display:block;color:#9a9a9a;margin:0 0 12px}",
     ".osc-question p{margin:0 0 14px}.osc-question .osc-rang{justify-content:flex-end}",
     ".osc-voile{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:3}",
     ".osc-camera{flex:1;position:relative;min-height:0;overflow:hidden;background:#000;display:flex;align-items:center;justify-content:center}",
     ".osc-camera video{max-width:100%;max-height:100%;width:auto;height:auto;display:block;background:#000}",
     ".osc-declencher{width:68px;height:68px;border-radius:50%;border:4px solid #fff;background:var(--osc-accent);cursor:pointer;padding:0;box-shadow:0 0 0 3px rgba(0,0,0,.4)}",
     ".osc-declencher:disabled{opacity:.4;cursor:default}.osc-declencher:focus-visible{outline:3px solid #fff;outline-offset:3px}",
+    ".osc-cible{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}.osc-cible polygon{fill:rgba(47,107,255,.18);fill:color-mix(in srgb,var(--osc-accent) 20%,transparent);stroke:var(--osc-accent);stroke-width:3;stroke-linejoin:round;vector-effect:non-scaling-stroke;transition:all .18s}",
+    ".osc-b[aria-pressed=true]{background:#f1f1f1;color:#141414}",
     ".osc-eclair{position:absolute;inset:0;background:#fff;opacity:.85;pointer-events:none;transition:opacity .25s}",
     "@media (max-width:420px){.osc-b{padding:8px 11px;font-size:13px}.osc-b .osc-t{display:none}.osc-b.p .osc-t,.osc-b.t .osc-t{display:inline}}",
     "@media (min-width:900px){.osc-bas{padding-left:24px;padding-right:24px}}"
@@ -362,6 +385,32 @@
       else { var u = c.toDataURL("image/jpeg", QUALITE), s = atob(u.split(",")[1]), a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); ok(new Blob([a], { type: "image/jpeg" })); }
     });
   }
+  var FORMATS = [{ id: "pdf", nom: "PDF", type: "application/pdf", ext: "pdf" }, { id: "jpeg", nom: "JPEG", type: "image/jpeg", ext: "jpg" }, { id: "png", nom: "PNG", type: "image/png", ext: "png" }, { id: "webp", nom: "WebP", type: "image/webp", ext: "webp" }];
+  var webpOk = null;
+  function formatsPossibles() {
+    if (webpOk === null) { try { var t = toile(2, 2); webpOk = t.toDataURL("image/webp").indexOf("data:image/webp") === 0; } catch (e) { webpOk = false; } }
+    return FORMATS.filter(function (f) { return f.id !== "webp" || webpOk; });
+  }
+  function formatGarde() { try { return localStorage.getItem("origami_scanner_format") || "pdf"; } catch (e) { return "pdf"; } }
+  function formatGarder(f) { try { localStorage.setItem("origami_scanner_format", f); } catch (e) {} }
+  function versType(c, type) {
+    return new Promise(function (ok, ko) {
+      if (c.toBlob) c.toBlob(function (b) { if (!b) return ko(new Error("Image impossible à préparer.")); ok(b); }, type, type === "image/png" ? undefined : QUALITE);
+      else { var u = c.toDataURL(type, QUALITE), s = atob(u.split(",")[1]), a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); ok(new Blob([a], { type: type })); }
+    });
+  }
+  // Plusieurs pages dans une seule image : l'une sous l'autre, sur fond blanc (taille bornée pour les téléphones).
+  function empiler(toiles) {
+    if (toiles.length === 1) return toiles[0];
+    var W = 0, H = 0, ecart = 24;
+    toiles.forEach(function (c) { W = Math.max(W, c.width); H += c.height; }); H += ecart * (toiles.length - 1);
+    var k = Math.min(1, 16000 / H, Math.sqrt(16e6 / (W * H)));
+    var r = toile(W * k, H * k), x = r.getContext("2d"), y = 0;
+    x.fillStyle = "#fff"; x.fillRect(0, 0, r.width, r.height);
+    toiles.forEach(function (c) { x.drawImage(c, (r.width - c.width * k) / 2, y, c.width * k, c.height * k); y += (c.height + ecart) * k; });
+    return r;
+  }
+  function nomPropre(n) { return String(n || "").replace(/[\\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\.(pdf|jpe?g|png|webp)$/i, "").replace(/\s+/g, " ").trim().slice(0, 120); }
   function octetsDe(blob) {
     if (blob.arrayBuffer) return blob.arrayBuffer().then(function (b) { return new Uint8Array(b); });
     return new Promise(function (ok, ko) { var r = new FileReader(); r.onload = function () { ok(new Uint8Array(r.result)); }; r.onerror = ko; r.readAsArrayBuffer(blob); });
@@ -372,9 +421,27 @@
 
   // ---------------------------------------------------------------- l'écran
   var cssPose = false;
+  // Case « Lire les informations » : le choix reste sur l'appareil.
+  function lireCoche() { try { return localStorage.getItem("origami_scanner_lire") === "1"; } catch (e) { return false; } }
+  function lireGarder(oui) { try { if (oui) localStorage.setItem("origami_scanner_lire", "1"); else localStorage.removeItem("origami_scanner_lire"); } catch (e) {} }
+  var lectureChargee = null;
+  function chargerLecture() {
+    if (global.OrigamiLecture) return Promise.resolve(global.OrigamiLecture);
+    if (lectureChargee) return lectureChargee;
+    var o = optionsLecture && typeof optionsLecture === "object" && optionsLecture.url ? String(optionsLecture.url) : ICI.split("?")[0].replace(/[^\/]*$/, "") + "lecture.js" + (ICI.indexOf("?") > 0 ? ICI.slice(ICI.indexOf("?")) : "");
+    lectureChargee = new Promise(function (ok, ko) {
+      var s = document.createElement("script"); s.src = o; s.async = true; s.charset = "utf-8";
+      s.onload = function () { if (global.OrigamiLecture) ok(global.OrigamiLecture); else ko(new Error("La lecture n'est pas disponible.")); };
+      s.onerror = function () { lectureChargee = null; ko(new Error("La lecture n'a pas pu être chargée (connexion ?).")); };
+      document.head.appendChild(s);
+    });
+    return lectureChargee;
+  }
+  var optionsLecture = null;
   function poserCss() { if (cssPose) return; cssPose = true; var s = document.createElement("style"); s.id = "origami-scanner-css"; s.textContent = CSS; document.head.appendChild(s); }
 
   function ouvrir(options) {
+    optionsLecture = options && options.lecture;
     options = options || {};
     poserCss();
     return new Promise(function (resoudre) {
@@ -418,12 +485,15 @@
       function annuler() { if (pages.length) question("Abandonner ce scan ? " + (pages.length > 1 ? "Les " + pages.length + " pages seront perdues." : "La page sera perdue."), function () { fermer(null); }, "Continuer", "Abandonner"); else fermer(null); }
 
       // ---- écran de départ : prendre une photo ou choisir une image
+      // Départ : la caméra en direct si elle peut s'ouvrir ici ; sinon (ou après un refus) l'écran de départ.
+      var cameraKo = false;
+      function nouvellePhoto() { if (cameraEnDirect() && !cameraKo) ecranCamera(); else ecranDepart(); }
       function ecranDepart() {
         etape = "depart"; arreterCamera();
         // Une page de plus (pages déjà faites) : « Retour » ramène aux pages, sans rien perdre ; « Annuler » ne sert qu'au tout début.
         var h = '<div class="osc-haut">' + (pages.length ? bouton("retour-pages", "Retour", "", "t", "Revenir aux pages déjà faites") : bouton("annuler", "Annuler", "", "t")) + '<div class="osc-titre">' + (pages.length ? "Page " + (pages.length + 1) : (options.titre || "Scanner un ticket")) + "</div>" +
           (pages.length ? bouton("terminer", "Terminer", "", "p") : '<span style="width:72px"></span>') + "</div>";
-        h += '<div class="osc-depart">' + bouton("photo", "Prendre une photo", "photo", "p t") + bouton("image", "Choisir une image", "image", "t") +
+        h += '<div class="osc-depart">' + (options.camera === false && options.sansCamera ? "" : bouton("photo", cameraKo ? "Ouvrir l'appareil photo" : "Prendre une photo", "photo", "p t")) + bouton("image", "Choisir une image", "image", "t") +
           '<div class="osc-depose" data-depose>…ou dépose une image ici</div><p>Pose le ticket à plat sur un fond plus foncé que lui, avec une bonne lumière : les coins seront trouvés tout seuls.</p></div>';
         contenu.innerHTML = h;
         var z = contenu.querySelector("[data-depose]");
@@ -447,24 +517,55 @@
       entreePhoto.addEventListener("change", function () { var f = Array.prototype.slice.call(entreePhoto.files || []); entreePhoto.value = ""; if (f.length) recevoir(f); });
       entreeImage.addEventListener("change", function () { var f = Array.prototype.slice.call(entreeImage.files || []); entreeImage.value = ""; if (f.length) recevoir(f); });
 
-      // ---- caméra en direct (ordinateur) : sur téléphone, « Prendre une photo » ouvre l'appareil photo du téléphone (entreePhoto, capture).
+      // ---- caméra en direct, sur ordinateur comme sur téléphone (28.11 .2). Si elle ne s'ouvre pas : écran de départ, avec l'appareil
+      // photo du téléphone (entreePhoto, capture) ou une image.
       // options.camera : false = jamais la caméra en direct (par exemple une coquille qui n'a pas le droit d'ouvrir la caméra).
-      var flux = null, cameras = [], cameraNo = -1, video = null;
+      var flux = null, cameras = [], cameraNo = -1, video = null, visee = null, lampe = false;
       function cameraEnDirect() {
         if (options.camera === false) return false;
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
-        if (options.camera === true) return true;
-        return !!(window.matchMedia && window.matchMedia("(pointer:fine)").matches && !window.matchMedia("(pointer:coarse)").matches);
+        return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
       }
       function arreterCamera() {
+        if (visee) { clearTimeout(visee); visee = null; }
         if (flux) { try { flux.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {} flux = null; }
         if (video) { try { video.srcObject = null; } catch (e) {} video = null; }
+        lampe = false;
+      }
+      // Pendant qu'on vise : le ticket est cherché quelques fois par seconde sur une petite image, et entouré sur l'aperçu.
+      var petite = null;
+      function viser() {
+        visee = null;
+        var v = video;
+        if (fini || etape !== "camera" || !v || !flux) return;
+        if (v.videoWidth && v.readyState >= 2) {
+          var k = Math.min(1, 360 / Math.max(v.videoWidth, v.videoHeight));
+          if (!petite) petite = document.createElement("canvas");
+          petite.width = Math.max(1, Math.round(v.videoWidth * k)); petite.height = Math.max(1, Math.round(v.videoHeight * k));
+          var pts = null;
+          try { petite.getContext("2d", { willReadFrequently: true }).drawImage(v, 0, 0, petite.width, petite.height); pts = detecter(petite); } catch (e) { pts = null; }
+          var svg = contenu.querySelector(".osc-cible"), poly = svg && svg.querySelector("polygon"), aide = contenu.querySelector("[data-cam-aide]");
+          if (svg) {
+            // la vidéo est montrée entière (pas rognée) : on pose le cadre sur sa vraie place dans la zone
+            var zone = svg.getBoundingClientRect(), r = v.getBoundingClientRect();
+            svg.setAttribute("viewBox", "0 0 " + Math.max(1, zone.width) + " " + Math.max(1, zone.height));
+            if (pts && convexe(pts)) {
+              var ex = r.width / petite.width, ey = r.height / petite.height, dx = r.left - zone.left, dy = r.top - zone.top;
+              poly.setAttribute("points", pts.map(function (q) { return (dx + q.x * ex).toFixed(1) + "," + (dy + q.y * ey).toFixed(1); }).join(" "));
+              poly.style.display = "";
+              if (aide) aide.textContent = "Ticket repéré : appuie sur le bouton rond.";
+            } else {
+              poly.style.display = "none";
+              if (aide) aide.textContent = "Vise le ticket, à plat sur un fond plus foncé que lui.";
+            }
+          }
+        }
+        visee = setTimeout(viser, 260);
       }
       function ecranCamera() {
         etape = "camera"; arreterCamera();
-        contenu.innerHTML = '<div class="osc-haut">' + bouton("retour-camera", "Retour", "", "t") + '<div class="osc-titre">' + (pages.length ? "Page " + (pages.length + 1) : "Prendre une photo") + "</div>" +
-          '<span data-cam-autre style="min-width:72px;display:flex;justify-content:flex-end"></span></div>' +
-          '<div class="osc-camera"><video playsinline muted autoplay></video></div>' +
+        contenu.innerHTML = '<div class="osc-haut">' + (pages.length ? bouton("retour-pages", "Retour", "", "t", "Revenir aux pages déjà faites") : bouton("annuler", "Annuler", "", "t")) + '<div class="osc-titre">' + (pages.length ? "Page " + (pages.length + 1) : (options.titre || "Scanner un ticket")) + "</div>" +
+          '<span data-cam-autre style="min-width:72px;display:flex;justify-content:flex-end;gap:6px"></span></div>' +
+          '<div class="osc-camera"><video playsinline muted autoplay></video><svg class="osc-cible" aria-hidden="true"><polygon style="display:none"></polygon></svg></div>' +
           '<div class="osc-bas"><div class="osc-aide" data-cam-aide>Ouverture de la caméra…</div><div class="osc-rang"><button type="button" class="osc-declencher" data-osc="declencher" aria-label="Prendre la photo" title="Prendre la photo" disabled></button></div></div>';
         video = contenu.querySelector("video");
         demarrerCamera();
@@ -480,21 +581,24 @@
           var p = v.play(); if (p && p.catch) p.catch(function () {});
           var pret = function () { var b = contenu.querySelector('[data-osc="declencher"]'); if (b) { b.disabled = false; try { b.focus(); } catch (e) {} } var a = contenu.querySelector("[data-cam-aide]"); if (a) a.textContent = "Tiens le ticket bien à plat devant la caméra, sur un fond plus foncé que lui."; };
           if (v.readyState >= 2) pret(); else v.addEventListener("loadeddata", pret, { once: true });
+          if (visee) clearTimeout(visee); visee = setTimeout(viser, 400);
           if (navigator.mediaDevices.enumerateDevices) navigator.mediaDevices.enumerateDevices().then(function (l) {
             cameras = l.filter(function (d) { return d.kind === "videoinput"; });
             var piste = s.getVideoTracks()[0], reglage = piste && piste.getSettings ? piste.getSettings() : {};
             cameras.forEach(function (d, i) { if (reglage.deviceId && d.deviceId === reglage.deviceId) cameraNo = i; });
-            var z = contenu.querySelector("[data-cam-autre]");
-            if (z && video === v) z.innerHTML = cameras.length > 1 ? bouton("autre-camera", "Autre caméra", "camera", "t", "Changer de caméra") : "";
+            var z = contenu.querySelector("[data-cam-autre]"), capa = {};
+            try { capa = piste && piste.getCapabilities ? piste.getCapabilities() : {}; } catch (x) { capa = {}; }
+            if (z && video === v) z.innerHTML = (capa.torch ? bouton("lampe", "Lampe", "", "t", "Allumer la lampe").replace('data-osc="lampe"', 'data-osc="lampe" aria-pressed="false"') : "") + (cameras.length > 1 ? bouton("autre-camera", "Autre caméra", "camera", "t", "Changer de caméra") : "");
           }, function () {});
         }, function (e) {
           if (fini || etape !== "camera" || video !== v) return;
-          var nom = e && e.name;
+          var nom = e && e.name, tactile = !!(window.matchMedia && window.matchMedia("(pointer:coarse)").matches);
+          cameraKo = true;
           ecranDepart();
-          if (nom === "NotAllowedError" || nom === "SecurityError") avertir("La caméra n'est pas autorisée. Sur Mac : Réglages Système › Confidentialité et sécurité › Caméra, coche l'appli ou le navigateur, puis réessaie. Tu peux aussi choisir une image.");
-          else if (nom === "NotFoundError" || nom === "OverconstrainedError") avertir("Aucune caméra trouvée sur cet appareil. Tu peux choisir une image ou en déposer une.");
+          if (nom === "NotAllowedError" || nom === "SecurityError") avertir(tactile ? "La caméra n'est pas autorisée ici. Tu peux ouvrir l'appareil photo du téléphone, ou autoriser la caméra pour cette appli dans les réglages du téléphone, puis réessayer." : "La caméra n'est pas autorisée. Sur Mac : Réglages Système › Confidentialité et sécurité › Caméra, coche l'appli ou le navigateur, puis réessaie. Tu peux aussi choisir une image.");
+          else if (nom === "NotFoundError" || nom === "OverconstrainedError") avertir("Aucune caméra trouvée sur cet appareil. Tu peux choisir une image" + (tactile ? "." : " ou en déposer une."));
           else if (nom === "NotReadableError") avertir("La caméra est déjà utilisée par une autre appli. Ferme-la, puis réessaie.");
-          else avertir("La caméra n'a pas pu s'ouvrir. Tu peux choisir une image ou en déposer une.");
+          else avertir("La caméra n'a pas pu s'ouvrir ici. Tu peux " + (tactile ? "ouvrir l'appareil photo du téléphone ou choisir une image." : "choisir une image ou en déposer une."));
         });
       }
       function declencher() {
@@ -636,7 +740,7 @@
         plusTard(function () { preparerPage(pg); }).then(function () {
           fin(); etape = "effets"; courante = i;
           contenu.innerHTML = '<div class="osc-haut">' + bouton("recadrer", "Recadrer", "", "t") + '<div class="osc-titre">Effets' + (pages.length > 1 ? " · page " + (i + 1) + " sur " + pages.length : "") + "</div>" + bouton("terminer", multipage ? "Terminer" : "Valider", "", "p") + "</div>" +
-            '<div class="osc-scene"><canvas></canvas></div><div class="osc-bas"><div class="osc-effets" role="group" aria-label="Effets"></div><div class="osc-reglages"></div>' +
+            '<div class="osc-scene"><canvas></canvas></div><div class="osc-bas"><div class="osc-effets" role="group" aria-label="Effets"></div><div class="osc-reglages"></div>' + (options.lecture ? '<label class="osc-lire"><input type="checkbox" data-osc-lire' + (lireCoche() ? " checked" : "") + '> Lire les informations <small>(montant, date, fournisseur, TVA)</small></label>' : "") +
             (multipage ? '<div class="osc-rang fin"><div class="osc-pages"></div><div>' + (pages.length > 1 ? bouton("suppr-page", "Retirer", "corbeille", "", "Retirer cette page") : "") + bouton("ajouter", "Page", "plus", "t", "Ajouter une page") + "</div></div>" : "") + "</div>";
           var zEffets = contenu.querySelector(".osc-effets");
           EFFETS.forEach(function (e) {
@@ -681,19 +785,61 @@
       // ---- fin : PDF de toutes les pages
       function terminer() {
         if (etape === "recadrer" && !convexe(pages[courante].pts)) { avertir("Les points se croisent : remets-les sur les quatre coins du ticket."); return; }
-        var fin = attente(pages.length > 1 ? "Préparation du PDF (" + pages.length + " pages)…" : "Préparation du PDF…"), images = [], jpegs = [];
+        if (racine.querySelector(".osc-nom")) return;
+        var liste = options.formats ? formatsPossibles() : [FORMATS[0]], choisi = options.formats ? formatGarde() : "pdf";
+        if (!liste.some(function (f) { return f.id === choisi; })) choisi = "pdf";
+        var v = el("div", "osc-voile"), q = el("div", "osc-question osc-nom",
+          '<label for="osc-nom">Nom du fichier</label><input type="text" id="osc-nom" autocomplete="off" spellcheck="false" enterkeyhint="done">' +
+          (liste.length > 1 ? '<label id="osc-format-l">Format</label><div class="osc-formats" role="radiogroup" aria-labelledby="osc-format-l">' + liste.map(function (f) { return '<label><input type="radio" name="osc-format" value="' + f.id + '"' + (f.id === choisi ? " checked" : "") + "> " + f.nom + "</label>"; }).join("") + "</div>" : "") +
+          '<small data-osc-note></small><div class="osc-rang">' + bouton("n-non", "Retour", "", "t") + bouton("n-oui", "Enregistrer", "", "p") + "</div>");
+        racine.appendChild(v); racine.appendChild(q);
+        var champ = q.querySelector("#osc-nom"), note = q.querySelector("[data-osc-note]");
+        champ.value = nomBase + "-" + aujourdhui();
+        function majNote() { var f = (q.querySelector('input[name="osc-format"]:checked') || {}).value || "pdf"; note.textContent = f !== "pdf" && pages.length > 1 ? "Les " + pages.length + " pages seront mises l'une sous l'autre dans une seule image." : ""; note.hidden = !note.textContent; }
+        majNote();
+        function valider() {
+          var n = nomPropre(champ.value) || nomBase, f = (q.querySelector('input[name="osc-format"]:checked') || {}).value || "pdf";
+          if (options.formats) formatGarder(f);
+          v.remove(); q.remove(); fabriquer(n, f);
+        }
+        q.addEventListener("change", majNote);
+        q.addEventListener("click", function (ev) { var b = ev.target.closest("[data-osc]"); if (!b) return; ev.stopPropagation(); if (b.getAttribute("data-osc") === "n-oui") valider(); else { v.remove(); q.remove(); } });
+        champ.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); valider(); } });
+        try { champ.focus(); champ.select(); } catch (e) {}
+      }
+      function fabriquer(nomChoisi, formatId) {
+        var fmt = FORMATS.filter(function (f) { return f.id === formatId; })[0] || FORMATS[0], enPdf = fmt.id === "pdf", toiles = [];
+        var fond = !!options.arrierePlan, images = [], jpegs = [], nomPdf = nomChoisi + "." + fmt.ext, nbPages = pages.length;
+        var fin = fond ? function () {} : attente(enPdf ? (pages.length > 1 ? "Préparation du PDF (" + pages.length + " pages)…" : "Préparation du PDF…") : "Préparation de l'image…");
+        var lire = !!(options.lecture && lireCoche()), rendre = null, refuser = null;
+        var pret = fond ? new Promise(function (ok, ko) { rendre = ok; refuser = ko; }) : null;
+        if (fond) { pret.catch(function () {}); arreterCamera(); racine.style.visibility = "hidden"; fermer({ enPreparation: true, nom: nomPdf, pages: nbPages, pret: pret }); }
         pages.reduce(function (p, pg) {
           return p.then(function () { return plusTard(function () { preparerPage(pg); return appliquer(pg.brut, pg.effet, pg.reglages); }); }).then(function (c) {
+            if (!enPdf) toiles.push(c);
             return versJpeg(c).then(function (b) { images.push(b); return octetsDe(b).then(function (o) { jpegs.push({ octets: o, w: c.width, h: c.height }); }); });
           });
         }, Promise.resolve()).then(function () {
-          var pdf = fabriquerPdf(jpegs);
+          return enPdf ? fabriquerPdf(jpegs) : plusTard(function () { return empiler(toiles); }).then(function (c) { return versType(c, fmt.type); });
+        }).then(function (blob) {
           fin();
-          fermer({ pdf: pdf, nom: nomBase + "-" + aujourdhui() + ".pdf", type: "application/pdf", pages: pages.length, images: images, base64: function () { return base64De(pdf); } });
-        }).catch(function (e) { fin(); avertir("Le PDF n'a pas pu être préparé : " + (e && e.message || e)); });
+          if (!enPdf && blob.type !== fmt.type) throw new Error("Ce format n'est pas possible sur cet appareil : choisis PDF ou JPEG.");
+          var resultat = { pdf: enPdf ? blob : undefined, fichier: blob, nom: nomPdf, type: fmt.type, format: fmt.id, pages: nbPages, images: images, base64: function () { return base64De(blob); } };
+          if (!lire) { if (fond) rendre(resultat); else fermer(resultat); return; }
+          // Lecture des informations : sur l'appareil ; un échec n'empêche jamais de garder le scan.
+          // En arrière-plan, le PDF est rendu d'abord (resultat.lecturePrete : Promise qui ajoute infos ou lecture quand c'est lu).
+          var finL = fond ? function () {} : attente("Lecture du ticket…"), zone = fond ? null : racine.querySelector(".osc-attente:last-child");
+          var lu = chargerLecture().then(function (L) {
+            return L.lire(images, { suivi: function (quoi, p) { if (zone) zone.textContent = (/recogni/.test(quoi) ? "Lecture du ticket… " : "Préparation du lecteur (une seule fois)… ") + Math.round(p * 100) + " %"; } });
+          }).then(function (infos) { resultat.infos = infos; }, function (e) { resultat.lecture = { souci: (e && e.message) || "La lecture n'a pas abouti." }; })
+            .then(function () { finL(); return resultat; });
+          if (fond) { resultat.lecturePrete = lu; rendre(resultat); }
+          else lu.then(function () { fermer(resultat); });
+        }).catch(function (e) { fin(); if (fond) refuser(new Error((enPdf ? "Le PDF n'a pas pu être préparé : " : "L'image n'a pas pu être préparée : ") + (e && e.message || e))); else avertir((enPdf ? "Le PDF n'a pas pu être préparé : " : "L'image n'a pas pu être préparée : ") + (e && e.message || e)); });
       }
 
       // ---- gestes
+      racine.addEventListener("change", function (ev) { if (ev.target && ev.target.hasAttribute && ev.target.hasAttribute("data-osc-lire")) lireGarder(ev.target.checked); });
       racine.addEventListener("click", function (ev) {
         var b = ev.target.closest("[data-osc],[data-effet],[data-page]");
         if (!b || !racine.contains(b)) return;
@@ -705,14 +851,14 @@
         }
         if (b.hasAttribute("data-page")) { var n = Number(b.getAttribute("data-page")); if (n !== courante) ecranEffets(n); else ecranRecadrer(n); return; }
         if (a === "annuler") annuler();
-        else if (a === "photo") { if (cameraEnDirect()) ecranCamera(); else if (options.sansCamera) avertir(options.sansCamera); else entreePhoto.click(); }
+        else if (a === "photo") { if (cameraEnDirect() && !cameraKo) ecranCamera(); else if (options.camera === false && options.sansCamera) avertir(options.sansCamera); else entreePhoto.click(); }
+        else if (a === "lampe") { var tr = flux && flux.getVideoTracks()[0]; if (tr && tr.applyConstraints) { var on = !lampe; tr.applyConstraints({ advanced: [{ torch: on }] }).then(function () { lampe = on; b.setAttribute("aria-pressed", String(on)); }, function () {}); } }
         else if (a === "declencher") declencher();
         else if (a === "autre-camera") { if (cameras.length > 1) { cameraNo = (cameraNo + 1) % cameras.length; demarrerCamera(); } }
-        else if (a === "retour-camera") ecranDepart();
-        else if (a === "retour-pages") { remplacer = null; if (pages.length) ecranEffets(Math.max(0, Math.min(courante, pages.length - 1))); else ecranDepart(); }
+        else if (a === "retour-pages") { remplacer = null; if (pages.length) ecranEffets(Math.max(0, Math.min(courante, pages.length - 1))); else nouvellePhoto(); }
         else if (a === "image") entreeImage.click();
         else if (a === "retour-depart") {
-          question("Reprendre une autre photo pour cette page ? Celle-ci sera abandonnée.", function () { pages.splice(courante, 1); remplacer = courante; ecranDepart(); }, "Garder", "Reprendre");
+          question("Reprendre une autre photo pour cette page ? Celle-ci sera abandonnée.", function () { pages.splice(courante, 1); remplacer = courante; nouvellePhoto(); }, "Garder", "Reprendre");
         }
         else if (a === "vers-effets") ecranEffets(courante);
         else if (a === "recadrer") ecranRecadrer(courante);
@@ -720,7 +866,7 @@
         else if (a === "droite") tournerPage(1);
         else if (a === "auto") { var pa = pages[courante], t = detecter(pa.source); if (t) { pa.pts = t; pa.auto = true; pa.brut = null; dessinerPoints(); contenu.querySelector(".osc-aide").textContent = "Les bords ont été trouvés. Déplace les points pour ajuster."; } else contenu.querySelector(".osc-aide").textContent = "Bords pas trouvés tout seuls : place les points à la main (un fond plus foncé que le ticket aide)."; }
         else if (a === "tout") { var pt = pages[courante], W = pt.source.width, H = pt.source.height; pt.pts = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }]; pt.brut = null; dessinerPoints(); }
-        else if (a === "ajouter") ecranDepart();
+        else if (a === "ajouter") nouvellePhoto();
         else if (a === "suppr-page") question("Retirer la page " + (courante + 1) + " ?", function () { pages.splice(courante, 1); ecranEffets(Math.min(courante, pages.length - 1)); }, "Garder", "Retirer");
         else if (a === "terminer") terminer();
       });
@@ -733,13 +879,13 @@
       });
       function surTaille() { if (etape === "recadrer") dessinerScene(); else if (etape === "effets") rendreApercu(); }
       function surTouche(ev) {
-        if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); var q = racine.querySelector(".osc-question"); if (q) { q.previousElementSibling.remove(); q.remove(); } else if (etape === "camera") ecranDepart(); else if (etape === "depart" && pages.length) { remplacer = null; ecranEffets(Math.max(0, Math.min(courante, pages.length - 1))); } else annuler(); }
+        if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); var q = racine.querySelector(".osc-question"); if (q) { q.previousElementSibling.remove(); q.remove(); } else if ((etape === "camera" || etape === "depart") && pages.length) { remplacer = null; ecranEffets(Math.max(0, Math.min(courante, pages.length - 1))); } else annuler(); }
       }
       window.addEventListener("resize", surTaille);
       document.addEventListener("keydown", surTouche, true);
 
       if (options.fichier) { ecranDepart(); recevoir([options.fichier]); }
-      else ecranDepart();
+      else { nouvellePhoto(); if (options.camera === false && options.sansCamera) avertir(options.sansCamera); }
     });
   }
 
