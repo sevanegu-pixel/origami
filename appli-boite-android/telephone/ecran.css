@@ -99,3 +99,12 @@ html.telephone #modale-pied .mc-etat-pied:empty { display: none; }
 /* Défilement sans fin : plus de pages à choisir, la suite arrive seule en bas de la liste. */
 html.telephone #msg-actions .pagination-haut, html.telephone .pagination-boite { display: none !important; }
 html.telephone .tel-suite { padding: 14px; text-align: center; font-size: 13px; color: var(--doux); }
+
+/* Sélection à la Gmail : la barre d'actions (tout cocher, archiver, supprimer, libeller, mes contacts seulement, actualiser…)
+   n'apparaît que lorsqu'un mail est sélectionné, par une pression longue. Ensuite, un simple toucher ajoute ou retire un mail. */
+html.telephone:not(.tel-selection) #msg-actions { display: none !important; }
+html.telephone #msg-actions-plus { display: none !important; }
+html.telephone.tel-selection #msg-actions { position: sticky; top: 0; z-index: 5; background: var(--carte); border-bottom: 1px solid var(--ligne); padding: 6px 10px; }
+html.telephone .tel-annuler-selection { width: 34px; height: 30px; padding: 0; font-size: 18px; line-height: 1; }
+html.telephone #msg-liste .conv { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+html.telephone #msg-liste .conv.cochee { background: color-mix(in srgb, var(--accent) 16%, var(--carte)) !important; }

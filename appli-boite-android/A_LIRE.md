@@ -9,7 +9,7 @@ a changé, la fabrication s'arrête en le nommant (« RETOUCHE IMPOSSIBLE ») : 
 | --- | --- |
 | `preparer.mjs` | copie et retouches (coquille, Rust, Cargo, réglages Android) |
 | `telephone/coquille.css`, `coquille.js` | barre des comptes fine ; une « case » `http://bN.localhost/<compte>/` par boîte (une mémoire par boîte, comme `boite://<compte>/` sur le Mac) ; veille confiée à Android |
-| `telephone/ecran.css`, `ecran.js` | affichage téléphone à la Gmail, posé dans l'écran gardé de chaque boîte par la « cale » ; mêmes fonctions qu'avant |
+| `telephone/ecran.css`, `ecran.js` | affichage téléphone à la Gmail, posé dans l'écran gardé de chaque boîte par la « cale » ; mêmes fonctions qu'avant ; liste sans fin (pages mises bout à bout) ; sélection par pression longue, barre d'actions seulement quand un mail est sélectionné |
 | `plugin/` | module `tauri-plugin-boite-android` : veille Kotlin (WorkManager, toutes les 15 min, même appli fermée) qui demande `nouveauxMails` à chaque moteur et annonce les nouveaux mails |
 | `cle.py`, `signature.mjs` | signature de l'APK : clé RSA et certificat recalculés à l'identique depuis le secret `ANDROID_GRAINE` (phrase choisie par Sévane) ; sans lui, clé d'essai jetable |
 

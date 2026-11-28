@@ -140,3 +140,49 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
 })();
+
+/* Sélection d'un mail par pression longue (comme Gmail). Le mail se coche par sa propre case (celle de l'écran),
+   donc tout ce que l'écran fait avec les mails cochés reste pareil. Tant qu'au moins un mail est coché, un simple
+   toucher sur un mail le coche ou le décoche au lieu de l'ouvrir ; « ✕ » décoche tout. */
+(function () {
+  if (window.__telSelection) return; window.__telSelection = true;
+  function demarrer() {
+    var l = document.getElementById('msg-liste'), barre = document.getElementById('msg-actions');
+    if (!l || !barre) return setTimeout(demarrer, 300);
+    function coches() { return l.querySelectorAll('.conv input[type="checkbox"]:checked'); }
+    function maj() { document.documentElement.classList.toggle('tel-selection', coches().length > 0); }
+    var annuler = document.createElement('button');
+    annuler.type = 'button'; annuler.className = 'btn tel-annuler-selection'; annuler.textContent = '✕';
+    annuler.setAttribute('aria-label', 'Annuler la sélection');
+    barre.insertBefore(annuler, barre.firstChild);
+    annuler.addEventListener('click', function () { [].forEach.call(coches(), function (c) { c.click(); }); setTimeout(maj, 0); });
+    function basculer(conv) { var c = conv && conv.querySelector('input[type="checkbox"]'); if (c) { c.click(); setTimeout(maj, 0); } }
+    var minuterie = null, x0 = 0, y0 = 0, avale = false;
+    function stop() { if (minuterie) { clearTimeout(minuterie); minuterie = null; } }
+    l.addEventListener('touchstart', function (e) {
+      stop(); var conv = e.target.closest && e.target.closest('.conv');
+      if (!conv || e.target.closest('[data-etoile], [data-fiche-cle], input')) return;
+      var t = e.touches[0]; x0 = t.clientX; y0 = t.clientY;
+      minuterie = setTimeout(function () {
+        minuterie = null; avale = true; basculer(conv);
+        try { if (navigator.vibrate) navigator.vibrate(25); } catch (x) {}
+      }, 450);
+    }, { passive: true });
+    l.addEventListener('touchmove', function (e) { var t = e.touches[0]; if (Math.abs(t.clientX - x0) > 10 || Math.abs(t.clientY - y0) > 10) stop(); }, { passive: true });
+    l.addEventListener('touchend', function () { stop(); if (avale) setTimeout(function () { avale = false; }, 500); }, { passive: true });
+    l.addEventListener('touchcancel', stop, { passive: true });
+    l.addEventListener('contextmenu', function (e) { if (e.target.closest && e.target.closest('.conv')) e.preventDefault(); });
+    // Avant l'écran : le toucher qui suit une pression longue ne doit pas ouvrir le mail ; en sélection, un toucher coche.
+    l.addEventListener('click', function (e) {
+      var conv = e.target.closest && e.target.closest('.conv');
+      if (e.target.closest && e.target.closest('input')) return;
+      if (avale) { avale = false; if (conv) { e.preventDefault(); e.stopPropagation(); } return; }
+      if (!conv || e.target.closest('input, [data-etoile], [data-fiche-cle]')) return;
+      if (coches().length) { e.preventDefault(); e.stopPropagation(); basculer(conv); }
+    }, true);
+    document.addEventListener('change', function () { setTimeout(maj, 0); }, true);
+    new MutationObserver(maj).observe(l, { childList: true, subtree: true });
+    maj();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
+})();
