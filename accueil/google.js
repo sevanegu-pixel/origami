@@ -741,6 +741,76 @@
     });
   }
   /** La Boîte mail de ce compte installée par Origami : { classeur, projet, deploiement, adresse } ou null. */
+  // ---------- Boîte mail copiée à la main (28.11.2026, Sévane : « faire qu'Origami range tout seul une boîte mail copiée à la main ») ----------
+  // Google ne montre à la page que les fichiers qu'elle a créés (droit drive.file). Une copie faite à la main n'en fait pas partie :
+  // la personne la choisit dans le sélecteur de fichiers de Google, ce qui donne à Origami le droit sur CE fichier seulement.
+  // Clé du sélecteur (projet Google « Origami » de la compagnie, restreinte à ce site et à « Google Picker API ») : publique par nature.
+  var CLE_SELECTEUR = "", PROJET_NUMERO = CLIENT.split("-")[0], MARQUE_BOITE_MAIN = "boite-main";
+  function selecteurPret() { return !!(racine.google && racine.google.picker && racine.google.picker.PickerBuilder); }
+  function chargerSelecteur() {
+    if (selecteurPret()) return Promise.resolve();
+    return new Promise(function (ok, non) {
+      function suite() { try { racine.gapi.load("picker", { callback: function () { selecteurPret() ? ok() : non(souci("Le sélecteur de Google ne s'est pas chargé.", "selecteur")); }, onerror: function () { non(souci("Le sélecteur de Google ne s'est pas chargé.", "selecteur")); } }); } catch (e) { non(souci("Le sélecteur de Google ne s'est pas chargé.", "selecteur")); } }
+      if (racine.gapi && racine.gapi.load) return suite();
+      var sc = document.createElement("script"); sc.src = "https://apis.google.com/js/api.js"; sc.async = true;
+      sc.onload = suite; sc.onerror = function () { non(souci("Le sélecteur de Google ne s'est pas chargé. Vérifie la connexion, puis recommence.", "selecteur")); };
+      document.head.appendChild(sc);
+    });
+  }
+  /** Ouvre le sélecteur de fichiers de Google sur les classeurs « Boîte mail ». Rend la liste des identifiants choisis ([] si fermé). */
+  function choisirCopies(cle) {
+    var s = session(cle);
+    if (!s || !s.drive) return Promise.reject(souci("La connexion à Google a expiré.", "expire"));
+    if (!CLE_SELECTEUR && !racine.__cleSelecteur) return Promise.reject(souci("Le sélecteur de fichiers de Google n'est pas encore réglé pour Origami.", "sans-cle"));
+    return chargerSelecteur().then(function () {
+      var P = racine.google.picker;
+      return new Promise(function (ok) {
+        var vue = new P.DocsView(P.ViewId.SPREADSHEETS).setMode(P.DocsViewMode.LIST).setQuery("Boîte mail").setOwnedByMe(true);
+        new P.PickerBuilder().addView(vue).enableFeature(P.Feature.MULTISELECT_ENABLED).setOAuthToken(s.jeton)
+          .setDeveloperKey(racine.__cleSelecteur || CLE_SELECTEUR).setAppId(PROJET_NUMERO).setLocale("fr").setTitle("Choisis tes copies de la Boîte mail")
+          .setCallback(function (d) {
+            var a = d && d[P.Response.ACTION];
+            if (a === P.Action.PICKED) ok(((d[P.Response.DOCUMENTS] || []).map(function (x) { return String(x[P.Document.ID] || ""); })).filter(function (id) { return /^[\w-]{20,120}$/.test(id); }));
+            else if (a === P.Action.CANCEL) ok([]);
+          }).build().setVisible(true);
+      });
+    });
+  }
+  /** Ce que Google dit des classeurs choisis : nom, taille, date, déjà rangé par Origami. Les plus gros d'abord. */
+  function lireCopies(cle, ids) {
+    var s = session(cle);
+    if (!s || !s.drive) return Promise.reject(souci("La connexion à Google a expiré.", "expire"));
+    return Promise.all(ids.map(function (id) {
+      return drive(s, "GET", "files/" + enc(id) + "?fields=" + enc("id,name,mimeType,quotaBytesUsed,modifiedTime,parents,trashed,ownedByMe,appProperties")).then(function (f) {
+        var a = (f && f.appProperties) || {};
+        return { id: id, nom: String(f.name || ""), classeur: f.mimeType === "application/vnd.google-apps.spreadsheet", taille: Number(f.quotaBytesUsed) || 0, date: String(f.modifiedTime || ""), parents: f.parents || [], jete: !!f.trashed, moi: f.ownedByMe !== false, marque: String(a.origami || ""), dossier: String(a.origamiDossier || "") };
+      }, function (e) { if (e && e.code === "expire") throw e; return null; });
+    })).then(function (l) { return l.filter(function (x) { return x && x.classeur && !x.jete && x.moi; }).sort(function (a, b) { return b.taille - a.taille || (a.date < b.date ? 1 : -1); }); });
+  }
+  /**
+   * Range une copie faite à la main dans le dossier « Origami › Boîte mail › Données » (id donné par le moteur du compte) et la nomme
+   * « Boîte mail ». Elle reçoit sa propre marque (« boite-main ») : Origami la reconnaît comme rangée, sans jamais lui attacher un
+   * deuxième projet (la copie a déjà le sien, celui que l'appli Boîte mail du Mac connaît). Rien d'autre n'est touché.
+   */
+  function rangerCopie(cle, id, dossier) {
+    var s = session(cle);
+    if (!s || !s.drive) return Promise.reject(souci("La connexion à Google a expiré.", "expire"));
+    if (!/^[\w-]{20,120}$/.test(String(id || "")) || !/^[\w-]{6,120}$/.test(String(dossier || ""))) return Promise.reject(souci("Il manque le classeur ou le dossier.", "refus"));
+    return drive(s, "GET", "files/" + enc(id) + "?fields=parents").then(function (f) {
+      var p = ((f && f.parents) || []).filter(function (x) { return x !== dossier; });
+      return drive(s, "PATCH", "files/" + enc(id) + "?addParents=" + enc(dossier) + (p.length ? "&removeParents=" + enc(p.join(",")) : "") + "&fields=" + enc("id,name,parents"), { name: NOM_BOITE, appProperties: { origami: MARQUE_BOITE_MAIN, origamiDossier: dossier } });
+    }).then(function (g) {
+      if (((g && g.parents) || []).indexOf(dossier) < 0) throw souci("Google n'a pas déplacé le classeur.", "rangement");
+      return true;
+    });
+  }
+  /** Une copie choisie, en trop : à la corbeille du Drive (30 jours pour la reprendre). */
+  function jeterCopie(cle, id) {
+    var s = session(cle);
+    if (!s || !s.drive || !/^[\w-]{20,120}$/.test(String(id || ""))) return Promise.resolve(false);
+    return drive(s, "PATCH", "files/" + enc(id) + "?fields=id,trashed", { trashed: true }).then(function (g) { return !!(g && g.trashed); }, function (e) { if (e && e.code === "expire") throw e; return false; });
+  }
+
   function chercherBoite(s) {
     return drive(s, "GET", "files?pageSize=10&orderBy=createdTime&fields=" + enc("files(id,parents,appProperties)") + "&q=" + enc("appProperties has { key='origami' and value='" + MARQUE_BOITE + "' } and trashed=false")).then(function (l) {
       var f = ((l && l.files) || []).filter(function (x) { return x && /^[\w-]{20,120}$/.test(String(x.id || "")); }).map(function (x) {
@@ -852,6 +922,7 @@
     chercherBoite: function (cle, franc) { var s = session(cle); if (franc && (!s || !s.drive)) return Promise.reject(souci("La connexion à Google a expiré.", "expire")); return s && s.drive ? chercherBoite(s).catch(function (e) { if (franc) throw e; return null; }) : Promise.resolve(null); },
     parPont: function () { return !!coquille(); }, adresseVisee: adresseVisee, deBase64Url: deBase64Url, installerOrigami: installerOrigami, jeterInstallation: jeterInstallation, premierContact: premierContact, relierParGoogle: relierParGoogle, pingMoteur: pingMoteur,
     // Une demande au moteur d'un compte avec la clé d'un appareil tout juste relié (lie = ce que rend premierContact).
+    choisirCopies: choisirCopies, lireCopies: lireCopies, rangerCopie: rangerCopie, jeterCopie: jeterCopie, selecteurRegle: function () { return !!(CLE_SELECTEUR || racine.__cleSelecteur); },
     demanderMoteur: function (lie, prise, args) { return demander(lie && lie.u, { prise: 1, cle: lie && lie.c, fn: String(prise), args: args || {} }); }, sortirClasseur: sortirClasseur, sortirBoite: sortirBoite, arreterBoite: arreterBoite, jeterReste: jeterReste, retirerAcces: retirerAcces,
     _verifierRecette: verifierRecette, _codePorte: codePorte, _fichiersCompta: fichiersCompta };
   if (typeof module !== "undefined" && module.exports) module.exports = sortie; else racine.OrigamiGoogle = sortie;
