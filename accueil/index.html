@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-28.94">
+<meta name="origami-version" content="2026-11-28.95">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -602,10 +602,10 @@ button.tuile:hover { border-color: var(--ligne); }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-28.94"></script>
-<script src="repertoire.js?v=2026-11-28.94"></script>
-<script src="fichiers.js?v=2026-11-28.94"></script>
-<script src="google.js?v=2026-11-28.94"></script>
+<script src="agenda.js?v=2026-11-28.95"></script>
+<script src="repertoire.js?v=2026-11-28.95"></script>
+<script src="fichiers.js?v=2026-11-28.95"></script>
+<script src="google.js?v=2026-11-28.95"></script>
 <script>
 (function () {
   "use strict";
@@ -666,6 +666,12 @@ button.tuile:hover { border-color: var(--ligne); }
   var DMG = { origami: VERSIONS_MAC + "applis-mac/Origami-Mac.dmg", boite: VERSIONS_MAC + "appli-boite-31/Boite-mail-Mac.dmg", compta: VERSIONS_MAC + "applis-mac/Compta-Mac.dmg", tickets: VERSIONS_MAC + "applis-mac/Tickets-Mac.dmg", frais: VERSIONS_MAC + "applis-mac/Frais-Mac.dmg" };
   // Toutes les applis dans un seul fichier : on l'ouvre et on glisse tout dans Applications en un geste.
   var DMG_TOUT = VERSIONS_MAC + "applis-mac/Tout-Origami-Mac.dmg";
+  // Dernier moteur de la Boîte mail publié dans le modèle vierge (à monter avec lui, comme DERNIER_MOTEUR dans l'appli Boîte mail du Mac).
+  // Une Boîte mail installée par Origami retient le numéro qu'elle a reçu : plus petit, sa tuile propose « Mettre à jour » (28.11).
+  var BOITE_DERNIERE = 38;
+  // L'appli Boîte mail du Mac porte toujours « 0.1.0 » : Origami retient le numéro de la version qu'il a installée (appli-boite-NN).
+  function boiteAppliPubliee() { return Number((/appli-boite-(\d+)\//.exec(DMG.boite) || [])[1]) || 0; }
+  function boiteAppliIci() { return Number(lire("origami_boite_appli")) || 0; }
   var SUR_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent) && !/iPhone|iPad|iPod/.test(navigator.userAgent);
   // Classeur modèle du moteur Origami, à copier dans un compte Google où il n'est pas encore installé (vide : pas de guide).
   var MODELE_MOTEUR = "119Qct-_jUDPODy-ZUYqiVOz5aNYEOxCdKGk5P5V0z3w";
@@ -1067,16 +1073,20 @@ button.tuile:hover { border-color: var(--ligne); }
   function nomMac(id) { return id === "origami" ? "Origami" : APPLIS[id].nom; }
   // Versions publiées des applis du Mac (à changer à chaque nouvelle version) et leurs notes de version.
   // Boîte mail : numérotée par ses fichiers (appli-boite-NN), pas de comparaison possible ; « Réinstaller » prend la dernière.
-  var VERSIONS_MAC = { origami: "0.5.0", compta: "0.4.2", tickets: "0.4.2", frais: "0.4.2" };
+  var VERSIONS_MAC = { origami: "0.5.1", compta: "0.4.2", tickets: "0.4.2", frais: "0.4.2" };
   var NOTES_MAC = {
-    origami: [["0.5.0", "Les fichiers de tes spectacles sont gardés dans un vrai dossier du Finder (Documents, Origami, Fichiers) : les montrer, les ouvrir, en enregistrer une copie, les retirer un par un."], ["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.1", "Autoriser Origami ou la Compta dans une fenêtre privée, quand plusieurs comptes Google sont connectés dans le navigateur. Une installation interrompue ne bloque plus les suivantes."], ["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
+    origami: [["0.5.1", "Un fichier renommé à la main dans le Finder reste suivi par Origami sous son nouveau nom (il n'est plus repris en double)."], ["0.5.0", "Les fichiers de tes spectacles sont gardés dans un vrai dossier du Finder (Documents, Origami, Fichiers) : les montrer, les ouvrir, en enregistrer une copie, les retirer un par un."], ["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.1", "Autoriser Origami ou la Compta dans une fenêtre privée, quand plusieurs comptes Google sont connectés dans le navigateur. Une installation interrompue ne bloque plus les suivantes."], ["0.4.0", "« Continuer avec Google » marche dans l'appli : elle ouvre ton navigateur le temps de choisir le compte, puis revient devant toi. Ajouter un compte, installer la Compta et retirer Origami d'un compte se font d'ici."], ["0.3.0", "Origami installe, ouvre et met à jour les autres applis d'ici, avec une barre de progression. Icône dans la barre des menus en haut de l'écran ; Origami démarre avec le Mac et reste disponible quand on ferme sa fenêtre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     compta: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Connexion à Google par le navigateur du Mac, pour installer ou mettre à jour la Compta d'ici."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     tickets: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami. Prête à démarrer déjà reliée quand Origami l'ouvre."], ["0.2.0", "Caméra du Mac pour scanner les tickets."]],
     frais: [["0.4.2", "Plus de bande d'une autre couleur au bord droit de la fenêtre, quelle que soit l'apparence choisie."], ["0.4.0", "Même coquille que l'appli Origami 0.4."], ["0.3.0", "S'installe depuis Origami."]],
     boite: [["21", "Douze mois de mails gardés sur le Mac, pièces jointes ouvertes gardées, réglage « Gardé sur ce Mac »."], ["20", "La Compta ouvre directement la fenêtre d'écriture, avec le PDF joint."]]
   };
   function plusRecente(a, b) { var x = String(a || "").split(".").map(Number), y = String(b || "").split(".").map(Number); for (var i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; }
-  function aMettreAJour(id) { var a = MAC_APPLIS && MAC_APPLIS[id]; return !!(a && a.presente && VERSIONS_MAC[id] && plusRecente(VERSIONS_MAC[id], a.version)); }
+  function aMettreAJour(id) {
+    var a = MAC_APPLIS && MAC_APPLIS[id];
+    if (id === "boite") return !!(a && a.presente && boiteAppliIci() && boiteAppliIci() < boiteAppliPubliee());   // version inconnue (installée hors d'Origami) : « Mettre à jour » reste dans « … »
+    return !!(a && a.presente && VERSIONS_MAC[id] && plusRecente(VERSIONS_MAC[id], a.version));
+  }
   // La commande d'une appli du Mac, selon son état (comme un lanceur d'applis) : Installer, la barre de progression, puis
   // Ouvrir, ou Mettre à jour quand une version plus récente existe ; à côté, « … » : Finder, notes, réinstaller, désinstaller.
   function actionMac(id, fort) {
@@ -1094,7 +1104,7 @@ button.tuile:hover { border-color: var(--ligne); }
         h += '<details class="plus-mac"><summary aria-label="Autres actions pour ' + nomMac(id) + '" title="Autres actions">…</summary><div class="menu-mac">' +
           (present ? '<button data-mac-finder="' + id + '">Afficher dans le Finder</button>' : "") +
           '<button data-mac-notes="' + id + '">Notes de version</button>' +
-          (present ? '<button data-mac-installer="' + id + '">Réinstaller</button>' : "") +
+          (present ? '<button data-mac-installer="' + id + '">' + (id === "boite" ? "Mettre à jour" : "Réinstaller") + "</button>" : "") +   // Boîte mail (28.11) : prendre la dernière version de l'appli, rien d'autre (ses boîtes restent)
           (present && id !== "origami" ? '<button data-mac-desinstaller="' + id + '">Désinstaller</button>' : "") + "</div></details>";
       }
       if (p && p.etape === "erreur") h += '<span class="souci-mac">' + texte(p.message || "L'installation n'a pas abouti.") + "</span>";
@@ -1112,6 +1122,7 @@ button.tuile:hover { border-color: var(--ligne); }
     if (!MAC_APPLIS) return "";
     if (id === "origami") return "Version " + texte(MAC_VERSION) + (aMettreAJour(id) ? " · nouvelle version " + VERSIONS_MAC.origami : "");
     if (!a || !a.presente) return "Pas installée";
+    if (id === "boite") return (boiteAppliIci() ? "Version " + boiteAppliIci() : "") + (aMettreAJour(id) ? " · nouvelle version " + boiteAppliPubliee() : "") + (a.ouverte ? (boiteAppliIci() ? " · " : "") + "ouverte" : "");
     return "Version " + texte(a.version || "?") + (aMettreAJour(id) ? " · nouvelle version " + VERSIONS_MAC[id] : "") + (a.ouverte ? " · ouverte" : "");
   }
   function dessinerSurCeMac() {
@@ -1148,7 +1159,9 @@ button.tuile:hover { border-color: var(--ligne); }
     MAC_EN_COURS = id; MAC_LANCEE = id; MAC_INSTALL[id] = { appli: id, etape: "telechargement", pct: 0 }; majMac();
     invoquer("installer_appli", { appli: id, url: DMG[id] }).then(function () {
       delete MAC_ESSAIS[id];
-      MAC_INSTALL[id] = { appli: id, etape: "fini" }; if (MAC_EN_COURS === id) MAC_EN_COURS = ""; if (MAC_LANCEE === id) MAC_LANCEE = ""; relireMac();
+      MAC_INSTALL[id] = { appli: id, etape: "fini" }; if (MAC_EN_COURS === id) MAC_EN_COURS = ""; if (MAC_LANCEE === id) MAC_LANCEE = "";
+      if (id === "boite" && boiteAppliPubliee()) garder("origami_boite_appli", String(boiteAppliPubliee()));
+      relireMac();
       if (id === "origami") { MAC_FILE = []; avis("Nouvelle version d'Origami installée : elle redémarre."); setTimeout(function () { invoquer("relancer_origami").catch(function () {}); }, 1800); return; }
       avis(nomMac(id) + " est installée sur ce Mac."); macSuivante();
     }, function (e) {
@@ -3448,12 +3461,46 @@ button.tuile:hover { border-color: var(--ligne); }
     dessinerGuideBoite();
     if (window.OrigamiGoogle && !macSansGoogle()) OrigamiGoogle.charger().catch(function () {});
   }
+  // « Mettre à jour » de la tuile (28.11) : le même guide, qui reprend l'installation sur la Boîte mail déjà là (installerBoite la retrouve
+  // par sa marque et remplace son code à la même adresse). Connecté à Google : ça part tout de suite ; sinon, l'étape 1 le demande d'abord.
+  function boiteMettreAJour(id) {
+    if (!boiteDe(id) || !compte(id)) return;
+    boiteGuide(id); guideB.maj = true; dessinerGuideBoite();
+    var G = window.OrigamiGoogle, s = G && G.session(id);
+    if (s && s.drive && !macSansGoogle()) boiteInstaller();
+  }
+  // Une Boîte mail retirée ailleurs (onglet « Retirer la Boîte mail » du navigateur, bouton « Désinstaller… » de l'appli Boîte mail)
+  // reste notée dans la mémoire de l'appli Origami du Mac, qui n'a rien vu (26.11, vu par Sévane). La tuile la sonde, au plus une fois
+  // toutes les 5 minutes : « désinstallée » (réponse de la Boîte mail elle-même) = oubliée tout de suite ; muette deux fois de suite
+  // alors que l'Origami du même compte répond = la tuile le dit et propose « Oublier ici ». Jamais oubliée sur un simple silence :
+  // la tuile proposerait alors « Installer », qui en créerait une seconde.
+  var sondesBoite = {};
+  function boiteSonder(id, force) {
+    var G = window.OrigamiGoogle, b = boiteDe(id), t = sondesBoite[id] || (sondesBoite[id] = { quand: 0, muettes: 0, enCours: false });
+    if (!G || !G.sonderBoite || !b || t.enCours || (!force && Date.now() - t.quand < 300000)) return;
+    t.enCours = true; t.quand = Date.now();
+    G.sonderBoite(b.adresse).then(function (r) {
+      t.enCours = false;
+      var b2 = boiteDe(id); if (!b2 || b2.adresse !== b.adresse) return;
+      if (r === "retiree") { boiteGarder(id, null); avis("La Boîte mail de « " + nomCompte(id) + " » a été retirée : Origami l'oublie ici."); montrer(); return; }
+      if (r === "vivante") { t.muettes = 0; if (b2.muette) { delete b2.muette; boiteGarder(id, b2); montrer(); } else if (force) avis("La Boîte mail de ce compte répond."); return; }
+      t.muettes++;
+      if (t.muettes < 2) { setTimeout(function () { boiteSonder(id, true); }, window.__sansAttente ? 200 : 30000); return; }
+      if (moteurPret(id) && !b2.muette) { b2.muette = new Date().toISOString().slice(0, 10); boiteGarder(id, b2); montrer(); }
+      else if (force && b2.muette) avis("La Boîte mail ne répond toujours pas.", true);
+    }, function () { t.enCours = false; });
+  }
+  function boiteOublierIci(id) {
+    if (!boiteDe(id)) return;
+    demander("Oublier cette Boîte mail ici ?", "Origami oublie seulement ce qu'il retenait d'elle sur ce Mac. Rien n'est touché dans ton Drive ni dans Gmail. Si elle existe encore, « Installer » la retrouvera.",
+      [{ nom: "Annuler" }, { nom: "Oublier ici", fort: true, action: function () { boiteGarder(id, null); delete sondesBoite[id]; montrer(); } }]);
+  }
   function dessinerGuideBoite() {
     var id = guideB.id;
     if (!id) return;
     if (!voile.hidden && !voile.querySelector("[data-guide-boite]")) return;
     var G = window.OrigamiGoogle, b = boiteDe(id), nom = texte(nomCompte(id)), s = G && G.session(id);
-    var f2 = !!b, f1 = f2 || !!(s && s.drive), f3 = f2 && !!b.autorisee, f4 = f3 && !!b.relie;
+    var f2 = !!b && !guideB.maj, f1 = f2 || !!(s && s.drive), f3 = f2 && !!b.autorisee, f4 = f3 && !!b.relie;
     var faits = [f1, f2, f3, f4], actif = faits.indexOf(false);
     var appliMac = !!(MAC_APPLIS && MAC_APPLIS.boite && MAC_APPLIS.boite.presente);
     function etape(i, titre, corps) {
@@ -3471,6 +3518,7 @@ button.tuile:hover { border-color: var(--ligne); }
     var e2 = guideB.code === "api-eteinte" ? "<p>Google demande d'allumer un interrupteur du compte, une seule fois. Sur la page qui s'ouvre, vérifie en haut à droite que c'est bien <strong>" + nom + "</strong>, puis allume « API Google Apps Script ».</p>" +
         '<div class="actions"><a class="bouton" href="' + REGLAGES_API + (googleAdresse(id) ? "?authuser=" + encodeURIComponent(googleAdresse(id)) : "") + '" target="_blank" rel="noopener">Ouvrir la page de Google</a><button class="bouton fort" data-boite-installer="1">C\'est allumé, continuer</button></div>' + brut
       : seule && guideB.origami ? boiteSeuleAccord(nom)
+      : guideB.maj ? "<p>Origami remet ta Boîte mail au niveau de la dernière version : même adresse, même classeur, rien de perdu. L'appli Boîte mail du Mac et le connecteur Claude restent reliés. Une minute environ.</p>" + '<div class="actions"><button class="bouton fort" data-boite-installer="1">Mettre à jour la Boîte mail</button></div>' + brut
       : (seule ? "<p>Ta Boîte mail s'installe dans ton Drive, dans un dossier « Origami » (Origami › Boîte mail), et se met en ligne. Si tu installes Origami un jour, il se servira du même dossier.</p><p>Deux à trois minutes. Google te demandera encore ton accord deux fois en chemin.</p>" : "<p>Origami crée ta Boîte mail dans ton Drive (dossier Origami › Boîte mail) et la met en ligne. Une minute environ.</p>") +
         "<p class=\"aide-fine\">Si ce compte a déjà une Boîte mail copiée à la main (« Copie de Boîte mail (vierge) »), tu n'as pas besoin d'en installer une autre : <a class=\"lien\" href=\"" + texte(urlRanger(seule ? "" : googleAdresse(id))) + "\" target=\"_blank\" rel=\"noopener\">range-la dans Origami</a>. Si tu en installes quand même une, elle prend sa place dans l'appli du Mac et l'ancienne reste dans ton Drive, sans rien perdre.</p>" + '<div class="actions"><button class="bouton fort" data-boite-installer="1">Installer la Boîte mail</button></div>' + brut;
     var lienA = b && G ? G.lienAutorisation(b.projet, googleAdresse(id)) : "";
@@ -3483,9 +3531,9 @@ button.tuile:hover { border-color: var(--ligne); }
       : (!appliMac && MAC ? "<p>L'appli Boîte mail n'est pas encore sur ce Mac. Installe-la dans « Applis », section « Sur ce Mac », puis reviens ici.</p>" : "") +
         "<p>Dernier geste : " + (seule ? "relier ta Boîte mail à l'appli Boîte mail." : "Origami relie ta Boîte mail à l'appli Boîte mail de ce Mac.") + "</p>" + '<div class="actions"><button class="bouton fort" data-boite-relier="1">Relier à l\'appli Boîte mail</button></div>';
     var dossierL = b && b.dossier ? '<p class="aide-fine">Ses fichiers : <a href="https://drive.google.com/drive/folders/' + texte(b.dossier) + '" target="_blank" rel="noopener">dossier Origami › Boîte mail › Données</a>, dans le Drive de ce compte. Tes mails, eux, restent dans Gmail.</p>' : boitePasRangee(b);
-    var h = '<div data-guide-boite="1"' + (seule ? ' data-boite-seule="1"' : "") + "><h2>" + (seule ? "Boîte mail : continuer avec Google" : "Installer la Boîte mail") + '</h2><p class="aide-fine">' + (connu ? "Dans le compte " + nom + ". " : "") + "Quatre étapes, une seule fois. " + (seule ? "Garde cet onglet ouvert jusqu'à la fin." : "Tu peux fermer et revenir : le guide reprend où tu en étais.") + "</p>" +
-      '<ol class="guide-compta">' + etape(0, seule ? "Se connecter à Google" : "Connecter Origami à Google", e1) + etape(1, "Installer la Boîte mail", e2) + etape(2, "Autoriser ta Boîte mail", e3) + etape(3, seule ? "Relier l'appli Boîte mail" : "Relier l'appli Boîte mail du Mac", e4) + "</ol>" +
-      (actif < 0 ? "<p><strong>C'est fait.</strong> " + (seule ? "Clique « Ouvrir dans l'appli Boîte mail » : ton compte y apparaît. Ensuite tu peux fermer cet onglet." : b.relie === "ailleurs" && !guideB.codeAppli ? "La Boîte mail de ce compte est déjà installée : Origami l'a retrouvée dans ton Drive. Si elle n'apparaît pas dans l'appli Boîte mail de ce Mac, clique « Relier à l'appli de ce Mac »." : "La Boîte mail de ce compte est reliée à l'appli Boîte mail du Mac.") + "</p>" + blocCode : "") + dossierL +
+    var h = '<div data-guide-boite="1"' + (seule ? ' data-boite-seule="1"' : "") + "><h2>" + (seule ? "Boîte mail : continuer avec Google" : guideB.maj || guideB.majFaite ? "Mettre à jour la Boîte mail" : "Installer la Boîte mail") + '</h2><p class="aide-fine">' + (connu ? "Dans le compte " + nom + ". " : "") + "Quatre étapes, une seule fois. " + (seule ? "Garde cet onglet ouvert jusqu'à la fin." : "Tu peux fermer et revenir : le guide reprend où tu en étais.") + "</p>" +
+      '<ol class="guide-compta">' + etape(0, seule ? "Se connecter à Google" : "Connecter Origami à Google", e1) + etape(1, guideB.maj || guideB.majFaite ? "Mettre à jour la Boîte mail" : "Installer la Boîte mail", e2) + etape(2, "Autoriser ta Boîte mail", e3) + etape(3, seule ? "Relier l'appli Boîte mail" : "Relier l'appli Boîte mail du Mac", e4) + "</ol>" +
+      (actif < 0 ? "<p><strong>C'est fait.</strong> " + (guideB.majFaite ? "Ta Boîte mail est à jour, à la même adresse : l'appli Boîte mail du Mac la retrouve telle quelle." : seule ? "Clique « Ouvrir dans l'appli Boîte mail » : ton compte y apparaît. Ensuite tu peux fermer cet onglet." : b.relie === "ailleurs" && !guideB.codeAppli ? "La Boîte mail de ce compte est déjà installée : Origami l'a retrouvée dans ton Drive. Si elle n'apparaît pas dans l'appli Boîte mail de ce Mac, clique « Relier à l'appli de ce Mac »." : "La Boîte mail de ce compte est reliée à l'appli Boîte mail du Mac.") + "</p>" + blocCode : "") + dossierL +
       (guideB.souci ? '<p class="souci-guide" role="alert">' + texte(guideB.souci) + "</p>" : "") +
       (actif < 0 ? '<p class="aide-fine">Un autre Mac, ou la Boîte mail à remettre au niveau de la dernière version : <button class="lien" data-boite-refaire="1">Mettre à jour et relier de nouveau</button>.' + (seule ? ' Un autre compte Google : <button class="lien" data-boite-autre="1">relier un autre compte</button>.' : "") + "</p>" : "") +
       (seule && connu && actif >= 0 && !guideB.occupe ? '<p class="aide-fine">Pas le bon compte ? <button class="lien" data-boite-autre="1">Changer de compte</button>.</p>' : "") +
@@ -3918,11 +3966,18 @@ button.tuile:hover { border-color: var(--ligne); }
     G.installerBoite({ cle: id, moteur: id === ID_BOITE_SEULE ? (lie ? function (prise, args) { return G.demanderMoteur(lie, prise, args); } : null) : appelMoteurCompta(id), dire: dire }).then(function (r) {
       if (id === ID_BOITE_SEULE) { guideB.prepare = false; boiteSeuleRendre(); }
       // Nouveau secret : la liaison est à refaire (c'est aussi le chemin pour relier un autre Mac). L'autorisation, elle, reste.
-      boiteGarder(id, { classeur: r.classeur, projet: r.projet, adresse: r.adresse, dossier: r.dossier || (avant && avant.dossier) || "", pasRange: r.dossier || (avant && avant.dossier) ? "" : String(r.pasRange || ""), prevu: r.dossier ? "" : String(r.prevu || ""), secret: r.secret, autorisee: !r.premiere && !!(avant && avant.autorisee), relie: "", g: id === ID_BOITE_SEULE ? String(googleAdresse(id) || "").toLowerCase() : undefined });
+      // Mise à jour d'une Boîte mail déjà reliée (28.11) : même déploiement, les liaisons de l'appli du Mac restent ; rien à relier de nouveau.
+      var garderLien = !!(guideB.maj && avant && avant.relie && !r.premiere && avant.adresse === r.adresse);
+      if (guideB.id === id && guideB.maj) { guideB.maj = false; guideB.majFaite = garderLien; }
+      boiteGarder(id, { classeur: r.classeur, projet: r.projet, adresse: r.adresse, dossier: r.dossier || (avant && avant.dossier) || "", pasRange: r.dossier || (avant && avant.dossier) ? "" : String(r.pasRange || ""), prevu: r.dossier ? "" : String(r.prevu || ""), secret: r.secret, autorisee: !r.premiere && !!(avant && avant.autorisee), relie: garderLien ? avant.relie : "", v: BOITE_DERNIERE, g: id === ID_BOITE_SEULE ? String(googleAdresse(id) || "").toLowerCase() : undefined });
       guideB.occupe = ""; guideB.sous = "";
       if (guideB.id === id) dessinerGuideBoite();
       montrer();
-      return G.pingBoite(r.adresse).then(function (ok) { if (ok) { var b = boiteDe(id); if (b) { b.autorisee = true; boiteGarder(id, b); } if (guideB.id === id) boiteRelier(); } });
+      return G.pingBoite(r.adresse).then(function (ok) {
+        var b = boiteDe(id);
+        if (garderLien && b) { b.autorisee = !!ok; boiteGarder(id, b); if (guideB.id === id) dessinerGuideBoite(); montrer(); return; }   // un nouveau droit à accepter : l'étape 3 le demande
+        if (ok) { if (b) { b.autorisee = true; boiteGarder(id, b); } if (guideB.id === id) boiteRelier(); }
+      });
     }, function (e) {
       guideB.occupe = ""; guideB.sous = "";
       var code = (e && e.code) || "", m = String((e && e.message) || e);
@@ -3943,7 +3998,9 @@ button.tuile:hover { border-color: var(--ligne); }
       if (guideB.id !== id) return;
       guideB.occupe = "";
       if (!ok) { guideB.souci = "Ta Boîte mail ne répond pas encore. Si tu viens d'accepter l'écran de Google, attends dix secondes et recommence."; dessinerGuideBoite(); return; }
-      b.autorisee = true; boiteGarder(id, b); boiteRelier();
+      b.autorisee = true; boiteGarder(id, b);
+      if (b.relie) { dessinerGuideBoite(); montrer(); return; }   // déjà reliée (mise à jour) : rien d'autre
+      boiteRelier();
     });
   }
   function boiteRelier() {
@@ -4014,12 +4071,20 @@ button.tuile:hover { border-color: var(--ligne); }
       if (FENETRE || !SUR_MAC) { etatT = "Une appli du Mac."; eteinte = true; }
       // Un compte ajouté : sa Boîte mail s'installe dans son Drive, puis l'appli du Mac s'y relie (23.11).
       else if (c && c.id !== "compagnie") {
-        if (bc && bc.relie) { ok = true; etatT = "Installée dans ce compte" + (mb && mb.presente ? "" : ". L'appli Boîte mail n'est pas sur ce Mac") + "."; act = (mb && mb.presente ? b('data-mac-ouvrir="boite"', "Ouvrir", true) + " " : "") + b('data-boite-guide="' + c.id + '"', "Détails"); }
+        // 28.11 : « Mettre à jour » directement sur la tuile (même adresse, même classeur, l'appli du Mac reste reliée), jamais « Réinstaller ».
+        // Seulement pour une Boîte mail installée par Origami : une copie faite à la main, Origami ne la voit pas et en créerait une seconde.
+        if (bc && bc.muette) { etatT = "Ne répond plus. Si tu l'as retirée de ce compte, Origami peut l'oublier."; act = b('data-boite-oublier="' + c.id + '"', "Oublier ici", true) + " " + b('data-boite-sonder="' + c.id + '"', "Vérifier à nouveau"); }
+        else if (bc && bc.relie) {
+          var vieille = (Number(bc.v) || 0) > 0 && bc.v < BOITE_DERNIERE;
+          ok = true; etatT = vieille ? "Une nouvelle version est prête." : "Installée dans ce compte" + (mb && mb.presente ? "" : ". L'appli Boîte mail n'est pas sur ce Mac") + ".";
+          act = (vieille ? b('data-boite-maj="' + c.id + '"', "Mettre à jour", true) + " " : "") + (mb && mb.presente ? b('data-mac-ouvrir="boite"', "Ouvrir", !vieille) + " " : "") + (vieille ? "" : b('data-boite-maj="' + c.id + '"', "Mettre à jour") + " ") + b('data-boite-guide="' + c.id + '"', "Détails");
+          boiteSonder(c.id);
+        }
         else if (bc) { etatT = "Installée. " + (bc.autorisee ? "Dernière étape : la relier à l'appli." : "Il reste à l'autoriser."); act = b('data-boite-guide="' + c.id + '"', "Continuer", true); }
         else if (relie && etatMoteur(c.id)) { etatT = "Pas encore installée dans ce compte. Une minute environ."; act = b('data-boite-guide="' + c.id + '"', "Installer", true); }
         else { etatT = relie ? "Arrive dès que le compte est relu." : "Relie d'abord ce compte."; eteinte = true; }
       }
-      else { ok = !!(mb && mb.presente); etatT = ok ? "Installée sur ce Mac" + (mb.version ? " · version " + texte(mb.version) : "") + "." : "Une appli à part sur le Mac."; act = actionMac("boite", true); }
+      else { ok = !!(mb && mb.presente); etatT = ok ? "Installée sur ce Mac" + (boiteAppliIci() ? " · version " + boiteAppliIci() : "") + (aMettreAJour("boite") ? " · nouvelle version " + boiteAppliPubliee() : "") + "." : "Une appli à part sur le Mac."; act = actionMac("boite", true); }
     }
     return '<div class="rang-mac tuile-appli' + (eteinte ? " eteinte" : "") + '" data-appli="' + id + '">' + logoAppli(id) + '<div class="corps"><strong>' + APPLIS[id].nom + '</strong><span class="etat-appli' + (ok ? " ok" : "") + '">' + etatT + "</span></div>" + (act ? '<span class="actions">' + act + "</span>" : "") + "</div>";
   }
@@ -5119,6 +5184,8 @@ button.tuile:hover { border-color: var(--ligne); }
       return l.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur, relie: !!moteurs[c.id] }; });
     },
     appel: function (id, fn, args, options) { return moteurAppel(id, fn, args, options); },
+    // 28.11 : la prospection lue par la porte de Spectacle quand le moteur ne peut pas lire le classeur (en lecture, même jeton que Fichiers)
+    diffusion: function (id) { return porteSpectacle(id, "donneesTableauDeBord", [false]); },
     avis: function (t, souci) { avis(t, souci); },
     relier: function (id) { if (!compte(id)) return; etat.compte = id; etat.vue = "relier"; montrer(); },   // la liaison d'Origami, la même pour tous les modules
     ouvrir: function (vue) {
@@ -5150,7 +5217,10 @@ button.tuile:hover { border-color: var(--ligne); }
   // Pont vers Fichiers (fichiers.js) : la liste des documents vient de la copie que Spectacle garde sur l'appareil, puis de
   // l'appli du compte par sa porte habituelle (la même que les applis Mac et Android). Deux demandes seulement, en lecture.
   var fichiersZone = document.getElementById("fichiers");
-  var PORTE_FICHIERS = { donneesTableauDeBord: 1, apercuMorceau: 1 };
+  // 28.11 (Sévane : « Ajouter un fichier m'ouvre Spectacle de Diffusion, c'est un gros bug ») : Fichiers écrit aussi, avec les MÊMES
+  // demandes que la fenêtre « Gérer les fichiers » de Spectacle (ajouter, remplacer en gardant l'ancienne version, renommer, variante),
+  // par la même porte et le même jeton. Rien d'autre n'est permis d'ici (ni supprimer un document, ni toucher aux autres données).
+  var PORTE_FICHIERS = { donneesTableauDeBord: 1, apercuMorceau: 1, ajouterVariante: 1, garderVersion: 1, supprimerFichierDoc: 1, renommerDocument: 1, demarrerTeleversement: 1, envoyerMorceau: 1 };
   function porteSpectacle(cid, f, args, encore) {
     if (!PORTE_FICHIERS[f]) return Promise.reject(new Error("Demande refusée."));
     var parJeton = function () { return FORME_DIFFUSION.test(lire("diffusion_jeton")) ? Promise.resolve({ adresse: ADRESSES.diffusion, jeton: lire("diffusion_jeton") }) : Promise.reject(new Error("ACCES_REFUSE")); };
@@ -5317,6 +5387,9 @@ button.tuile:hover { border-color: var(--ligne); }
     if (d.macFermer) { fermerVoile(); return; }
     if (d.comptaInstaller) { comptaGuide(d.comptaInstaller); return; }
     if (d.boiteGuide) { boiteGuide(d.boiteGuide); return; }
+    if (d.boiteMaj) { boiteMettreAJour(d.boiteMaj); return; }
+    if (d.boiteOublier) { boiteOublierIci(d.boiteOublier); return; }
+    if (d.boiteSonder) { var bs = boiteDe(d.boiteSonder); if (bs) { delete bs.muette; boiteGarder(d.boiteSonder, bs); } if (sondesBoite[d.boiteSonder]) sondesBoite[d.boiteSonder].muettes = 1; boiteSonder(d.boiteSonder, true); montrer(); return; }
     if (d.boiteVerifier) { relireCompte(guideB.id).then(dessinerGuideBoite); return; }
     if (d.boiteConnecter) { boiteConnecter(); return; }
     if (d.boiteInstaller) { boiteInstaller(); return; }
@@ -5388,7 +5461,9 @@ button.tuile:hover { border-color: var(--ligne); }
       if (d.vue === "ajouter") { guide.etape = 0; guide.pour = ""; if (parcours.phase !== "autoriser" && parcours.phase !== "travail" && parcours.phase !== "interrupteur") parcoursQuitter(); if (PARCOURS_GOOGLE && window.OrigamiGoogle && !macSansGoogle()) OrigamiGoogle.charger().catch(function () {}); }
       // La Boîte mail ne s'ouvre que sur un bouton « Ouvrir » ; le volet mène à sa page dans Origami (18.11, Sévane :
       // une vieille copie restée dans la corbeille s'ouvrait à la place, avec l'alerte de macOS).
-      if (d.vue === "boite" && d.ouvrir && !FENETRE && boitePossible()) { lancerBoite(d.de || etat.compte); return; }
+      // 28.11 (Sévane : « si je clique sur Boîte mail, ça doit seulement ouvrir Boîte mail ») : quand l'appli est bien installée sur
+      // ce Mac, tout clic l'ouvre directement, comme Compta, Frais et Tickets. Sans appli installée, la page sert à l'installer.
+      if (d.vue === "boite" && !FENETRE && boitePossible() && (d.ouvrir || (MAC_APPLIS && MAC_APPLIS.boite && MAC_APPLIS.boite.presente))) { lancerBoite(d.de || etat.compte); return; }
       if ((d.de || etat.compte) === "compagnie" && ouvrirFenetre(d.vue)) return;
       if (d.de) etat.compte = d.de; etat.vue = d.vue; montrer(); return;
     }

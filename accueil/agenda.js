@@ -27,7 +27,7 @@
 
   // ---------- Mémoire de l'appareil (réglages seulement) ----------
   var reg = { vue: "", coches: {}, couleursP: {}, dernierCal: "" };
-  try { var r0 = JSON.parse(localStorage.getItem("origami_agenda") || "null"); if (r0 && typeof r0 === "object") { reg.vue = typeof r0.vue === "string" ? r0.vue : ""; reg.coches = r0.coches && typeof r0.coches === "object" ? r0.coches : {}; reg.couleursP = r0.couleursP && typeof r0.couleursP === "object" ? r0.couleursP : {}; reg.dernierCal = typeof r0.dernierCal === "string" ? r0.dernierCal : ""; } } catch (e) {}
+  try { var r0 = JSON.parse(localStorage.getItem("origami_agenda") || "null"); if (r0 && typeof r0 === "object") { reg.vue = typeof r0.vue === "string" ? r0.vue : ""; reg.coches = r0.coches && typeof r0.coches === "object" ? r0.coches : {}; reg.couleursP = r0.couleursP && typeof r0.couleursP === "object" ? r0.couleursP : {}; reg.dernierCal = typeof r0.dernierCal === "string" ? r0.dernierCal : ""; reg.semaine = r0.semaine === "dim" ? "dim" : ""; reg.duree = Number(r0.duree) || 0; } } catch (e) {}
   function retenir() { try { localStorage.setItem("origami_agenda", JSON.stringify(reg)); } catch (e) {} }
 
   var etroit = function () { return window.matchMedia("(max-width: 760px)").matches; };
@@ -42,7 +42,11 @@
   function aujourdhui() { return iso(new Date()); }
   function dateDe(s) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s); return m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(s); }
   function plus(d, n) { var x = new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, d.getHours(), d.getMinutes()); return x; }
-  function lundi(d) { var j = (d.getDay() + 6) % 7; return plus(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -j); }
+  // 28.11 : la semaine commence le lundi (réglage de départ) ou le dimanche (Réglages de l'agenda).
+  function dimanche() { return reg.semaine === "dim"; }
+  function lundi(d) { var j = (d.getDay() + (dimanche() ? 7 : 6)) % 7; return plus(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -j); }
+  function entetesJours() { return dimanche() ? [JOURS_C[6]].concat(JOURS_C.slice(0, 6)) : JOURS_C; }
+  function dureeDefaut() { var n = Number(reg.duree); return (n >= 15 && n <= 480 ? n : 60) * 60000; }
   function hm(d) { return z(d.getHours()) + ":" + z(d.getMinutes()); }
   function jourLong(d) { return JOURS[(d.getDay() + 6) % 7] + " " + d.getDate() + " " + MOIS[d.getMonth()] + (d.getFullYear() !== new Date().getFullYear() ? " " + d.getFullYear() : ""); }
   function memeJour(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
@@ -106,10 +110,72 @@
       if ((!d.prospection || force || Date.now() - (d.prospT || 0) > 300000) && !enCours[c.id + "/p"]) {
         enCours[c.id + "/p"] = 1;
         P.appel(c.id, "agenda.prospection", force ? { frais: true } : {}, { sans: true }).then(function (r) {
-          d.prospection = r || { elements: [] }; d.prospT = Date.now(); d.prospPanne = ""; dessiner();
-        }, function (e) { d.prospPanne = erreurLisible(e); if (!d.prospection) d.prospection = { elements: [], sources: {} }; dessiner(); }).then(function () { fini(c.id + "/p"); });
+          d.prospection = r || { elements: [] }; d.prospT = Date.now(); d.prospPanne = "";
+          return parDiffusion(c.id, d, force);
+        }, function (e) { d.prospPanne = erreurLisible(e); if (!d.prospection) d.prospection = { elements: [], sources: {}, pannes: [] }; return parDiffusion(c.id, d, force); }).then(dessiner, dessiner).then(function () { fini(c.id + "/p"); });
       }
     });
+  }
+
+  // 28.11 (Sévane : « Lecture impossible : Diffusion, Boîte mail ») : quand le moteur n'arrive pas à lire le classeur de Diffusion
+  // (droit de lire les classeurs pas accordé à son autorisation, classeur déplacé ailleurs…), l'Agenda lit les mêmes dates par la
+  // porte de Spectacle et Prospection (Diffusion pour la compagnie, les modules pour un autre compte), avec le jeton déjà sur
+  // l'appareil : une seule demande, en lecture (donneesTableauDeBord). Les campagnes de la Boîte mail restent au moteur.
+  function raisonPanne(x, r) {
+    var nom = x === "boite" ? "les campagnes de la Boîte mail" : "Diffusion";
+    if (r === "droit") return "Je ne peux pas lire " + nom + " : le droit de lire les classeurs n'a pas été accordé au moteur de ce compte (à redonner : menu Origami du classeur « Origami - Réglages du compte », « Installer ou réparer », en cochant toutes les cases).";
+    if (r === "introuvable") return "Je ne trouve plus le classeur de " + nom + " : choisis-le avec ⚙.";
+    return "Lecture impossible : " + nom + ".";
+  }
+  var FINIES = { "refus": 1, "confirmé": 1, "date confirmée": 1, "déjà joué": 1, "déjà joué / a acheté": 1 };
+  function parDiffusion(cid, d, force) {
+    var pr = d.prospection || (d.prospection = { elements: [], sources: {}, pannes: [] });
+    var manque = d.prospPanne || (pr.pannes || []).indexOf("diffusion") >= 0;
+    if (!manque || typeof P.diffusion !== "function") return Promise.resolve();
+    if (d.diff && !force && Date.now() - d.diff.t < 300000) { fondre(pr, d.diff.l); return Promise.resolve(); }
+    return P.diffusion(cid).then(function (r) {
+      var l = elementsDiffusion(r || {});
+      d.diff = { t: Date.now(), l: l };
+      fondre(pr, l); d.prospPanne = "";
+    }, function () {});   // pas de jeton sur cet appareil, ou pas de réponse : la phrase « Lecture impossible » reste
+  }
+  function fondre(pr, l) {
+    pr.elements = (pr.elements || []).filter(function (x) { return !x.parPorte; }).concat(l);
+    pr.pannes = (pr.pannes || []).filter(function (x) { return x !== "diffusion"; });
+    pr.sources = pr.sources || {}; pr.sources.diffusion = true; pr.parPorte = true;
+  }
+  function elementsDiffusion(r) {
+    var l = [], noms = {};
+    (r.projets || []).forEach(function (x) { if (x && x.id) noms[x.id] = x.nom; });
+    function sp(x) { return noms[x.projet_id || x.projetId] || x.projet || ""; }
+    function jour(t) { t = String(t || ""); return /^\d{4}-\d{2}-\d{2}/.test(t) ? t : ""; }
+    function ajout(o) { if (jour(o.debut)) { o.parPorte = true; l.push(o); } }
+    function joindre(a) { return a.filter(function (x) { return x && String(x).trim(); }).join(" · "); }
+    (r.dates || []).forEach(function (x, i) {
+      var du = jour(x.du) || jour(x.au), au = jour(x.au) || du;
+      ajout({ id: "d-" + (x.id || i), type: "dates", titre: (x.type || "Date") + " · " + (x.structure || x.libelle || x.lieu || x.evenement || ""), debut: du, fin: au,
+        detail: joindre([x.lieu, x.representations ? x.representations + " représentation" + (Number(x.representations) > 1 ? "s" : "") : "", x.evenement, x.remarque]), spectacle: sp(x), statut: x.statut || "", genre: String(x.type || "").toLowerCase() });
+    });
+    (r.suivi || []).forEach(function (x, i) {
+      var fini = !!FINIES[String(x.etape || "").toLowerCase()], qui = x.structure || x.contact || "", cle = x.cle || x._ligne || i;
+      if (jour(x.relance) && !fini) ajout({ id: "r-" + cle, type: "relances", titre: "Relancer " + qui, debut: x.relance, fin: x.relance, detail: joindre([x.contact, x.etape]), spectacle: sp(x), statut: x.etape || "" });
+      if (jour(x.recontacter)) ajout({ id: "c-" + cle, type: "relances", titre: "Recontacter " + qui, debut: x.recontacter, fin: x.recontacter, detail: joindre([x.contact, x.etape]), spectacle: sp(x), statut: x.etape || "" });
+    });
+    (r.appelsTous || []).forEach(function (x, i) {
+      var nom = x.titre || x.structure || "Appel à projets", lien = /^https:\/\//.test(String(x.lien || "")) ? x.lien : "";
+      if (jour(x.date_limite)) ajout({ id: "l-" + (x.id || i), type: "limites", titre: "Date limite · " + nom, debut: x.date_limite, fin: x.date_limite, detail: joindre([x.titre ? x.structure : "", x.lieu, x.categorie]), spectacle: sp(x), statut: x.statut || "", lien: lien });
+      if (jour(x.rappel_le)) ajout({ id: "p-" + (x.id || i), type: "rappels", titre: "Rappel · " + nom, debut: x.rappel_le, fin: x.rappel_le, detail: joindre([x.structure, jour(x.date_limite) ? "date limite le " + String(x.date_limite).slice(0, 10) : ""]), spectacle: sp(x), statut: x.statut || "", lien: lien });
+    });
+    (r.journal || []).forEach(function (x, i) {
+      if (!/^(oui|o|x|vrai|true|1|yes)$/i.test(String(x.afaire || "").trim()) || !jour(x.le)) return;
+      ajout({ id: "f-" + (x.id || i), type: "afaire", titre: (jour(x.fait) ? "✓ " : "") + String(x.texte || "À faire").replace(/\s+/g, " ").slice(0, 120), debut: x.le, fin: x.le, detail: joindre([x.structure || x.contact, jour(x.fait) ? "fait le " + String(x.fait).slice(0, 10) : ""]), spectacle: sp(x), statut: jour(x.fait) ? "Fait" : "À faire" });
+    });
+    (r.campagnes || []).forEach(function (x, i) {
+      var d0 = jour(x.lancee) || jour(x.prevue) || jour(x.prochain); if (!d0) return;
+      var f = jour(x.terminee) && x.terminee >= d0 ? x.terminee : d0;
+      ajout({ id: "k-d" + (x.id || i), type: "campagnes", titre: "Campagne · " + (x.nom || "sans nom"), debut: d0, fin: f, detail: joindre([x.nb ? x.nb + " destinataires" : "", jour(x.prochain) && !jour(x.terminee) ? "prochain envoi " + String(x.prochain).replace("T", " ") : ""]), spectacle: noms[x.projet] || x.projet || "", statut: x.statut || "" });
+    });
+    return l;
   }
   function chargerEvenements(compte, force) {
     var d = donnees[compte], ids = calsCoches(compte).sort(), cles = ids.join(",");
@@ -228,9 +294,11 @@
       if (!c.relie) h += '<p class="ag-mini-note">Origami n\'est pas encore relié à ce compte sur cet appareil.</p>';
       else if (!d.cals) h += '<p class="ag-mini-note">' + (d.panne ? texte(d.panne) : "Chargement…") + "</p>";
       else {
-        var propres = d.cals.filter(function (k) { return k.acces === "owner"; }), autres = d.cals.filter(function (k) { return k.acces !== "owner"; });
+        var vis = d.cals.filter(function (k) { return !k.cache; }), masques = d.cals.filter(function (k) { return k.cache; });
+        var propres = vis.filter(function (k) { return k.acces === "owner"; }), autres = vis.filter(function (k) { return k.acces !== "owner"; });
         propres.forEach(function (k) { h += ligneCal(c, k); });
         if (autres.length) { h += '<h3>Autres agendas</h3>'; autres.forEach(function (k) { h += ligneCal(c, k); }); }
+        if (masques.length) { h += '<details class="ag-masques"' + (ag.voirMasques ? " open" : "") + '><summary>Agendas masqués (' + masques.length + ")</summary>"; masques.forEach(function (k) { h += ligneCal(c, k); }); h += "</details>"; }
         h += '<button class="ag-petit" data-ag-ajout-cal="' + texte(c.id) + '">＋ Ajouter un agenda</button>';
       }
       if (c.relie) {
@@ -242,10 +310,11 @@
           h += '<div class="ag-cal"><label><input type="checkbox" data-ag-coche="' + texte(cleCal(c.id, "p:" + t.id)) + '"' + (coche(c.id, "p:" + t.id, true) ? " checked" : "") + ' style="--c:' + couleurP(c.id, t.id) + '"><span>' + t.nom + "</span></label>" + (n ? '<em>' + n + "</em>" : "") + '<button class="ag-icone" data-ag-menu-p="' + texte(c.id + "|" + t.id) + '" aria-label="Options">⋯</button></div>';
         });
         if (d.prospPanne) h += '<p class="ag-mini-note ag-souci">' + texte(d.prospPanne) + "</p>";
-        if (pr && pr.pannes && pr.pannes.length) h += '<p class="ag-mini-note ag-souci">Lecture impossible : ' + pr.pannes.map(function (x) { return x === "boite" ? "Boîte mail" : "Diffusion"; }).join(", ") + ".</p>";
+        if (pr && pr.pannes && pr.pannes.length) h += '<p class="ag-mini-note ag-souci">' + pr.pannes.map(function (x) { return raisonPanne(x, (pr.raisons || {})[x]); }).join(" ") + "</p>";
       }
       h += "</div>";
     });
+    h += '<p class="ag-mini-note"><button class="ag-lien" data-ag="reglages">Réglages de l\'affichage</button></p>';
     if (comptes().some(function (c) { return c.id === "compagnie"; })) h += '<p class="ag-mini-note"><button class="ag-lien" data-ag-diffusion="1">Ouvrir l\'agenda de Diffusion</button> (ajouter une date de spectacle, exporter)</p>';
     return h;
   }
@@ -257,7 +326,7 @@
   function dessinerMini() {
     var d = dateDe(ag.mini || ag.date), m = new Date(d.getFullYear(), d.getMonth(), 1), debut = lundi(m), auj = new Date(), choisi = dateDe(ag.date);
     var h = '<div class="ag-mini"><div class="ag-mini-tete"><strong>' + MOIS[m.getMonth()] + " " + m.getFullYear() + '</strong><button class="ag-icone" data-ag-mini="-1" aria-label="Mois précédent">‹</button><button class="ag-icone" data-ag-mini="1" aria-label="Mois suivant">›</button></div><div class="ag-mini-grille">';
-    JOURS_C.forEach(function (j) { h += "<span>" + j.charAt(0).toUpperCase() + "</span>"; });
+    entetesJours().forEach(function (j) { h += "<span>" + j.charAt(0).toUpperCase() + "</span>"; });
     for (var i = 0; i < 42; i++) {
       var x = plus(debut, i), cls = (x.getMonth() !== m.getMonth() ? " hors" : "") + (memeJour(x, auj) ? " auj" : "") + (memeJour(x, choisi) ? " choisi" : "");
       h += '<button class="' + cls.trim() + '" data-ag-date="' + iso(x) + '">' + x.getDate() + "</button>";
@@ -325,7 +394,7 @@
   }
   function dessinerMois(p, tous) {
     var d = dateDe(ag.date), auj = new Date(), h = '<div class="ag-mois"><div class="ag-mois-tete">';
-    JOURS_C.forEach(function (j) { h += "<span>" + j + "</span>"; });
+    entetesJours().forEach(function (j) { h += "<span>" + j + "</span>"; });
     h += '</div><div class="ag-mois-corps">';
     for (var s = 0; s < 6; s++) {
       var debut = plus(p.debut, s * 7), fin = plus(debut, 7);
@@ -509,7 +578,7 @@
   // x : élément existant (modifier), ou modèle { debut, fin, journee, titre… } pour créer.
   function formulaire(x, modele) {
     var e = x ? x.ev : null, m = modele || {};
-    var d0 = x ? x.d0 : m.d0 || arrondi(new Date()), d1 = x ? x.d1 : m.d1 || new Date(d0.getTime() + 3600000), journee = x ? x.journee : !!m.journee;
+    var d0 = x ? x.d0 : m.d0 || arrondi(new Date()), d1 = x ? x.d1 : m.d1 || new Date(d0.getTime() + dureeDefaut()), journee = x ? x.journee : !!m.journee;
     if (journee) d1 = plus(d1, -1);   // dans le formulaire, la fin d'une journée entière est le dernier jour compris
     var choix = ecrivables();
     if (!choix.length) { feuille('<h2>Créer un événement</h2><p>' + (comptes().some(function (c) { return c.relie; }) ? "Les agendas ne sont pas encore chargés, ou aucun ne peut être modifié." : "Relie d'abord un compte à son moteur Origami.") + '</p><div class="ag-actions"><button class="ag-b" data-ag="fermer">Fermer</button></div>'); return; }
@@ -734,18 +803,145 @@
       feuille(h);
     }, function (e) { feuille("<h2>Prospection</h2><p class=\"ag-souci\">" + texte(erreurLisible(e)) + '</p><div class="ag-actions"><button class="ag-b" data-ag="fermer">Fermer</button></div>'); });
   }
+  // 28.11 (Sévane : « je ne sais pas comment supprimer l'agenda… toutes ces gestions-là, il faut les rajouter ») : le menu d'un agenda
+  // fait tout ce que Google Agenda permet sur un agenda : nom, description, fuseau, couleur, masquer, rappels et e-mails par défaut,
+  // exporter et importer (.ics), partager (le bouton est branché par partage.js), supprimer ou se désabonner. Rien ne part sans un clic.
+  var FUSEAUX = ["Europe/Zurich", "Europe/Paris", "Europe/Brussels", "Europe/Berlin", "Europe/Rome", "Europe/Madrid", "Europe/Lisbon", "Europe/London", "Europe/Athens", "America/Montreal", "America/New_York", "America/Los_Angeles", "Africa/Dakar", "Africa/Casablanca", "Asia/Tokyo", "UTC"];
+  var NOTIFS = [["eventCreation", "Nouvel événement ajouté par quelqu'un d'autre"], ["eventChange", "Événement modifié"], ["eventCancellation", "Événement annulé"], ["eventResponse", "Réponses des invités"], ["agenda", "Résumé du jour, chaque matin"]];
+  var RAPPELS_CHOIX = [[0, "Au début"], [5, "5 minutes avant"], [10, "10 minutes avant"], [15, "15 minutes avant"], [30, "30 minutes avant"], [60, "1 heure avant"], [120, "2 heures avant"], [1440, "1 jour avant"], [2880, "2 jours avant"], [10080, "1 semaine avant"]];
   function menuCal(cle, prosp) {
     var i = cle.indexOf("|"), cid = cle.slice(0, i), id = cle.slice(i + 1), k = prosp ? null : cal(cid, id), nom = prosp ? (PROSPECTION.filter(function (t) { return t.id === id; })[0] || {}).nom : k && k.nom;
     var h = '<div class="ag-det-tete"><h2>' + texte(nom || "") + '</h2><button class="ag-icone" data-ag="fermer" aria-label="Fermer">✕</button></div>';
     h += '<button class="ag-b" data-ag-seul="' + texte(prosp ? cid + "|p:" + id : cle) + '">Afficher seulement celui-ci</button><div class="ag-champ"><span>Couleur</span><div class="ag-couleurs">';
     COULEURS_CAL.forEach(function (c) { h += '<button data-ag-coul-cal="' + c + '" data-ag-pour="' + texte(prosp ? cid + "|p:" + id : cle) + '" style="background:' + c + '" aria-label="Couleur ' + c + '"></button>'; });
     h += "</div></div>";
-    if (k) { h += '<p class="ag-mini-note">' + ({ owner: "Ton agenda.", writer: "Partagé avec toi : tu peux le modifier.", reader: "Partagé avec toi en lecture seule.", freeBusyReader: "Partagé : tu ne vois que les heures occupées." }[k.acces] || "") + (k.description ? " " + texte(k.description) : "") + "</p>"; }
+    if (k) {
+      var aMoi = k.acces === "owner", ecrit = aMoi || k.acces === "writer";
+      h += '<p class="ag-mini-note">' + ({ owner: k.principal ? "Ton agenda principal." : "Ton agenda.", writer: "Partagé avec toi : tu peux le modifier.", reader: "Partagé avec toi en lecture seule.", freeBusyReader: "Partagé : tu ne vois que les heures occupées." }[k.acces] || "") + "</p>";
+      h += '<details class="ag-reglage" open><summary>Nom' + (aMoi ? ", description et fuseau" : "") + "</summary>";
+      h += '<label class="ag-champ">Nom' + (aMoi ? "" : " <small>(changé seulement chez toi)</small>") + '<input id="agCalNom" maxlength="200" value="' + texte(k.nom) + '"></label>';
+      if (aMoi) {
+        h += '<label class="ag-champ">Description<textarea id="agCalDesc" rows="2" maxlength="4000">' + texte(k.description || "") + "</textarea></label>";
+        var fz = FUSEAUX.indexOf(k.fuseau) < 0 && k.fuseau ? [k.fuseau].concat(FUSEAUX) : FUSEAUX;
+        h += '<label class="ag-champ">Fuseau horaire<select id="agCalFuseau">' + fz.map(function (z) { return '<option' + (z === (k.fuseau || "Europe/Zurich") ? " selected" : "") + ">" + texte(z) + "</option>"; }).join("") + "</select></label>";
+      }
+      h += '<div class="ag-actions"><button class="ag-b ag-fort" data-ag-cal-texte="' + texte(cle) + '">Enregistrer</button></div></details>';
+      h += '<details class="ag-reglage"><summary>Rappels et e-mails par défaut</summary><p class="ag-mini-note">Le rappel mis d\'office sur chaque nouvel événement de cet agenda (cinq au plus).</p><div id="agCalRappels">' + rappelsCalHtml(k.rappels || []) + "</div>";
+      h += '<div class="ag-ligne-f"><select id="agCalRappelMin">' + RAPPELS_CHOIX.map(function (r) { return '<option value="' + r[0] + '"' + (r[0] === 30 ? " selected" : "") + ">" + r[1] + "</option>"; }).join("") + '</select><select id="agCalRappelQ"><option value="popup">Notification</option><option value="email">E-mail</option></select><button class="ag-b" data-ag-cal-rappel-plus="1">Ajouter</button></div>';
+      if (ecrit) { h += '<p class="ag-mini-note">E-mails de Google pour cet agenda :</p>'; NOTIFS.forEach(function (n) { h += '<label class="ag-case"><input type="checkbox" data-ag-notif="' + n[0] + '"' + ((k.notifications || []).indexOf(n[0]) >= 0 ? " checked" : "") + "> " + n[1] + "</label>"; }); }
+      h += '<div class="ag-actions"><button class="ag-b ag-fort" data-ag-cal-rappels="' + texte(cle) + '">Enregistrer</button></div></details>';
+      h += '<details class="ag-reglage"><summary>Exporter, importer, partager</summary><div class="ag-actions ag-gauche"><button class="ag-b" data-ag-cal-exporter="' + texte(cle) + '">Exporter (.ics)</button>' + (ecrit ? '<label class="ag-b ag-fichier">Importer un fichier .ics<input type="file" accept=".ics,text/calendar" data-ag-cal-importer="' + texte(cle) + '"></label>' : "") + (aMoi ? '<button class="ag-b" data-ag-partager="' + texte(cle) + '" data-ag-nom="' + texte(k.nom) + '">Partager…</button>' : "") + "</div></details>";
+      h += '<div class="ag-actions ag-gauche ag-bas">' + '<button class="ag-b" data-ag-cal-cache="' + texte(cle) + '">' + (k.cache ? "Remettre dans la liste" : "Masquer de la liste") + "</button>";
+      if (aMoi && !k.principal) h += '<button class="ag-b ag-danger" data-ag-cal-supprimer="' + texte(cle) + '">Supprimer cet agenda…</button>';
+      if (!aMoi && !k.principal) h += '<button class="ag-b ag-danger" data-ag-cal-retirer="' + texte(cle) + '">Se désabonner…</button>';
+      h += '</div><p id="agSouci" class="ag-souci" role="status"></p>';
+    }
+    ag.calRappels = k ? (k.rappels || []).slice() : [];
     feuille(h);
   }
+  function rappelsCalHtml(l) {
+    if (!l.length) return '<p class="ag-mini-note">Aucun rappel par défaut.</p>';
+    return l.map(function (r, n) { return '<div class="ag-ligne-f"><span>' + (r.minutes ? dureeTexte(r.minutes) + " avant" : "Au début") + (r.methode === "email" ? " (e-mail)" : "") + '</span><button class="ag-icone" data-ag-cal-rappel-moins="' + n + '" aria-label="Retirer ce rappel">✕</button></div>'; }).join("");
+  }
+  function calDe(cle) { var i = cle.indexOf("|"); return { cid: cle.slice(0, i), id: cle.slice(i + 1), k: cal(cle.slice(0, i), cle.slice(i + 1)) }; }
+  function reglerCal(cle, args, dire) {
+    var x = calDe(cle), s = document.getElementById("agSouci");
+    args.cal = x.id;
+    return P.appel(x.cid, "agenda.calendrier.regler", args, { sans: true }).then(function () { fermer(); avis(dire); donnees[x.cid].cals = null; charger(); }, function (e) { if (s) s.textContent = calErreur(e); else avis(calErreur(e), true); });
+  }
+  // Un moteur pas encore mis à jour ne connaît pas les nouvelles demandes : on le dit simplement.
+  function calErreur(e) { var m = erreurLisible(e); return /inconnu|introuvable|n'existe pas|PRISE|non permis/i.test(m) && !/agenda n'existe plus/.test(m) ? "Le moteur de ce compte n'a pas encore cette fonction : elle arrive avec sa prochaine mise à jour." : m; }
+  function confirmerCal(cle, retirer) {
+    var x = calDe(cle); if (!x.k) return;
+    feuille('<h2>' + (retirer ? "Se désabonner de « " : "Supprimer « ") + texte(x.k.nom) + " » ?</h2><p>" + (retirer ? "Il quitte ta liste. Rien n'est effacé chez la personne à qui il est : tu pourras t'y réabonner avec son adresse." : "L'agenda et <strong>tous ses événements</strong> sont supprimés pour toi et pour toutes les personnes avec qui il est partagé. On ne peut pas le récupérer.") + '</p><p id="agSouci" class="ag-souci" role="status"></p><div class="ag-actions"><button class="ag-b" data-ag="fermer">Annuler</button><button class="ag-b ag-danger ag-fort" data-ag-cal-oui="' + texte(cle) + '" data-ag-retirer="' + (retirer ? 1 : 0) + '">' + (retirer ? "Se désabonner" : "Supprimer définitivement") + "</button></div>");
+  }
+  // Fichier .ics : écrit d'après les événements rendus par le moteur ; lu à la main (VEVENT, DTSTART/DTEND, SUMMARY, DESCRIPTION, LOCATION, RRULE, UID).
+  function icsEchappe(t) { return String(t || "").replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n"); }
+  function icsPlier(l) { var o = "", n = 0; while (l.length - n > 74) { o += l.slice(n, n + 74) + "\r\n "; n += 74; } return o + l.slice(n); }
+  function icsDate(t, journee) { if (journee) return ";VALUE=DATE:" + String(t).slice(0, 10).replace(/-/g, ""); var d = new Date(t); return ":" + d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); }
+  function versIcs(r) {
+    var l = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Origami//Agenda//FR", "CALSCALE:GREGORIAN", "X-WR-CALNAME:" + icsEchappe(r.nom), "X-WR-TIMEZONE:" + (r.fuseau || "Europe/Zurich")];
+    var maintenant = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    (r.evenements || []).forEach(function (e) {
+      if (!e.debut) return;
+      l.push("BEGIN:VEVENT", "UID:" + (e.uid || e.id + "@origami"), "DTSTAMP:" + maintenant, "DTSTART" + icsDate(e.debut, e.journee), "DTEND" + icsDate(e.fin || e.debut, e.journee), "SUMMARY:" + icsEchappe(e.titre));
+      if (e.originel) l.push("RECURRENCE-ID" + icsDate(e.originel, /^\d{4}-\d{2}-\d{2}$/.test(e.originel)));
+      if (e.lieu) l.push("LOCATION:" + icsEchappe(e.lieu));
+      if (e.notes) l.push("DESCRIPTION:" + icsEchappe(e.notes));
+      (e.recurrence || []).forEach(function (x) { if (/^(RRULE|EXDATE|RDATE)[:;]/.test(x)) l.push(x); });
+      if (e.dispo === "libre") l.push("TRANSP:TRANSPARENT");
+      l.push("END:VEVENT");
+    });
+    l.push("END:VCALENDAR");
+    return l.map(icsPlier).join("\r\n") + "\r\n";
+  }
+  function lireIcs(t) {
+    var lignes = String(t || "").replace(/\r\n[ \t]/g, "").replace(/\n[ \t]/g, "").split(/\r?\n/), l = [], e = null, fuseauCal = "";
+    function val(x) { return x.replace(/\\n/gi, "\n").replace(/\\([,;\\])/g, "$1"); }
+    function date(cle, v) {
+      var tz = (/TZID=([^;:]+)/.exec(cle) || [])[1] || "";
+      if (/VALUE=DATE(?!-)/.test(cle) || /^\d{8}$/.test(v)) return { j: true, t: v.slice(0, 4) + "-" + v.slice(4, 6) + "-" + v.slice(6, 8) };
+      var m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(Z?)$/.exec(v); if (!m) return null;
+      var base = m[1] + "-" + m[2] + "-" + m[3] + "T" + m[4] + ":" + m[5] + ":" + m[6];
+      return { j: false, t: m[7] ? base + "Z" : base, tz: m[7] ? "" : (tz || fuseauCal || fuseau()) };
+    }
+    lignes.forEach(function (x) {
+      var i = x.indexOf(":"); if (i < 0) return;
+      var cle = x.slice(0, i), v = x.slice(i + 1), nom = cle.split(";")[0].toUpperCase();
+      if (nom === "X-WR-TIMEZONE" && !e) fuseauCal = v.trim();
+      if (nom === "BEGIN" && v === "VEVENT") { e = { recurrence: [] }; return; }
+      if (nom === "END" && v === "VEVENT") { if (e && e.d0) l.push(e); e = null; return; }
+      if (!e) return;
+      if (nom === "SUMMARY") e.titre = val(v); else if (nom === "DESCRIPTION") e.notes = val(v); else if (nom === "LOCATION") e.lieu = val(v); else if (nom === "UID") e.uid = v.trim();
+      else if (nom === "DTSTART") e.d0 = date(cle, v.trim()); else if (nom === "DTEND") e.d1 = date(cle, v.trim());
+      else if (nom === "RRULE" || nom === "EXDATE" || nom === "RDATE") e.recurrence.push(x);
+      else if (nom === "TRANSP" && /TRANSPARENT/i.test(v)) e.dispo = "transparent";
+      else if (nom === "RECURRENCE-ID") e.exception = true;
+    });
+    return l.filter(function (e) { return !e.exception; }).map(function (e) {
+      var d1 = e.d1 || (e.d0.j ? { j: true, t: iso(plus(dateDe(e.d0.t), 1)) } : e.d0);
+      return { uid: e.uid || "", titre: e.titre || "(Sans titre)", notes: e.notes || "", lieu: e.lieu || "", journee: e.d0.j, debut: e.d0.t, fin: d1.t, fuseau: e.d0.tz || "", recurrence: e.recurrence, dispo: e.dispo || "" };
+    });
+  }
+  function exporterCal(cle) {
+    var x = calDe(cle); avis("Préparation du fichier…");
+    P.appel(x.cid, "agenda.calendrier.exporter", { cal: x.id }, { sans: true }).then(function (r) {
+      var b = new Blob([versIcs(r)], { type: "text/calendar;charset=utf-8" }), u = URL.createObjectURL(b), a = document.createElement("a");
+      a.href = u; a.download = String(r.nom || "agenda").replace(/[\\/:*?"<>|]+/g, "-").slice(0, 80) + ".ics"; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+      avis((r.evenements || []).length + " événements exportés" + (r.complet === false ? " (les 5000 premiers)" : "") + ".");
+    }, function (e) { avis(calErreur(e), true); });
+  }
+  function importerCal(cle, fichier) {
+    var x = calDe(cle), s = document.getElementById("agSouci");
+    if (!fichier) return;
+    if (fichier.size > 5 * 1048576) { if (s) s.textContent = "Fichier trop lourd (5 Mo au plus)."; return; }
+    var r = new FileReader();
+    r.onload = function () {
+      var l = lireIcs(r.result);
+      if (!l.length) { if (s) s.textContent = "Aucun événement lisible dans ce fichier."; return; }
+      if (s) s.textContent = "Import de " + l.length + " événements…";
+      var faits = 0, rates = 0, paquets = [];
+      for (var i = 0; i < l.length; i += 100) paquets.push(l.slice(i, i + 100));
+      paquets.reduce(function (suite, pq) { return suite.then(function () { return P.appel(x.cid, "agenda.calendrier.importer", { cal: x.id, evenements: pq }, { sans: true }).then(function (o) { faits += o.faits || 0; rates += (o.rates || []).length; if (s) s.textContent = "Import… " + faits + " sur " + l.length; }); }); }, Promise.resolve()).then(function () {
+        fermer(); avis(faits + " événement" + (faits > 1 ? "s" : "") + " importé" + (faits > 1 ? "s" : "") + (rates ? ", " + rates + " refusé" + (rates > 1 ? "s" : "") + " par Google" : "") + "."); donnees[x.cid].mois = {}; charger(true); dessiner();
+      }, function (e) { if (s) s.textContent = (faits ? faits + " importés, puis : " : "") + calErreur(e); });
+    };
+    r.onerror = function () { if (s) s.textContent = "Le fichier n'a pas pu être lu."; };
+    r.readAsText(fichier);
+  }
+  function feuilleReglagesAg() {
+    var h = '<div class="ag-det-tete"><h2>Réglages de l\'affichage</h2><button class="ag-icone" data-ag="fermer" aria-label="Fermer">✕</button></div>';
+    h += '<label class="ag-champ">La semaine commence le<select id="agRegSemaine"><option value="lun"' + (dimanche() ? "" : " selected") + '>lundi</option><option value="dim"' + (dimanche() ? " selected" : "") + ">dimanche</option></select></label>";
+    h += '<label class="ag-champ">Durée d\'un nouvel événement<select id="agRegDuree">' + [[15, "15 minutes"], [30, "30 minutes"], [45, "45 minutes"], [60, "1 heure"], [90, "1 h 30"], [120, "2 heures"]].map(function (o) { return '<option value="' + o[0] + '"' + (dureeDefaut() === o[0] * 60000 ? " selected" : "") + ">" + o[1] + "</option>"; }).join("") + "</select></label>";
+    h += '<p class="ag-mini-note">Ces réglages valent pour cet appareil.</p><div class="ag-actions"><button class="ag-b" data-ag="fermer">Annuler</button><button class="ag-b ag-fort" data-ag="reglages-ok">Enregistrer</button></div>';
+    feuille(h);
+  }
+  var FERIES = [["fr.french#holiday@group.v.calendar.google.com", "France"], ["fr.ch#holiday@group.v.calendar.google.com", "Suisse"], ["fr.be#holiday@group.v.calendar.google.com", "Belgique"], ["de.german#holiday@group.v.calendar.google.com", "Allemagne"], ["it.italian#holiday@group.v.calendar.google.com", "Italie"], ["es.spanish#holiday@group.v.calendar.google.com", "Espagne"], ["pt.portuguese#holiday@group.v.calendar.google.com", "Portugal"], ["nl.dutch#holiday@group.v.calendar.google.com", "Pays-Bas"], ["en.uk#holiday@group.v.calendar.google.com", "Royaume-Uni"], ["fr.canadian#holiday@group.v.calendar.google.com", "Canada"]];
   function feuilleAjoutCal(cid) {
     feuille('<div class="ag-det-tete"><h2>Ajouter un agenda</h2><button class="ag-icone" data-ag="fermer" aria-label="Fermer">✕</button></div>' +
       '<label class="ag-champ">Créer un nouvel agenda<input id="agNouveauCal" placeholder="Nom, par exemple « Tournée 2027 »" maxlength="200"></label><div class="ag-actions"><button class="ag-b ag-fort" data-ag-cal-creer="' + texte(cid) + '">Créer</button></div>' +
+      '<label class="ag-champ">Ajouter les jours fériés d\'un pays<select id="agFeries">' + FERIES.map(function (f) { return '<option value="' + texte(f[0]) + '">' + texte(f[1]) + "</option>"; }).join("") + '</select></label><div class="ag-actions"><button class="ag-b" data-ag-cal-feries="' + texte(cid) + '">Ajouter</button></div>' +
       '<label class="ag-champ">Ou s\'abonner à l\'agenda de quelqu\'un (son adresse e-mail, ou l\'identifiant d\'un agenda partagé)<input id="agAbonner" placeholder="nom@exemple.org"></label><div class="ag-actions"><button class="ag-b" data-ag-cal-abonner="' + texte(cid) + '">S\'abonner</button></div><p id="agSouci" class="ag-souci" role="status"></p>');
   }
 
@@ -754,6 +950,38 @@
     var d = dateDe(ag.date), v = vue();
     if (v === "jour") d = plus(d, n); else if (v === "semaine") d = plus(d, 7 * n); else if (v === "mois") d = new Date(d.getFullYear(), d.getMonth() + n, 1); else d = plus(d, 62 * n);
     ag.date = iso(d); ag.mini = ""; ag.garderDefile = true; charger(); dessiner();
+  }
+  // Balayer pour changer de période (28.11, Sévane : « en défilant vers la droite ou vers la gauche, ça change de mois ») :
+  // deux doigts sur le trackpad (ou la molette horizontale), ou le doigt sur un écran tactile. Un geste = une période.
+  var balai = { somme: 0, fin: 0, bloque: 0, doigt: null };
+  function horsBalai(t) { return !t || !t.closest || !t.closest(".ag-centre") || !!t.closest(".ag-barre, .ag-cote, input, textarea, select, .ag-voile") || !racine.querySelector(".ag-voile").hidden || !!ag.recherche; }
+  function molette(ev) {
+    if (horsBalai(ev.target) || ev.ctrlKey) return;
+    var dx = ev.deltaX, dy = ev.deltaY;
+    if (ev.shiftKey && !dx) { dx = dy; dy = 0; }
+    if (Math.abs(dx) <= Math.abs(dy) * 1.2) { balai.somme = 0; return; }
+    ev.preventDefault();   // pas de « page précédente » du navigateur
+    var t = Date.now();
+    if (t - balai.fin > 250) balai.somme = 0;   // nouveau geste
+    balai.fin = t;
+    if (t < balai.bloque) { balai.bloque = t + 250; return; }   // la fin d'un geste déjà compté (l'élan du trackpad)
+    balai.somme += ev.deltaMode === 1 ? dx * 16 : dx;
+    if (Math.abs(balai.somme) >= 90) { var n = balai.somme > 0 ? 1 : -1; balai.somme = 0; balai.bloque = t + 250; allerAnime(n); }
+  }
+  function doigtPose(ev) {
+    if (ev.pointerType !== "touch" || horsBalai(ev.target) || (ev.target.closest && ev.target.closest("[data-ag-glisse]"))) return;
+    balai.doigt = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t: Date.now() };
+  }
+  function doigtLeve(ev) {
+    var d = balai.doigt; balai.doigt = null;
+    if (!d || ev.pointerId !== d.id) return;
+    var dx = ev.clientX - d.x, dy = ev.clientY - d.y;
+    if (Date.now() - d.t < 800 && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { ag.sansClic = Date.now(); allerAnime(dx < 0 ? 1 : -1); }
+  }
+  function allerAnime(n) {
+    aller(n);
+    var z = racine.querySelector(".ag-mois, .ag-grille");
+    if (z) { z.classList.add(n > 0 ? "ag-vient-droite" : "ag-vient-gauche"); }
   }
   function changerVue(v) { ag.vue = v; reg.vue = v; retenir(); ag.recherche = null; ag.garderDefile = false; charger(); dessiner(); }
   function clic(ev) {
@@ -799,6 +1027,43 @@
       P.appel(cid2, "agenda.calendrier.regler", { cal: id2, couleur: d.agCoulCal }, { sans: true }).then(function (r2) { var k2 = cal(cid2, id2); if (k2) k2.couleur = r2.couleur; fermer(); dessiner(); }, function (e) { avis(erreurLisible(e), true); });
       return;
     }
+    if (d.agCalTexte) {
+      var xt = calDe(d.agCalTexte), at = { nom: (document.getElementById("agCalNom") || {}).value };
+      if (xt.k && xt.k.acces === "owner") { at.description = (document.getElementById("agCalDesc") || {}).value || ""; at.fuseau = (document.getElementById("agCalFuseau") || {}).value; if (at.description === (xt.k.description || "")) delete at.description; if (at.fuseau === (xt.k.fuseau || "Europe/Zurich")) delete at.fuseau; }
+      if (xt.k && at.nom === xt.k.nom) delete at.nom;
+      if (!Object.keys(at).length) { fermer(); return; }
+      b.disabled = true; reglerCal(d.agCalTexte, at, "Agenda enregistré.").then(function () { b.disabled = false; });
+      return;
+    }
+    if (d.agCalRappelPlus) {
+      if (ag.calRappels.length >= 5) { document.getElementById("agSouci").textContent = "Cinq rappels au plus."; return; }
+      ag.calRappels.push({ minutes: Number(document.getElementById("agCalRappelMin").value), methode: document.getElementById("agCalRappelQ").value });
+      document.getElementById("agCalRappels").innerHTML = rappelsCalHtml(ag.calRappels); return;
+    }
+    if (d.agCalRappelMoins !== undefined) { ag.calRappels.splice(+d.agCalRappelMoins, 1); document.getElementById("agCalRappels").innerHTML = rappelsCalHtml(ag.calRappels); return; }
+    if (d.agCalRappels) {
+      var ar = { rappels: ag.calRappels.map(function (r) { return { minutes: r.minutes, methode: r.methode }; }) };
+      var cases = racine.querySelectorAll("[data-ag-notif]"); if (cases.length) ar.notifications = [].filter.call(cases, function (c) { return c.checked; }).map(function (c) { return c.getAttribute("data-ag-notif"); });
+      b.disabled = true; reglerCal(d.agCalRappels, ar, "Rappels enregistrés.").then(function () { b.disabled = false; });
+      return;
+    }
+    if (d.agCalCache) { var xc = calDe(d.agCalCache); if (xc.k) { ag.voirMasques = !xc.k.cache; reglerCal(d.agCalCache, { cache: !xc.k.cache }, xc.k.cache ? "Remis dans la liste." : "Masqué : il est dans « Agendas masqués »."); } return; }
+    if (d.agCalSupprimer) { confirmerCal(d.agCalSupprimer, false); return; }
+    if (d.agCalRetirer) { confirmerCal(d.agCalRetirer, true); return; }
+    if (d.agCalOui) {
+      var xo = calDe(d.agCalOui), ret = d.agRetirer === "1", so = document.getElementById("agSouci");
+      b.disabled = true;
+      P.appel(xo.cid, ret ? "agenda.calendrier.retirer" : "agenda.calendrier.supprimer", ret ? { cal: xo.id } : { cal: xo.id, confirme: true }, { sans: true }).then(function () {
+        fermer(); avis(ret ? "Désabonné de « " + (xo.k ? xo.k.nom : "") + " »." : "Agenda « " + (xo.k ? xo.k.nom : "") + " » supprimé."); delete reg.coches[d.agCalOui]; retenir(); donnees[xo.cid].cals = null; donnees[xo.cid].mois = {}; charger(); dessiner();
+      }, function (e) { so.textContent = calErreur(e); b.disabled = false; });
+      return;
+    }
+    if (d.agCalExporter) { exporterCal(d.agCalExporter); return; }
+    if (d.agCalFeries) {
+      var sf = document.getElementById("agSouci"); b.disabled = true;
+      P.appel(d.agCalFeries, "agenda.calendrier.ajouter", { id: document.getElementById("agFeries").value }, { sans: true }).then(function () { fermer(); avis("Jours fériés ajoutés."); donnees[d.agCalFeries].cals = null; charger(); }, function (e) { sf.textContent = erreurLisible(e); b.disabled = false; });
+      return;
+    }
     if (d.agAjoutCal) { feuilleAjoutCal(d.agAjoutCal); return; }
     if (d.agCalCreer || d.agCalAbonner) {
       var cid3 = d.agCalCreer || d.agCalAbonner, s3 = document.getElementById("agSouci");
@@ -813,6 +1078,8 @@
       case "auj": ag.date = aujourdhui(); ag.mini = ""; ag.recherche = null; ag.garderDefile = false; charger(); dessiner(); return;
       case "prec": aller(-1); return;
       case "suiv": aller(1); return;
+      case "reglages": feuilleReglagesAg(); return;
+      case "reglages-ok": reg.semaine = document.getElementById("agRegSemaine").value === "dim" ? "dim" : ""; reg.duree = Number(document.getElementById("agRegDuree").value) || 60; retenir(); fermer(); avis("Réglages enregistrés."); charger(); dessiner(); return;
       case "actualiser": Object.keys(donnees).forEach(function (cid) { donnees[cid].mois = {}; }); charger(true); dessiner(); return;
       case "creer": ag.volet = false; formulaire(null, ag.vue === "mois" || vue() === "planning" ? null : { d0: arrondi(new Date(dateDe(ag.date).getTime() + (memeJour(dateDe(ag.date), new Date()) ? new Date().getHours() * 3600000 + new Date().getMinutes() * 60000 : 9 * 3600000))) }); return;
       case "volet": ag.volet = !ag.volet; dessiner(); return;
@@ -842,10 +1109,11 @@
     var col = ev.target.classList && ev.target.classList.contains("ag-col") ? ev.target : null; if (!col) return;
     var r = col.getBoundingClientRect(), min = Math.max(0, Math.min(1425, Math.floor((ev.clientY - r.top) / HEURE * 4) * 15)), j = dateDe(col.dataset.agCol);
     var d0 = new Date(j.getFullYear(), j.getMonth(), j.getDate(), 0, min);
-    formulaire(null, { d0: d0, d1: new Date(d0.getTime() + 3600000) });
+    formulaire(null, { d0: d0, d1: new Date(d0.getTime() + dureeDefaut()) });
   }
   function changement(ev) {
     var t = ev.target; if (!racine.contains(t)) return;
+    if (t.getAttribute && t.getAttribute("data-ag-cal-importer")) { importerCal(t.getAttribute("data-ag-cal-importer"), t.files && t.files[0]); return; }
     if (t.id === "agJournee") [].forEach.call(racine.querySelectorAll(".ag-h"), function (l) { l.hidden = t.checked; });
     if (t.id === "agRegle") document.getElementById("agPerso").hidden = t.value !== "perso";
     if (t.id === "agRFreq") document.getElementById("agRJours").hidden = t.value !== "WEEKLY";
@@ -894,7 +1162,10 @@
         racine.addEventListener("pointerdown", debutGlisse);
         racine.addEventListener("pointermove", bougeGlisse);
         racine.addEventListener("pointerup", finGlisse);
-        racine.addEventListener("pointercancel", function () { if (glisse) { glisse.b.style.transform = ""; glisse = null; } });
+        racine.addEventListener("pointercancel", function () { balai.doigt = null; if (glisse) { glisse.b.style.transform = ""; glisse = null; } });
+        racine.addEventListener("wheel", molette, { passive: false });
+        racine.addEventListener("pointerdown", doigtPose);
+        racine.addEventListener("pointerup", doigtLeve);
         racine.querySelector(".ag-voile").addEventListener("click", function (ev) { if (ev.target === ev.currentTarget) fermer(); });
         document.addEventListener("keydown", touche);
         setInterval(function () { if (racine && !racine.hidden && !document.hidden && (vue() === "jour" || vue() === "semaine")) { ag.garderDefile = true; dessiner(); } }, 300000);
@@ -975,6 +1246,15 @@
     ".ag-maintenant{position:absolute;left:-1px;right:0;height:2px;background:#ea4335;z-index:3;pointer-events:none}.ag-maintenant::before{content:'';position:absolute;left:-6px;top:-5px;width:12px;height:12px;border-radius:50%;background:#ea4335}",
     // Mois
     ".ag-mois{flex:1;min-height:0;display:flex;flex-direction:column}",
+    ".ag-mois,.ag-grille{touch-action:pan-y}",
+    ".ag-reglage{border-top:1px solid var(--ligne);padding:8px 0}.ag-reglage summary{cursor:pointer;font-weight:600;font-size:14px;padding:4px 0}",
+    ".ag-actions.ag-gauche{justify-content:flex-start;flex-wrap:wrap}.ag-actions.ag-bas{border-top:1px solid var(--ligne);padding-top:12px;margin-top:4px}",
+    ".ag-danger{color:#b42318}.ag-danger.ag-fort{background:#b42318;border-color:#b42318;color:#fff}",
+    ".ag-fichier{position:relative;overflow:hidden;cursor:pointer}.ag-fichier input{position:absolute;inset:0;opacity:0;cursor:pointer}",
+    ".ag-masques summary{cursor:pointer;font-size:12px;color:var(--doux);padding:6px 0}",
+    ".ag-vient-droite{animation:agVientD .22s ease-out}.ag-vient-gauche{animation:agVientG .22s ease-out}",
+    "@keyframes agVientD{from{opacity:.35;transform:translateX(28px)}to{opacity:1;transform:none}}@keyframes agVientG{from{opacity:.35;transform:translateX(-28px)}to{opacity:1;transform:none}}",
+    "@media (prefers-reduced-motion:reduce){.ag-vient-droite,.ag-vient-gauche{animation:none}}",
     ".ag-mois-tete{flex:none;display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--ligne)}.ag-mois-tete span{padding:6px 0 4px;text-align:center;font-size:11px;text-transform:uppercase;color:var(--doux)}",
     ".ag-mois-corps{flex:1;min-height:0;display:grid;grid-template-rows:repeat(6,minmax(96px,1fr));overflow-y:auto}",
     ".ag-sem-l{display:grid;grid-template-columns:repeat(7,1fr);grid-template-rows:26px repeat(var(--l),22px) 20px;align-content:start;row-gap:2px;border-bottom:1px solid var(--ligne);position:relative}",

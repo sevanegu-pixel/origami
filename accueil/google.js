@@ -902,6 +902,19 @@
     return fetch(String(adresse), { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ f: "etatAcces", jeton: "", args: [] }), redirect: "follow" })
       .then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) { var d = null; try { d = JSON.parse(t); } catch (e) { d = null; } return !!(d && d.ok === true); }, function () { return false; });
   }
+  /**
+   * Où en est une Boîte mail (28.11) : « vivante » (elle répond, même par un refus), « retiree » (elle dit elle-même qu'elle a été
+   * désinstallée), « muette » (pas de réponse lisible : connexion coupée, Google en panne, ou mise en ligne arrêtée). Ne change rien.
+   */
+  function sonderBoite(adresse) {
+    if (!ADRESSE_EXEC.test(String(adresse || ""))) return Promise.resolve("muette");
+    return fetch(String(adresse), { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ f: "etatAcces", jeton: "", args: [] }), redirect: "follow" })
+      .then(function (r) { return r.ok ? r.text() : ""; }).then(function (t) {
+        var d = null; try { d = JSON.parse(t); } catch (e) { d = null; }
+        if (!d || typeof d !== "object") return /DESINSTALL/.test(String(t)) ? "retiree" : "muette";
+        return d.ok === false && /DESINSTALL/i.test(String(d.erreur || "")) ? "retiree" : "vivante";
+      }, function () { return "muette"; });
+  }
   /** Premier contact : la Boîte mail rend le code de l'appli du Mac. o = { adresse, secret }. Rend { code, email, lien }. */
   function relierBoite(o) {
     if (!ADRESSE_EXEC.test(String(o.adresse || "")) || !/^[0-9a-f]{64}$/.test(String(o.secret || ""))) return Promise.reject(souci("L'installation de cette Boîte mail est à reprendre depuis Origami.", "secret"));
@@ -915,7 +928,7 @@
       });
   }
 
-  var sortie = { charger: charger, installerBoite: installerBoite, pingBoite: pingBoite, relierBoite: relierBoite, _fichierPremierBoite: fichierPremierBoite, _appelBoite: APPEL_BOITE, mettreAJourOrigami: mettreAJourOrigami, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, installerModules: installerModules, mettreAJourModules: mettreAJourModules, pingModules: pingModules, ping: ping, lienAutorisation: lienAutorisation,
+  var sortie = { charger: charger, installerBoite: installerBoite, pingBoite: pingBoite, sonderBoite: sonderBoite, relierBoite: relierBoite, _fichierPremierBoite: fichierPremierBoite, _appelBoite: APPEL_BOITE, mettreAJourOrigami: mettreAJourOrigami, connecter: connecter, session: session, oublier: oublier, adopter: adopter, installerCompta: installerCompta, mettreAJourCompta: mettreAJourCompta, installerModules: installerModules, mettreAJourModules: mettreAJourModules, pingModules: pingModules, ping: ping, lienAutorisation: lienAutorisation,
     origamiJete: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigamiJete(s) : Promise.resolve(""); },
     chercherOrigami: function (cle) { var s = session(cle); return s && s.drive ? chercherOrigami(s) : Promise.reject(souci("Connecte d'abord Origami à Google.", "connexion")); },
     // La Boîte mail déjà installée dans le compte connecté (par Origami ou par l'appli Boîte mail seule), ou null. Ne crée rien.
