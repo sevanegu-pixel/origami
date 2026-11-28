@@ -98,3 +98,41 @@
     });
     window.addEventListener('message', function (ev) { if ((ev.data || {}).boiteMail === 'glisser?') telGlisserDire(ev.source); });
   }
+  /* 5. Fichiers téléchargés (pièces jointes) sur le téléphone : Android ne laisse pas choisir un dossier comme le Mac
+        (« Folder picker is not implemented »). Ils vont donc toujours dans « Téléchargements » du téléphone, enregistrés par
+        le module Kotlin (MediaStore, Android 10 et plus). « Ouvrir » les ouvre avec l'appli du téléphone qui sait les lire,
+        le second bouton ouvre la liste des téléchargements. Dans le rouage : plus de « Changer de dossier » ni de question. */
+  if (ANDROID && typeof appelMac === 'function' && typeof htmlTele === 'function') {
+    var telFichiers = {};
+    var appelMacAvantTel = appelMac;
+    appelMac = function (nom, args) {
+      args = args || {};
+      if (nom === 'enregistrer_fichier') {
+        return T.core.invoke('plugin:boite-android|enregistrer', { nom: String(args.nom || 'fichier'), base64: String(args.base64 || '') }).then(function (r) {
+          var chemin = '/Téléchargements/' + String((r && r.nom) || args.nom || 'fichier');
+          telFichiers[chemin] = r && r.uri; return chemin;
+        });
+      }
+      if (nom === 'ouvrir_fichier') return T.core.invoke('plugin:boite-android|ouvrir', { uri: String(telFichiers[args.chemin] || '') });
+      if (nom === 'montrer_fichier') return T.core.invoke('plugin:boite-android|telechargements');
+      if (nom === 'dossier_telechargements') return Promise.resolve('/Téléchargements');
+      return appelMacAvantTel(nom, args);
+    };
+    var lireTeleAvantTel = lireTele;
+    lireTele = function () { var r = lireTeleAvantTel(); r.demander = false; r.dossier = ''; return r; };
+    DOSSIER_DEFAUT = '/Téléchargements';
+    var htmlTeleAvantTel = htmlTele;
+    htmlTele = function () {
+      var h = htmlTeleAvantTel.apply(this, arguments);
+      var bloc = '<div class="tele"><span class="nom">Fichiers téléchargés</span><div class="ou"><b>Dans « Téléchargements » du téléphone</b>' +
+        '<button type="button" data-tel-telechargements>Voir</button></div></div>';
+      // Le premier bloc « tele » est celui des téléchargements du Mac : il est remplacé tel quel.
+      var i = h.indexOf('<div class="tele">'), j = h.indexOf('</label></div>', i);
+      return i >= 0 && j > i ? h.slice(0, i) + bloc + h.slice(j + '</label></div>'.length) : h;
+    };
+    $('menu-roue').addEventListener('click', function (e) {
+      if (!e.target.closest('[data-tel-telechargements]')) return;
+      $('menu-roue').classList.remove('visible');
+      T.core.invoke('plugin:boite-android|telechargements').catch(function () { dire('La liste des téléchargements n\'a pas pu être ouverte.'); });
+    });
+  }

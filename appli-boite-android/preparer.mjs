@@ -59,6 +59,7 @@ remplacer(HTML, "      'window.__ecranLocal = true;\\n' +",
 remplacer(HTML, "        var avant = ecrans[c.id] || {}; ecrans[c.id] = { le: Date.now(), url: c.url, jeton: c.jeton, taille: h.length, echecs: (avant.echecs || 0) + (avant.rate ? 1 : 0) }; garderEcrans();\n",
   "        var avant = ecrans[c.id] || {}; ecrans[c.id] = { le: Date.now(), url: c.url, jeton: c.jeton, taille: h.length, echecs: (avant.echecs || 0) + (avant.rate ? 1 : 0) }; garderEcrans();\n" +
   "        if (ANDROID) telPasserAuLocal(c);\n", 'premier écran gardé montré aussitôt');
+remplacer(HTML, "{ texte: 'Afficher dans le Finder',", "{ texte: ANDROID ? 'Tous les téléchargements' : 'Afficher dans le Finder',", 'fichier téléchargé : bouton du téléphone');
 remplacer(HTML, "  notifDemarrer();\n  window.__notif = { tour: notifTour, cale: cale };",
   jsCoquille + "\n  notifDemarrer();\n  window.__notif = { tour: notifTour, cale: cale };", 'veille Android et adresses des écrans');
 

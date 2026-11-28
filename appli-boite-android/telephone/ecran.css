@@ -63,8 +63,11 @@ html.telephone #msg-liste .conv-corps .etoile.on { color: #f4b400; opacity: 1; }
 /* « Nouveau mail » : bouton flottant en bas à droite */
 html.telephone .tel-nouveau { position: fixed; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 40; display: inline-flex; align-items: center; gap: 10px; height: 56px; padding: 0 20px 0 16px; border: 0; border-radius: 16px; background: color-mix(in srgb, var(--accent) 22%, var(--carte)); color: var(--texte); font: 500 15px/1 inherit; font-family: inherit; box-shadow: 0 2px 6px rgba(0,0,0,.18), 0 1px 2px rgba(0,0,0,.12); cursor: pointer; }
 html.telephone .tel-nouveau svg { width: 22px; height: 22px; }
-html.telephone .tel-nouveau.replie { padding: 0; width: 56px; justify-content: center; }
-html.telephone .tel-nouveau.replie span { display: none; }
+html.telephone .tel-nouveau { transition: padding .2s ease, gap .2s ease; }
+html.telephone .tel-nouveau span { display: inline-block; max-width: 160px; overflow: hidden; white-space: nowrap; transition: max-width .2s ease, opacity .15s ease; }
+/* En descendant, le bouton se réduit au seul crayon (sans disparaître) ; en remontant, il reprend son texte. */
+html.telephone .tel-nouveau.tel-reduit { padding: 0 17px; gap: 0; }
+html.telephone .tel-nouveau.tel-reduit span { max-width: 0; opacity: 0; }
 html.telephone:not(.tel-vue-liste) .tel-nouveau { display: none; }
 
 /* Conversation ouverte : pleine largeur, messages sans cadre, séparés d'un trait */
@@ -82,7 +85,7 @@ html.telephone #mc-ecrire .mc-de .mc-de-adresse { flex-basis: 100%; font-size: 1
 html.telephone #mc-ecrire .champs label.champ:not(.cache) { display: flex !important; align-items: center; gap: 10px; margin: 0 !important; padding: 2px 0; min-height: 46px; border-bottom: 1px solid var(--ligne); font-size: 14px; font-weight: 400; color: var(--doux); white-space: nowrap; }
 html.telephone #mc-ecrire .champs label.champ > input:not(.cache), html.telephone #mc-ecrire .champs label.champ .puces-champ { flex: 1 1 auto; min-width: 0; border: 0 !important; background: transparent !important; box-shadow: none !important; padding: 6px 0 !important; margin: 0 !important; min-height: 0; font-size: 15px; color: var(--texte); }
 html.telephone #mc-ecrire .champs label.champ .puces-saisie { border: 0 !important; background: transparent !important; box-shadow: none !important; font-size: 15px; padding: 4px 0 !important; }
-html.telephone #mc-ecrire .mc-outils { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 4px; margin: 6px 0 4px; padding: 2px 0; scrollbar-width: none; }
+html.telephone #mc-ecrire .mc-outils { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 4px; padding: 2px 0; }
 html.telephone #mc-ecrire .mc-outils > * { flex: 0 0 auto; }
 html.telephone #mc-ecrire .mc-outils .btn { min-height: 32px; height: 32px; padding: 0 9px; font-size: 13px; }
 html.telephone #modale .mc-bascule { margin: 4px 0 2px; padding: 2px; min-height: 0; }
@@ -191,4 +194,44 @@ html.telephone #onglets-atelier > [data-panneau="apercu"], html.telephone #modal
 html.telephone #msg-liste .conv { position: relative; z-index: 1; touch-action: pan-y; }
 html.telephone #msg-liste .conv.tel-glisse { box-shadow: 0 1px 6px rgba(0,0,0,.18) !important; }
 html.telephone .tel-glisse-fond { position: absolute; left: 0; right: 0; z-index: 0; display: flex; align-items: center; padding: 0 26px; pointer-events: none; }
-html.telephone .tel-glisse-fond svg { width: 24px; height: 24px; }
+html.telephone .tel-glisse-fond svg { width: 22px; height: 22px; flex: 0 0 auto; }
+html.telephone .tel-glisse-fond { gap: 8px; color: #fff; font: 600 13px/1 system-ui, sans-serif; transition: background-color .12s; }
+html.telephone .tel-suite.charge { display: flex !important; align-items: center; justify-content: center; gap: 10px; }
+html.telephone .tel-suite.charge::before { content: ""; width: 18px; height: 18px; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); border-radius: 50%; animation: tel-roule .8s linear infinite; }
+@keyframes tel-roule { to { transform: rotate(360deg); } }
+
+/* Jamais de défilement sur le côté : ni la page, ni les fenêtres. L'aperçu « Ordinateur » est réduit pour tenir dans la largeur. */
+html.telephone, html.telephone body { overflow-x: hidden !important; max-width: 100vw; }
+html.telephone #modale .modale-boite, html.telephone #modale .modale-corps { overflow-x: hidden !important; max-width: 100vw; }
+html.telephone #mc-cadre.ordi { overflow: hidden !important; }
+/* Aperçu « Ordinateur » : un cadre noir d'écran, comme le cadre de téléphone de l'autre aperçu. */
+html.telephone #mc-cadre.ordi { border: 8px solid #1d1d1f; border-bottom-width: 16px; border-radius: 12px; box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .45); background: #fff; }
+html.telephone #mc-cadre.ordi #mc-rendu { border: 0 !important; border-radius: 0 !important; }
+
+/* Toucher un mail ou son étoile : pas de surbrillance du navigateur sur toute la ligne. */
+html.telephone #msg-liste .conv, html.telephone #msg-liste .conv * { -webkit-tap-highlight-color: transparent; }
+
+/* Fenêtre « Écrire » : crayon, œil et trombone dans la barre du titre, petits, sans bande blanche à eux. */
+html.telephone #modale .modale-boite > header:has(.tel-tete-outils) { gap: 4px; padding-left: 16px; padding-right: 10px; }
+html.telephone #modale .modale-boite > header:has(.tel-tete-outils) h2 { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.telephone .tel-tete-outils { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; margin-right: 4px; }
+html.telephone .tel-tete-outils .mc-bascule { position: static !important; top: auto !important; margin: 0 !important; padding: 2px !important; gap: 2px; border: 0 !important; background: color-mix(in srgb, var(--texte, #202124) 6%, transparent) !important; border-radius: 999px !important; box-shadow: none !important; overflow: visible; }
+html.telephone .tel-tete-outils .mc-bascule::before { content: none !important; display: none !important; }
+html.telephone .tel-tete-outils .mc-bascule > button { width: 30px !important; height: 26px !important; min-height: 0 !important; border: 0 !important; border-radius: 999px !important; background: transparent; color: var(--texte-doux, #5f6368); }
+html.telephone .tel-tete-outils .mc-bascule > button.actif { background: var(--accent) !important; color: #fff !important; }
+html.telephone .tel-tete-outils .mc-bascule > button::before { width: 15px !important; height: 15px !important; }
+html.telephone .tel-joindre { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; color: var(--texte-doux, #5f6368); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+html.telephone .tel-joindre:active { background: color-mix(in srgb, var(--texte, #202124) 10%, transparent); }
+html.telephone .tel-joindre svg { width: 18px; height: 18px; }
+html.telephone #modale .mc-bascule.tel-place { display: none !important; }
+/* Le trombone de la barre remplace le gros bouton « Joindre un fichier » ; la liste des pièces jointes reste à sa place. */
+html.telephone #modale .mc-joints > label[for="mc-fichier"], html.telephone #modale .mc-joints > small { display: none !important; }
+html.telephone #modale .mc-joints:not(:has(#mc-joints-liste > *)) { display: none; }
+
+/* Formats d'aperçu (ordinateur / téléphone, largeur…) : petits logos seuls, comme sur l'ordinateur. */
+html.telephone .segment > button[data-mc-format], html.telephone #ap-format > button, html.telephone #gm-format > button, html.telephone #pp-format > button { font-size: 0 !important; padding: 5px 12px !important; line-height: 0; flex: 0 0 auto !important; }
+html.telephone [data-mc-format]::before { width: 16px !important; height: 16px !important; }
+html.telephone #modale .mc-format { margin: 10px 0 8px; }
+
+/* Liste des mails : un seul bouton pour écrire, celui qui flotte en bas à droite (le « + » de la barre du bas s'efface). */
+html.telephone.tel-vue-liste .ecrire-central { visibility: hidden; pointer-events: none; }

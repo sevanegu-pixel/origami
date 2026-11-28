@@ -32,24 +32,25 @@
       if (et) corps.appendChild(et);
     });
   }
-  var attente = null;
-  function plusTard() { if (attente) return; attente = setTimeout(function () { attente = null; var l = document.getElementById('msg-liste'); if (l) arranger(l); }, 30); }
   function brancher() {
     var l = document.getElementById('msg-liste');
     if (!l) return setTimeout(brancher, 300);
     arranger(l);
-    new MutationObserver(plusTard).observe(l, { childList: true, subtree: true });
+    new MutationObserver(function () { arranger(l); }).observe(l, { childList: true, subtree: true });   // avant l'affichage : pas de clignotement
     var b = document.createElement('button');
     b.type = 'button'; b.className = 'tel-nouveau'; b.setAttribute('aria-label', 'Nouveau mail');
     b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"></path><path d="M13.5 6.5l4 4"></path></svg><span>Nouveau mail</span>';
     b.addEventListener('click', function () { var n = document.getElementById('msg-nouveau'); if (n) n.click(); });
     document.body.appendChild(b);
     var dernier = 0;
-    window.addEventListener('scroll', function () { var y = window.scrollY || 0; b.classList.toggle('replie', y > dernier && y > 80); dernier = y; }, { passive: true });
-    l.addEventListener('scroll', function () { b.classList.toggle('replie', l.scrollTop > 80); }, { passive: true });
+    window.addEventListener('scroll', function () { var y = window.scrollY || 0; b.classList.toggle('tel-reduit', y > dernier && y > 80); dernier = y; }, { passive: true });
+    l.addEventListener('scroll', function () { b.classList.toggle('tel-reduit', l.scrollTop > 80); }, { passive: true });
     setInterval(function () {
       var r = l.getBoundingClientRect(), visible = !!(l.offsetParent && r.height > 0 && r.width > 0);
       document.documentElement.classList.toggle('tel-vue-liste', visible);
+      // Le bouton flotte juste au-dessus de la barre du bas (Mails, Carnet, Plus) quand elle est là.
+      var bm = document.getElementById('barre-mobile'), rb = bm && getComputedStyle(bm).display !== 'none' ? bm.getBoundingClientRect() : null, h = rb && rb.height && rb.top < innerHeight ? Math.round(innerHeight - rb.top) : 0;
+      if (b.dataset.bas !== String(h)) { b.dataset.bas = String(h); b.style.bottom = h ? (h + 14) + 'px' : ''; }
     }, 400);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', brancher); else brancher();
@@ -83,8 +84,9 @@
       pages.length = k;
       return out;
     }
-    var dessinerAvant = dessinerFils;
+    var dessinerAvant = dessinerFils, sansDessin = false, l = document.getElementById('msg-liste');
     dessinerFils = function () {
+      if (sansDessin) return;
       if (dedans) return dessinerAvant.apply(this, arguments);
       var vieux = anciens(), cur = bx.fils || [], vus = {}, tout = [];
       vieux.forEach(function (p) { p.fils.forEach(function (f) { if (!vus[f.id]) { vus[f.id] = 1; tout.push(f); } }); });
@@ -110,7 +112,17 @@
             return !retire;
           });
         });
-        return actionAvant.call(this, action, param, ids);
+        // Étoile, lu / non lu d'un mail : changé sur place, tout de suite, sans redessiner la liste (pas de clignotement).
+        var surPlace = ['suivre', 'nePlusSuivre', 'lu', 'nonLu'].indexOf(action) >= 0 && ids && ids.length && !l.querySelector('.conv input[type="checkbox"]:checked') &&
+          ids.every(function (id) { return !!l.querySelector('.conv[data-conv="' + CSS.escape(id) + '"]'); });
+        if (!surPlace) return actionAvant.call(this, action, param, ids);
+        ids.forEach(function (id) {
+          var c = l.querySelector('.conv[data-conv="' + CSS.escape(id) + '"]'), et = c.querySelector('[data-etoile]');
+          if (action === 'lu' || action === 'nonLu') c.classList.toggle('non-lu', action === 'nonLu');
+          if (et && (action === 'suivre' || action === 'nePlusSuivre')) { et.classList.toggle('on', action === 'suivre'); et.setAttribute('aria-label', action === 'suivre' ? 'Ne plus suivre' : 'Suivre'); }
+        });
+        sansDessin = true;
+        try { return actionAvant.call(this, action, param, ids); } finally { sansDessin = false; }
       };
     }
     if (typeof ouvrirConversation === 'function') {
@@ -130,18 +142,41 @@
         [60, 300].forEach(function (t) { setTimeout(function () { window.scrollTo(0, y); }, t); });
       }, true);
     }
-    var l = document.getElementById('msg-liste');
     var pied = document.createElement('div'); pied.className = 'tel-suite';
     if (l.parentNode) l.parentNode.insertBefore(pied, l.nextSibling);
+    // Page suivante pas encore prête : l'écran vide la liste (« Lecture de Gmail… ») le temps de la lire. Sur le téléphone,
+    // les mails déjà montrés restent à leur place (on peut continuer à les lire) et une roulette tourne en bas.
+    var attenteTexte = '';
+    var html = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+    if (html && html.set) Object.defineProperty(l, 'innerHTML', {
+      configurable: true,
+      get: function () { return html.get.call(this); },
+      set: function (v) {
+        var s = String(v);
+        if ((bx.pile || []).length && this.querySelector('.conv') && s.indexOf('data-conv=') < 0 && s.indexOf('vide-illustre') < 0 && /<p class="(doux|avert)"/.test(s)) {
+          if (/class="avert"/.test(s)) attenteTexte = s.replace(/<[^>]+>/g, '').trim();
+          pied.classList.add('charge'); setTimeout(suite, 0);
+          return;                                   // la liste reste telle quelle pendant la lecture de la suite
+        }
+        html.set.call(this, v);
+      }
+    });
     function suite() {
       var s = document.getElementById('msg-suiv'), encore = !!(bx.suite && bx.fils && bx.fils.length);
-      pied.textContent = encore ? 'Suite…' : '';
-      pied.style.display = encore ? '' : 'none';
+      var lit = !!(demande && bx.charge);
+      pied.classList.toggle('charge', lit);
+      pied.textContent = attenteTexte ? attenteTexte : (lit ? 'Chargement…' : (encore ? 'Suite…' : ''));
+      if (!bx.charge) attenteTexte = '';
+      pied.style.display = (encore || lit || attenteTexte) ? '' : 'none';
       if (!encore || !s || !l.offsetParent) return;
       var r = pied.getBoundingClientRect();
       var proche = r.top < (window.innerHeight || 800) + 900;
       var k = (bx.pile || []).length;
-      if (proche && demande !== k + 1) { demande = k + 1; pied.textContent = 'Chargement…'; s.click(); setTimeout(function () { if (demande === k + 1 && (bx.pile || []).length <= k) demande = 0; }, 15000); }
+      // Jamais de nouvelle demande tant que la page affichée n'est pas lue : sinon l'écran retient chaque appui et enchaîne les pages
+      // (la liste clignotait puis repartait en chargement, en boucle).
+      var lue = null; try { lue = bx.cache[cleListe()]; } catch (x) { lue = null; }
+      if (!lue || lue.attente) return;
+      if (proche && demande !== k + 1) { demande = k + 1; pied.textContent = 'Chargement…'; pied.classList.add('charge'); s.click(); setTimeout(function () { if (demande === k + 1 && (bx.pile || []).length <= k) demande = 0; }, 15000); }
     }
     window.addEventListener('scroll', suite, { passive: true });
     l.addEventListener('scroll', suite, { passive: true });
@@ -302,6 +337,7 @@
     lu: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>',
     suivre: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3 6.4 20.2l1.1-6.2L3 9.6l6.2-.9z"/>'
   };
+  var NOM = { archiver: 'Archiver', corbeille: 'Corbeille', lu: 'Lu', nonLu: 'Non lu', suivre: 'Suivre', nePlusSuivre: 'Ne plus suivre' };
   var COULEUR = { archiver: '#188038', corbeille: '#d93025', lu: '#1a73e8', suivre: '#e37400' };
   function demarrer() {
     var l = document.getElementById('msg-liste');
@@ -317,12 +353,18 @@
     }
     function montrerFond(conv, dx) {
       var a = actionPour(dx);
+      if (fond.parentNode !== l) l.appendChild(fond);   // l'écran redessine la liste : le fond revient sous le doigt
       if (!a || a === 'rien') { fond.style.display = 'none'; return; }
       var loin = Math.abs(dx) > conv.offsetWidth / 3;
       fond.style.display = 'flex'; fond.style.top = conv.offsetTop + 'px'; fond.style.height = conv.offsetHeight + 'px';
       fond.style.justifyContent = dx > 0 ? 'flex-start' : 'flex-end';
       fond.style.background = loin ? (COULEUR[a] || '#5f6368') : 'color-mix(in srgb, ' + (COULEUR[a] || '#5f6368') + ' 55%, var(--carte))';
-      fond.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICO[a] || '') + '</svg>';
+      var cle = vraieAction(a, conv) + (dx > 0 ? 'd' : 'g');
+      if (fond.dataset.cle !== cle) {
+        fond.dataset.cle = cle;
+        var ico = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICO[a] || '') + '</svg>', mot = '<span>' + (NOM[vraieAction(a, conv)] || '') + '</span>';
+        fond.innerHTML = dx > 0 ? ico + mot : mot + ico;
+      }
     }
     l.addEventListener('touchstart', function (e) {
       g = null;
@@ -370,4 +412,69 @@
     }, true);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
+})();
+
+/* Aperçu « Ordinateur » sur téléphone : le mail garde sa largeur d'ordinateur (680 px) mais est réduit pour tenir dans l'écran,
+   au lieu de déborder et de faire défiler la fenêtre sur le côté. */
+(function () {
+  if (window.__telApercuOrdi) return; window.__telApercuOrdi = true;
+  setInterval(function () {
+    var c = document.getElementById('mc-cadre'), r = document.getElementById('mc-rendu');
+    if (!c || !r || !c.offsetParent) return;
+    if (c.classList.contains('ordi')) {
+      var z = Math.min(1, (c.clientWidth || 340) / 680);
+      if (r.style.width !== '680px') { r.style.width = '680px'; r.style.minWidth = '680px'; }
+      if (r.style.zoom !== String(z)) r.style.zoom = String(z);
+    } else if (r.style.zoom) { r.style.zoom = ''; r.style.width = ''; r.style.minWidth = ''; }
+  }, 300);
+})();
+
+/* Fenêtre « Écrire » sur téléphone : le crayon (écrire), l'œil (aperçu) et le trombone (joindre un fichier) montent dans la barre
+   du titre, à côté de « – », « ⋯ » et « × », au lieu d'occuper une bande à eux. Les boutons de l'écran sont déplacés tels quels
+   (leurs actions restent les mêmes) ; une place vide garde leur nom dans la fenêtre pour l'écran. Fenêtre fermée : tout repart. */
+(function () {
+  if (window.__telTeteEcrire) return; window.__telTeteEcrire = true;
+  var TROMBONE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9"/></svg>';
+  function ranger() {
+    var corps = document.getElementById('modale-corps'), m = document.getElementById('modale');
+    var tete = m && m.querySelector('.modale-boite > header');
+    if (!corps || !tete) return;
+    var outils = tete.querySelector('.tel-tete-outils');
+    // Plus de fenêtre d'écriture (fermée, ou autre chose dedans) : on enlève ce qu'on avait monté.
+    if (outils && !corps.querySelector('.mc-bascule.tel-place')) { outils.remove(); outils = null; }
+    var b = corps.querySelector('.mc-bascule:not(.tel-place)');
+    if (!b || m.classList.contains('cache')) return;
+    var place = document.createElement('div'); place.className = 'segment mc-bascule tel-place cache'; place.hidden = true;
+    b.parentNode.insertBefore(place, b);
+    if (outils) outils.remove();
+    outils = document.createElement('span'); outils.className = 'tel-tete-outils';
+    outils.appendChild(b);
+    if (document.getElementById('mc-fichier')) {
+      var j = document.createElement('label'); j.className = 'tel-joindre'; j.htmlFor = 'mc-fichier'; j.title = 'Joindre un fichier'; j.setAttribute('aria-label', 'Joindre un fichier'); j.innerHTML = TROMBONE;
+      outils.appendChild(j);
+    }
+    var h = tete.querySelector('h2');
+    if (h && h.nextSibling) tete.insertBefore(outils, h.nextSibling); else tete.appendChild(outils);
+  }
+  function demarrer() {
+    var corps = document.getElementById('modale-corps');
+    if (!corps) return setTimeout(demarrer, 300);
+    new MutationObserver(ranger).observe(corps, { childList: true });
+    var m = document.getElementById('modale'); if (m) new MutationObserver(ranger).observe(m, { attributes: true, attributeFilter: ['class'] });
+    setInterval(ranger, 500);
+    ranger();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
+})();
+
+/* Rien ne défile sur le côté : si la page ou une fenêtre a été poussée de côté (champ qui prend la main, contenu trop large),
+   elle revient aussitôt au bord gauche. Les rangées faites pour défiler (outils de mise en forme, onglets) ne sont pas touchées. */
+(function () {
+  if (window.__telPasDeCote) return; window.__telPasDeCote = true;
+  function remettre(el) { if (el && el.scrollLeft) el.scrollLeft = 0; }
+  document.addEventListener('scroll', function (e) {
+    var t = e.target;
+    if (t === document || t === document.documentElement || t === document.body) { if (window.scrollX) window.scrollTo(0, window.scrollY); remettre(document.documentElement); remettre(document.body); return; }
+    if (t && t.matches && t.matches('.modale-boite, .modale-corps, main, .contenu, .appli, #msg-grille, .msg-colonne')) remettre(t);
+  }, true);
 })();

@@ -1,6 +1,15 @@
 package ch.origami.boitemail.veille
 
 import android.app.Activity
+import android.app.DownloadManager
+import android.content.ActivityNotFoundException
+import android.content.ContentValues
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
+import android.util.Base64
+import android.webkit.MimeTypeMap
 import android.view.View
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
@@ -28,6 +37,17 @@ class CompteArg {
 @InvokeArg
 class ConfigurerArgs {
     var comptes: Array<CompteArg> = arrayOf()
+}
+
+@InvokeArg
+class EnregistrerArgs {
+    var nom: String = ""
+    var base64: String = ""
+}
+
+@InvokeArg
+class OuvrirArgs {
+    var uri: String = ""
 }
 
 /** Pont entre la coquille et la veille : la liste des boîtes est gardée dans l'appareil pour que la veille tourne appli fermée. */
@@ -73,6 +93,76 @@ class VeillePlugin(private val activity: Activity) : Plugin(activity) {
             val r = JSObject(); r.put("comptes", liste.length()); invoke.resolve(r)
         } catch (e: Exception) {
             invoke.reject(e.message ?: "configurer")
+        }
+    }
+
+    /** Fichiers enregistrés pendant cette séance : seuls ceux-là peuvent être ouverts. */
+    private val enregistres = mutableSetOf<String>()
+
+    private fun typeDe(nom: String): String {
+        val ext = nom.substringAfterLast('.', "").lowercase()
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+    }
+
+    /** Pièce jointe téléchargée : rangée dans « Téléchargements » du téléphone (Android choisit « nom (1) » si le nom est pris). */
+    @Command
+    fun enregistrer(invoke: Invoke) {
+        try {
+            val a = invoke.parseArgs(EnregistrerArgs::class.java)
+            if (Build.VERSION.SDK_INT < 29) { invoke.reject("Enregistrer un fichier demande Android 10 ou plus récent."); return }
+            val nom = a.nom.map { c -> if (c == '/' || c == '\\' || c == ':' || c.isISOControl()) '-' else c }.joinToString("").trim().trimStart('.').trim().take(180).ifBlank { "fichier" }
+            val octets = Base64.decode(a.base64, Base64.DEFAULT)
+            val res = activity.contentResolver
+            val valeurs = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, nom)
+                put(MediaStore.Downloads.MIME_TYPE, typeDe(nom))
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val uri = res.insert(MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), valeurs)
+                ?: throw Exception("« Téléchargements » n'est pas accessible")
+            try {
+                (res.openOutputStream(uri) ?: throw Exception("écriture impossible")).use { it.write(octets) }
+                valeurs.clear(); valeurs.put(MediaStore.Downloads.IS_PENDING, 0)
+                res.update(uri, valeurs, null, null)
+            } catch (e: Exception) {
+                try { res.delete(uri, null, null) } catch (x: Exception) { }
+                throw e
+            }
+            var nomFinal = nom
+            res.query(uri, arrayOf(MediaStore.Downloads.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) nomFinal = c.getString(0) ?: nom }
+            enregistres.add(uri.toString())
+            val r = JSObject(); r.put("uri", uri.toString()); r.put("nom", nomFinal); invoke.resolve(r)
+        } catch (e: Exception) {
+            invoke.reject(e.message ?: "enregistrer")
+        }
+    }
+
+    /** Ouvre un fichier que l'appli vient d'enregistrer, avec l'appli du téléphone qui sait le lire. */
+    @Command
+    fun ouvrir(invoke: Invoke) {
+        try {
+            val a = invoke.parseArgs(OuvrirArgs::class.java)
+            if (!enregistres.contains(a.uri)) { invoke.reject("fichier inconnu"); return }
+            val uri = Uri.parse(a.uri)
+            val type = activity.contentResolver.getType(uri) ?: "application/octet-stream"
+            val i = Intent(Intent.ACTION_VIEW).setDataAndType(uri, type).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            activity.startActivity(i)
+            invoke.resolve(JSObject())
+        } catch (e: ActivityNotFoundException) {
+            invoke.reject("Aucune appli du téléphone ne sait ouvrir ce fichier.")
+        } catch (e: Exception) {
+            invoke.reject(e.message ?: "ouvrir")
+        }
+    }
+
+    /** Ouvre la liste des téléchargements du téléphone. */
+    @Command
+    fun telechargements(invoke: Invoke) {
+        try {
+            activity.startActivity(Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            invoke.resolve(JSObject())
+        } catch (e: Exception) {
+            invoke.reject(e.message ?: "telechargements")
         }
     }
 
