@@ -745,7 +745,7 @@
   // Google ne montre à la page que les fichiers qu'elle a créés (droit drive.file). Une copie faite à la main n'en fait pas partie :
   // la personne la choisit dans le sélecteur de fichiers de Google, ce qui donne à Origami le droit sur CE fichier seulement.
   // Clé du sélecteur (projet Google « Origami » de la compagnie, restreinte à ce site et à « Google Picker API ») : publique par nature.
-  var CLE_SELECTEUR = "", PROJET_NUMERO = CLIENT.split("-")[0], MARQUE_BOITE_MAIN = "boite-main";
+  var CLE_SELECTEUR = "AIzaSyAmrw98S7SpnQR1_3OTycbGksAy1H6Pe08", PROJET_NUMERO = CLIENT.split("-")[0], MARQUE_BOITE_MAIN = "boite-main";
   function selecteurPret() { return !!(racine.google && racine.google.picker && racine.google.picker.PickerBuilder); }
   function chargerSelecteur() {
     if (selecteurPret()) return Promise.resolve();

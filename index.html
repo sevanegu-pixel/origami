@@ -52,6 +52,22 @@ try { if (/\/$/.test(location.pathname)) history.replaceState(null, "", location
   var j = lire(CLE);
   // Fenêtre détachée (bouton « Détacher » de l'appli) : ?ouvrir=… dit quel écran ouvrir
   var ouvrir = (location.search.match(/[?&]ouvrir=([A-Za-z0-9_-]{1,6000})(&|$)/) || [])[1] || "";
+  // 28.11 (Sévane : plusieurs Comptas dans la même appli) : les Comptas des autres comptes vivent dans l'appli Compta seule
+  // (accueil/?fenetre=compta, même adresse github.io, donc mêmes jetons). Tant que la compagnie est la seule Compta connue de
+  // cet appareil, rien ne change ici. Sinon : la Compta choisie la dernière fois, ou la question « Quelle Compta ouvrir ? ».
+  var recues = []; try { recues = JSON.parse(lire("origami_comptas_recues") || "[]"); } catch (e) { recues = []; }
+  var COULEURS = ["#1f5cff", "#e0a800", "#15803d", "#b42318", "#7d3c5e", "#0e7490"];   // les mêmes que la page accueil/
+  recues = (Array.isArray(recues) ? recues : []).filter(function (r) { return r && /^c[0-9a-z]{4,12}$/.test(r.id) && typeof r.nom === "string" && r.nom.trim() && COULEURS.indexOf(r.couleur) >= 0 && (r.m === 2 || /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(r.u || "")); });
+  var choisi = lire("origami_compta_choisi");
+  function recue(id) { for (var i = 0; i < recues.length; i++) if (recues[i].id === id) return recues[i]; return null; }
+  var SEULE = "accueil/?fenetre=compta";
+  if (!ouvrir && ((choisi && choisi !== "compagnie" && recue(choisi)) || (!choisi && recues.length))) { location.replace(SEULE); return; }
+  function listeComptes() {
+    var l = [{ id: "compagnie", nom: "Compagnie Origami", couleur: "#1f5cff", compta: true }];
+    recues.forEach(function (r) { l.push({ id: r.id, nom: r.nom.slice(0, 60), couleur: r.couleur, compta: true }); });
+    l.push({ id: "+ajouter", nom: "+ Ajouter ou retirer une Compta", couleur: "", compta: true });
+    return { origami: "comptes", actuel: "compagnie", repertoire: false, liste: l };
+  }
   var params = [];
   if (/^[a-f0-9]{96}$/.test(j)) params.push("jeton=" + j);
   if (ouvrir) params.push("ouvrir=" + ouvrir);
@@ -71,6 +87,14 @@ try { if (/\/$/.test(location.pathname)) history.replaceState(null, "", location
     try { for (var i = 0; w && i < 6; i++) { if (w === cadre) { deChezNous = true; break; } if (w === w.parent) break; w = w.parent; } } catch (e2) {}
     if (!deChezNous) return;   // jeton compris : une autre page Google qui aurait ouvert celle-ci est ignorée
     if (d.origami === "jeton") { garder(CLE, /^[a-f0-9]{96}$/.test(d.jeton || "") ? d.jeton : ""); if (!lire(CLE)) ecrireCopie(""); return; }
+    // Menu des comptes de la Compta (le nom du compte, en haut) : la compagnie ici, les autres dans l'appli Compta seule.
+    if (d.origami === "comptes-demande") { try { ev.source.postMessage(listeComptes(), ev.origin); } catch (e) {} return; }
+    if (d.origami === "compte-choisir") {
+      var cid = String(d.id || "");
+      if (cid === "+ajouter") { location.href = SEULE + "#ajouter-compta"; return; }
+      if (cid !== "compagnie" && recue(cid)) { garder("origami_compta_choisi", cid); location.href = SEULE; }
+      return;
+    }
     if (d.origami === "cache-lire") { lireCopie(function (t) { try { ev.source.postMessage({ origami: "cache", texte: t || "" }, ev.origin); } catch (e) {} }); return; }
     if (d.origami === "cache-ecrire") { if (typeof d.texte === "string" && d.texte.length < 6e7) ecrireCopie(d.texte); return; }
     if (d.origami === "ouvrir" && /^[A-Za-z0-9_-]{1,6000}$/.test(d.ouvrir || "")) {

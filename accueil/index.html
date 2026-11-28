@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="origami-version" content="2026-11-28.97">
+<meta name="origami-version" content="2026-11-28.99">
 <title>Origami</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#f3f1ed">
@@ -604,11 +604,11 @@ p.aide-fine.lu { margin: 6px 0 0; }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-28.96"></script>
-<script src="repertoire.js?v=2026-11-28.96"></script>
-<script src="partage.js?v=2026-11-28.96"></script>
-<script src="fichiers.js?v=2026-11-28.96"></script>
-<script src="google.js?v=2026-11-28.96"></script>
+<script src="agenda.js?v=2026-11-28.99"></script>
+<script src="repertoire.js?v=2026-11-28.99"></script>
+<script src="partage.js?v=2026-11-28.99"></script>
+<script src="fichiers.js?v=2026-11-28.99"></script>
+<script src="google.js?v=2026-11-28.99"></script>
 <script>
 (function () {
   "use strict";
@@ -1221,7 +1221,12 @@ p.aide-fine.lu { margin: 6px 0 0; }
         }
         return;
       }
-      if (cv && !comptaDe(cv.id)) avis("La Compta de « " + cv.nom + " » n'est pas encore installée : l'appli Compta s'ouvre sur la compagnie. Pour l'installer : Applis, compte « " + cv.nom + " », ligne Compta.", true);
+      // 28.11 : un compte sans Compta ne voit jamais la Compta (ni le code PIN) de la compagnie : on lui propose d'installer la sienne.
+      if (cv && !comptaDe(cv.id)) {
+        if (moteurs[cv.id]) { avis("La Compta de « " + cv.nom + " » n'est pas encore installée. Voici le guide pour l'installer.", true); comptaGuide(cv.id); }
+        else avis("La Compta de « " + cv.nom + " » n'est pas encore installée. Pour l'installer : Applis, compte « " + cv.nom + " », ligne Compta.", true);
+        return;
+      }
       else if (!cv && sans.length && sans.length === etat.ajoutes.length) avis("Aucun autre compte n'a encore sa Compta installée : l'appli Compta s'ouvre sur la compagnie.");
     }
     if (id === "tickets" && !macOuvrir.sansQuestion) {
@@ -5481,6 +5486,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
     if (d.familleNon) { var vu = familleVus(); if (vu.indexOf(d.familleNon) < 0) vu.push(d.familleNon); garder("origami_famille_vus", JSON.stringify(vu.slice(-30))); montrer(); return; }
     if (d.accueilGoogle && PARCOURS_GOOGLE) { parcoursQuitter(); guide.etape = 0; guide.pour = ""; etat.vue = "ajouter"; montrer(); parcoursLancer(); return; }
     if (d.comptaGoogle && COMPTA_SEULE) { comptaParGoogle(); return; }
+    if (d.comptaAutres && COMPTA_SEULE) { CHOIX_DEPART = false; montrer(); return; }
     if (d.comptaVoir && COMPTA_SEULE) { if (compte(d.comptaVoir) && comptaDe(d.comptaVoir)) { garder("origami_compta_choisi", d.comptaVoir); etat.compte = d.comptaVoir; etat.vue = "compta"; montrer(); } return; }
     if (d.comptaAjout && COMPTA_SEULE) { if (d.comptaAjout === "ok") comptaAjouter(); else { etat.vue = "compta"; montrer(); } return; }
     if (d.comptaRetirer && COMPTA_SEULE) { comptaRetirer(d.comptaRetirer); return; }
@@ -5692,7 +5698,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
   // Elle a sa propre mémoire et ne connaissait que la Compta de la compagnie. Origami lui transmet, en l'ouvrant, les comptes qui
   // ont une Compta (#comptas=…) ; elle les garde, montre celui demandé, puis se souvient du dernier compte choisi dans son menu.
   // La fenêtre Compta qu'Origami ouvre lui-même (&dans=origami) montre la compagnie ; une fenêtre détachée, le compte dit par « &de= ».
-  var COMPTA_SEULE = FENETRE === "compta" && !OUVRIR && !/[?&]dans=origami(&|$)/.test(location.search), COMPTAS_RECUES = {};
+  var COMPTA_SEULE = FENETRE === "compta" && !OUVRIR && !/[?&]dans=origami(&|$)/.test(location.search), COMPTAS_RECUES = {}, CHOIX_DEPART = false;
   function lireComptasTransmises(b) {
     try {
       var o = JSON.parse(decodeURIComponent(escape(atob(String(b).replace(/-/g, "+").replace(/_/g, "/")))));
@@ -5717,6 +5723,14 @@ p.aide-fine.lu { margin: 6px 0 0; }
   // L'adresse seule n'ouvre rien : chaque Compta vérifie son PIN elle-même, jamais celui d'une autre.
   function comptasAMain() { var l = []; try { l = JSON.parse(lire("origami_comptas_recues") || "[]"); } catch (e) { l = []; } return (Array.isArray(l) ? l : []).filter(function (r) { return r && r.m === 1 && /^c[0-9a-z]{4,12}$/.test(r.id) && /^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(r.u); }); }
   function dessinerComptaAjout() {
+    // 28.11 (Sévane : « demander le compte ») : plusieurs Comptas et aucune encore choisie sur cet appareil : on demande laquelle ouvrir.
+    var ouvrables = comptes().filter(function (c) { return !!comptaDe(c.id); });
+    if (CHOIX_DEPART && !lire("origami_compta_choisi") && ouvrables.length >= 2) {
+      var hc = '<div class="info compta-ajout" data-compta-choix="1"><h1>Quelle Compta ouvrir ?</h1><p class="aide-fine">L\'appli s\'en souviendra. Pour changer ensuite : le nom du compte, en haut de la Compta.</p>';
+      ouvrables.forEach(function (c) { hc += '<div class="rang-r"><span class="nom"><span aria-hidden="true" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;background:' + c.couleur + '"></span>' + texte(c.nom) + '</span><button class="bouton fort" data-compta-voir="' + texte(c.id) + '">Ouvrir</button></div>'; });
+      page.innerHTML = hc + '<div class="actions"><button class="bouton" data-compta-autres="1">+ Ajouter ou retirer une Compta</button></div></div>';
+      return;
+    }
     var mains = comptasAMain(), vide = !comptes().length, G = window.OrigamiGoogle, h = '<div class="info compta-ajout"><h1>' + (vide ? "Aucune Compta ici pour l'instant" : "Ajouter une Compta") + "</h1>";
     // 26.11 (Sévane : « si j'installe Compta toute seule, sans Origami ») : le chemin principal est « Continuer avec Google », comme dans Origami.
     if (parcours.souciAccueil) h += '<p class="souci-guide" role="alert">' + texte(parcours.souciAccueil) + "</p>";
@@ -6040,9 +6054,15 @@ p.aide-fine.lu { margin: 6px 0 0; }
     document.addEventListener("visibilitychange", relireTickets);
   }
   if (FENETRE === "compta" && DE) prendreComptas();   // appli Compta du Mac : ses comptes viennent de la liste reçue d'Origami
-  if (FENETRE) { etat.compte = "compagnie"; if (DE && compte(DE)) etat.compte = DE; else if (COMPTA_SEULE) { var chx = lire("origami_compta_choisi"); if (chx && compte(chx)) etat.compte = chx; else if (!compte("compagnie")) etat.compte = compteParDefaut(); } etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE;
+  if (FENETRE) { etat.compte = "compagnie"; if (DE && compte(DE)) etat.compte = DE; else if (FENETRE === "compta" && DE && DE !== "compagnie") { etat.compte = compteParDefaut(); } else if (COMPTA_SEULE) { var chx = lire("origami_compta_choisi"); if (chx && compte(chx)) etat.compte = chx; else if (!compte("compagnie")) etat.compte = compteParDefaut(); } etat.vue = FENETRE === "tickets0" && LIEN_RELIER && !moteurs.compagnie ? "relier" : FENETRE === "compta" && DE && DE !== "compagnie" && !compte(DE) ? "comptaAjout" : FENETRE;
     if (FENETRE === "tickets") { var tkc = TK_RECU || (DE_TK && compte(DE_TK) ? DE_TK : "") || (TK_SEUL ? lire("origami_tk_choisi") : ""); etat.compte = tkc && compte(tkc) ? tkc : compte("compagnie") ? "compagnie" : compteParDefaut(); etat.vue = etat.compte === "tous" ? "ajouter" : vueTk(etat.compte); } }
   else if (MAC && FENETRES_MAC[etat.vue]) etat.vue = "accueil";   // appli Mac : ces applis vivent dans leur fenêtre, pas dans celle-ci
+  // 28.11 : appli Compta seule (navigateur, appli Android, appli du Mac). « #ajouter-compta » (venu de la coquille de la Compta) ouvre
+  // l'écran d'ajout ; sans compte déjà choisi sur cet appareil et avec plusieurs Comptas, elle demande laquelle ouvrir au lieu de la compagnie.
+  if (COMPTA_SEULE && !DE) {
+    if (ancre === "ajouter-compta") { try { history.replaceState(null, "", location.href.split("#")[0]); } catch (e) {} ancre = ""; etat.vue = "comptaAjout"; }
+    else if (!lire("origami_compta_choisi") && comptasGardees().length + (compte("compagnie") ? 1 : 0) >= 2) { CHOIX_DEPART = true; etat.vue = "comptaAjout"; }
+  }
   // Un compte relié retrouve d'abord sa mémoire (ses applis installées, ses listes) ; ensuite l'écran s'affiche.
   if (BOITE_SEULE) boiteSeuleDemarrer();
   else if (BOITE_RETIRER) boiteRetirerDemarrer();
