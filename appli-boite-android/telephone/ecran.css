@@ -95,3 +95,7 @@ html.telephone #modale-pied .btn { min-height: 36px; height: 36px; padding: 0 10
 html.telephone #modale-pied #mc-envoyer { margin-left: auto; padding: 0 18px; border-radius: 18px; font-size: 14px; }
 html.telephone #modale-pied .mc-etat-pied { flex-basis: 100%; font-size: 11px; }
 html.telephone #modale-pied .mc-etat-pied:empty { display: none; }
+
+/* Défilement sans fin : plus de pages à choisir, la suite arrive seule en bas de la liste. */
+html.telephone #msg-actions .pagination-haut, html.telephone .pagination-boite { display: none !important; }
+html.telephone .tel-suite { padding: 14px; text-align: center; font-size: 13px; color: var(--doux); }

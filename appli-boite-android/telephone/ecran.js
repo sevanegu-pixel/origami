@@ -54,3 +54,89 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', brancher); else brancher();
 })();
+
+/* Défilement sans fin (téléphone) : les pages déjà lues restent au-dessus, la suivante est demandée toute seule
+   quand on approche du bas. Le moteur continue de lire Gmail page par page comme avant (mêmes jetons, même réserve) :
+   seul l'affichage met les pages bout à bout. */
+(function () {
+  if (window.__telSansFin) return; window.__telSansFin = true;
+  function pret() { return typeof dessinerFils === 'function' && typeof bx === 'object' && bx && document.getElementById('msg-suiv'); }
+  function demarrer() {
+    if (!pret()) return setTimeout(demarrer, 300);
+    var pages = [], dedans = false, demande = 0;
+    function cle() { return String(bx.dossier || '') + '|' + String(bx.libelle || '') + '|' + String(bx.recherche || '') + '|' + (bx.contactsSeuls ? 1 : 0); }
+    function pareil(a, b) { return Number(a.debut) === Number(b.debut) && String(a.jeton || '') === String(b.jeton || ''); }
+    function anciens() {
+      // Les pages au-dessus de celle affichée, dans l'ordre de la pile du moteur : celles déjà montrées ici,
+      // sinon celles que le moteur garde en réserve (bx.cache). Une page introuvable est simplement sautée.
+      var k = (bx.pile || []).length, out = [];
+      if (bx.dossier === 'programmes' && !bx.libelle) { pages.length = 0; return out; }
+      for (var i = 0; i < k; i++) {
+        var e = bx.pile[i], p = pages[i];
+        if (!(p && p.cle === cle() && pareil(p, e))) {
+          var c = null;
+          try { c = typeof cleListe === 'function' ? bx.cache[cleListe(e.jeton, e.debut)] : null; } catch (x) { c = null; }
+          p = pages[i] = c && c.fils && !c.attente ? { cle: cle(), debut: e.debut, jeton: e.jeton, fils: c.fils.slice() } : null;
+        }
+        if (p) out.push(p);
+      }
+      pages.length = k;
+      return out;
+    }
+    var dessinerAvant = dessinerFils;
+    dessinerFils = function () {
+      if (dedans) return dessinerAvant.apply(this, arguments);
+      var vieux = anciens(), cur = bx.fils || [], vus = {}, tout = [];
+      vieux.forEach(function (p) { p.fils.forEach(function (f) { if (!vus[f.id]) { vus[f.id] = 1; tout.push(f); } }); });
+      cur.forEach(function (f) { if (!vus[f.id]) { vus[f.id] = 1; tout.push(f); } });
+      var k = (bx.pile || []).length;
+      pages[k] = { cle: cle(), debut: bx.debut, jeton: bx.jeton, fils: cur };
+      if (demande && k >= demande) demande = 0;
+      dedans = true; bx.fils = tout;
+      try { return dessinerAvant.apply(this, arguments); }
+      finally { bx.fils = cur; dedans = false; suite(); }
+    };
+    if (typeof actionBoite === 'function') {
+      var actionAvant = actionBoite;
+      actionBoite = function (action, param, ids) {
+        var liste = ids || (typeof idsCoches === 'function' ? idsCoches() : []);
+        var retire = ['archiver', 'corbeille', 'deplacer', 'restaurer'].indexOf(action) >= 0 || (action === 'boiteReception' && bx.dossier !== 'tous');
+        anciens().forEach(function (p) {
+          p.fils = p.fils.filter(function (f) {
+            if (liste.indexOf(f.id) < 0) return true;
+            if (action === 'lu') f.nonLu = false; if (action === 'nonLu') f.nonLu = true;
+            if (action === 'suivre') f.suivi = true; if (action === 'nePlusSuivre') f.suivi = false;
+            if (action === 'libeller' && f.libelles.indexOf(param) < 0) f.libelles.push(param);
+            return !retire;
+          });
+        });
+        return actionAvant.call(this, action, param, ids);
+      };
+    }
+    if (typeof ouvrirConversation === 'function') {
+      var ouvrirAvant = ouvrirConversation;
+      ouvrirConversation = function (id) {
+        anciens().forEach(function (p) { p.fils.forEach(function (f) { if (f.id === id) f.nonLu = false; }); });
+        return ouvrirAvant.apply(this, arguments);
+      };
+    }
+    var l = document.getElementById('msg-liste');
+    var pied = document.createElement('div'); pied.className = 'tel-suite';
+    if (l.parentNode) l.parentNode.insertBefore(pied, l.nextSibling);
+    function suite() {
+      var s = document.getElementById('msg-suiv'), encore = !!(bx.suite && bx.fils && bx.fils.length);
+      pied.textContent = encore ? 'Suite…' : '';
+      pied.style.display = encore ? '' : 'none';
+      if (!encore || !s || !l.offsetParent) return;
+      var r = pied.getBoundingClientRect();
+      var proche = r.top < (window.innerHeight || 800) + 900;
+      var k = (bx.pile || []).length;
+      if (proche && demande !== k + 1) { demande = k + 1; pied.textContent = 'Chargement…'; s.click(); setTimeout(function () { if (demande === k + 1 && (bx.pile || []).length <= k) demande = 0; }, 15000); }
+    }
+    window.addEventListener('scroll', suite, { passive: true });
+    l.addEventListener('scroll', suite, { passive: true });
+    setInterval(suite, 700);
+    suite();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
+})();
