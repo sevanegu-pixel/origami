@@ -171,9 +171,9 @@
   }
   function etatDe(c) {
     var n = enAttente(c.id);
-    if (!P.relie(c.id)) return "Ce compte n'est pas relié à son moteur : son répertoire reste sur cet appareil.";
+    if (!P.relie(c.id)) return "Ce compte n'est pas relié à son moteur : ses contacts communs restent sur cet appareil.";
     if (pannes[c.id]) return "Le compte n'a pas pu ranger " + (n > 1 ? "les derniers changements" : "le dernier changement") + " (" + pannes[c.id] + "). Ils sont gardés sur cet appareil.";
-    if (n && sans[c.id]) return "Gardé sur cet appareil pour l'instant : le moteur de ce compte ne connaît pas encore le répertoire commun.";
+    if (n && sans[c.id]) return "Gardé sur cet appareil pour l'instant : le moteur de ce compte ne connaît pas encore les contacts communs.";
     if (n) return "Rangement dans le compte en cours…";
     return "";
   }
@@ -183,15 +183,15 @@
     cs.forEach(function (c) {
       var toutes = locaux[c.id] ? fichesDe(c.id) : null, l = toutes ? toutes.filter(function (f) { return correspond(f, q); }) : [];
       if (toutes) total += toutes.length;
-      if (cs.length > 1) corps += '<div class="du-compte"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + (toutes ? ' <span class="doux">· ' + toutes.length + "</span>" : "") + "</div>";
+      if (cs.length > 1) corps += '<div class="du-compte"><span class="point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + (c.partage ? ' <span class="etiquette">partagés avec ce compte</span>' : "") + (toutes ? ' <span class="doux">· ' + toutes.length + "</span>" : "") + "</div>";
       var e = toutes ? etatDe(c) : "";
       if (e) corps += '<p class="aide rp-etat' + (pannes[c.id] ? " souci" : "") + '">' + texte(e) + (pannes[c.id] || (sans[c.id] && enAttente(c.id)) ? ' <button class="lien" data-rp="reessayer" data-c="' + c.id + '">Réessayer</button>' : "") + "</p>";
       if (!toutes) corps += '<p class="vide">Lecture…</p>';
-      else if (!toutes.length) corps += '<p class="vide">' + (cs.length > 1 ? "Rien dans le répertoire commun de ce compte." : "Rien dans le répertoire commun pour l'instant. Ajoute un contact ici, ou envoie-le depuis une appli.") + "</p>";
+      else if (!toutes.length) corps += '<p class="vide">' + (cs.length > 1 ? "Aucun contact commun dans ce compte." : "Aucun contact commun pour l'instant. Ajoute un contact ici, ou envoie-le depuis une appli.") + "</p>";
       else if (!l.length) corps += '<p class="vide">Aucun contact ne correspond.</p>';
       else l.forEach(function (f) { corps += rangee(c, f); });
     });
-    var h = '<div class="appli large rp"><div class="entete"><div><h1>Répertoire commun</h1><p>' + (cs.length > 1 ? "Les contacts partagés entre les applis de chaque compte." : "Les contacts partagés entre les applis de ce compte.") + "</p></div>";
+    var h = '<div class="appli large rp"><div class="entete"><div><h2>Contacts communs</h2><p>' + (cs.length > 1 ? "Les contacts communs aux applis de chaque compte." : "Les contacts communs aux applis de ce compte.") + "</p></div>";
     h += '<div class="actions"><button class="bouton fort" data-rp="ajouter">Ajouter</button><button class="bouton" data-rp="coller">Coller des adresses</button></div></div>';
     h += '<p class="aide">Chaque appli garde son propre carnet. Seuls les contacts que tu envoies ici sont communs.</p>';
     if (!cs.length) h += '<p class="vide">Aucun compte affiché.</p>';
@@ -213,7 +213,7 @@
     return '<label class="champ">Compte<select id="rpCompte">' + cs.map(function (c) { return '<option value="' + c.id + '"' + (c.id === id ? " selected" : "") + ">" + texte(c.nom) + "</option>"; }).join("") + "</select></label>";
   }
   function feuilleFiche(idC, f) {
-    var h = "<h2>" + (f ? "Modifier le contact" : "Ajouter au répertoire commun") + "</h2>";
+    var h = "<h2>" + (f ? "Modifier le contact" : "Ajouter aux contacts communs") + "</h2>";
     h += f ? '<input type="hidden" id="rpCompte" value="' + idC + '">' : choixCompte(idC);
     h += '<label class="champ">Nom<input id="rpNom" maxlength="120" autocomplete="off" value="' + texte(f ? f.nom : "") + '"></label>';
     h += '<label class="champ">Lieu ou structure<input id="rpStructure" maxlength="120" autocomplete="off" value="' + texte(f ? f.structure : "") + '"></label>';
@@ -252,7 +252,7 @@
     if (d.rp === "ecrire") { if (f && f.mail && !P.ecrire(idC, f.mail)) P.avis("La Boîte mail ne s'est pas ouverte.", true); return; }
     if (d.rp === "retirer") {
       if (!f) return;
-      P.demander("Retirer ce contact du répertoire commun ?", (f.nom || f.structure || f.mail) + " quitte le répertoire commun. Les carnets des applis ne changent pas.", [{ nom: "Annuler" }, { nom: "Retirer", fort: true, action: function () { retirer(idC, f.id).then(function () { P.avis("Contact retiré du répertoire commun."); }); } }]);
+      P.demander("Retirer ce contact des contacts communs ?", (f.nom || f.structure || f.mail) + " quitte les contacts communs. Les carnets des applis ne changent pas.", [{ nom: "Annuler" }, { nom: "Retirer", fort: true, action: function () { retirer(idC, f.id).then(function () { P.avis("Contact retiré des contacts communs."); }); } }]);
       return;
     }
     if (d.rp === "enregistrer") {
@@ -262,9 +262,9 @@
       if (mail && !MAIL.test(mail)) { souci("Cette adresse mail n'a pas la bonne forme."); return; }
       var n = fichePropre({ id: ancienne ? ancienne.id : "", nom: val("rpNom"), structure: val("rpStructure"), mail: mail, tel: val("rpTel"), note: val("rpNote"), source: ancienne ? ancienne.source : "Ajouté à la main", le: ancienne ? ancienne.le : "" });
       if (!n) { souci("Donne au moins un nom, un lieu, une adresse ou un téléphone."); return; }
-      if (mail && fichesDe(compte).some(function (x) { return x.mail === mail && x.id !== n.id; })) { souci("Cette adresse est déjà dans le répertoire commun de ce compte."); return; }
+      if (mail && fichesDe(compte).some(function (x) { return x.mail === mail && x.id !== n.id; })) { souci("Cette adresse est déjà dans les contacts communs de ce compte."); return; }
       P.fermerVoile();
-      ecrire(compte, n).then(function () { P.avis(ancienne ? "Contact enregistré." : "Contact ajouté au répertoire commun."); });
+      ecrire(compte, n).then(function () { P.avis(ancienne ? "Contact enregistré." : "Contact ajouté aux contacts communs."); });
       return;
     }
     if (d.rp === "coller-ok") {
@@ -293,6 +293,7 @@
   var css = document.createElement("style");
   css.textContent = [
     ".rp .entete{align-items:center;max-width:none;margin:0 0 10px}",
+    ".rp .entete h2{margin:0;font-size:17px}",
     ".rp-fiche .detail{flex-basis:240px}",
     ".rp-fiche .rp-note{flex-basis:100%;white-space:pre-wrap}",
     ".rp-ici{background:#fff3cd;color:#7a5600}",
