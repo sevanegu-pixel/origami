@@ -20,7 +20,9 @@
   var AUTO_MAX_PETIT = 15 * MO;
   var APERCU_MAX = 40 * MO;      // aperçu dans la fiche : au plus 40 Mo
   var PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
-  var F = { compte: "", spectacle: "", raccourci: "", doc: "", cherche: "", ecran: "liste", fiche: false, menu: false };
+  var F = { compte: "", spectacle: "", raccourci: "", doc: "", cherche: "", ecran: "liste", fiche: false, menu: false, depuis: "", choix: false, pris: {} };
+  // Partage entre comptes (28.11) : F.depuis = le compte affiché dans le volet quand on regarde les spectacles qu'un autre compte
+  // (F.compte) partage avec lui. On ne montre alors que ces spectacles-là.
   var D = {};        // par compte : { projets, le, frais, panne, enCours, lu }
   var G = {};        // gardés, par compte : { idFichier: { c: chemin sur le Mac, t: taille, m: repère de version, n: nom, s: spectacle, y: type } }
   var CHOIX = {};    // par compte : { idFichier: "ligne" } (en ligne seulement)
@@ -141,7 +143,33 @@
       }, function (e) { d.panne = message(e) || "Pas de réponse."; d.frais = Date.now() - 240000; }).then(function () { d.enCours = false; dessiner(); suite(cid); });
     }
   }
-  function projets(cid) { var d = D[cid]; return d && Array.isArray(d.projets) ? d.projets.filter(function (p) { return p && typeof p === "object" && p.nom; }) : []; }
+  function partagesRecus(cid) { return P && P.partages ? P.partages(cid) : []; }
+  // Un fichier partagé seul : « spectacle::fichier » (l'identifiant Drive du fichier, sinon son nom).
+  function cleFichier(p, d) { return String(p.id || p.nom) + "::" + String(d.fichierId || d.nom); }
+  function spectacleDe(cle) { var i = String(cle).indexOf("::"); return i < 0 ? String(cle) : String(cle).slice(0, i); }
+  // Ce que F.compte partage avec F.depuis : par spectacle, true (tout) ou { fichier: 1 } (certains fichiers).
+  function seuls() {
+    var o = {};
+    partagesRecus(F.depuis).forEach(function (r) {
+      if (r.src !== F.compte) return;
+      if (r.quoi !== "fichier") { o[r.cle] = true; return; }
+      var k = spectacleDe(r.cle);
+      if (o[k] !== true) { o[k] = o[k] || {}; o[k][r.cle] = 1; }
+    });
+    return o;
+  }
+  function projets(cid) {
+    var d = D[cid], l = d && Array.isArray(d.projets) ? d.projets.filter(function (p) { return p && typeof p === "object" && p.nom; }) : [];
+    if (F.depuis && cid === F.compte) {
+      var s = seuls();
+      l = l.filter(function (p) { return s[p.id || p.nom]; }).map(function (p) {
+        var t = s[p.id || p.nom];
+        return t === true ? p : Object.assign({}, p, { documents: docsDe(p).filter(function (x) { return t[cleFichier(p, x)]; }) });
+      });
+    }
+    return l;
+  }
+  function voirPartage(depuis, src, cle) { F.choix = false; F.pris = {}; F.depuis = depuis; F.compte = src; F.spectacle = spectacleDe(cle || ""); F.raccourci = ""; F.doc = ""; F.cherche = ""; F.ecran = "liste"; F.fiche = false; viderApercu(); }
   function docsDe(p) { return (Array.isArray(p.documents) ? p.documents : []).filter(function (d) { return d && typeof d === "object" && d.nom; }); }
   function estCV(d) { return /^CV\s+–\s+\S/.test(String(d.nom || "")); }
   function famille(d) { return String(d.famille || (estCV(d) ? "CV" : d.nom)); }
@@ -385,7 +413,7 @@
     if (d.fichierId) sous = [estCV(d) && d.role ? d.role : "", d.fichierNom || "fichier", d.taille ? poids(d.taille) : "", jourCourt(d.misAJour)].filter(Boolean).join(" · ");
     else sous = d.lien ? "lien : " + String(d.lien).replace(/^https?:\/\//, "").slice(0, 44) : "aucun fichier pour l'instant";
     if (avecSpectacle) sous = x.p.nom + " · " + sous;
-    return '<button class="f-rang' + (cleDoc(x) === F.doc ? " ouvert" : "") + '" data-f-doc="' + i + '"><span class="f-sorte ' + s[1] + '">' + s[0] + '</span><span class="f-qui"><strong>' + texte(avecSpectacle ? (famille(d) === d.nom || estCV(d) ? d.nom : d.nom) : variante(d)) + "</strong><span>" + texte(sous) + '</span></span><span class="f-marques">' +
+    return '<button class="f-rang' + (cleDoc(x) === F.doc && !F.choix ? " ouvert" : "") + (F.choix && F.pris[cleDoc(x)] ? " pris" : "") + '" data-f-doc="' + i + '"' + (F.choix ? ' role="checkbox" aria-checked="' + !!F.pris[cleDoc(x)] + '"' : "") + ">" + (F.choix ? '<span class="f-case">' + (F.pris[cleDoc(x)] ? ICO.coche : "") + "</span>" : "") + '<span class="f-sorte ' + s[1] + '">' + s[0] + '</span><span class="f-qui"><strong>' + texte(avecSpectacle ? (famille(d) === d.nom || estCV(d) ? d.nom : d.nom) : variante(d)) + "</strong><span>" + texte(sous) + '</span></span><span class="f-marques">' +
       (plusieurs && d.parDefaut ? '<span class="f-puce bleu">par défaut</span>' : "") + (d.joindre && !serre() ? '<span class="f-puce vert">joint</span>' : "") + etatLigne(cid, d) + "</span></button>";
   }
   function dessinerListe(cid) {
@@ -436,10 +464,32 @@
     if (d.parDefaut) infos.push("Version par défaut");
     if (nv) infos.push(nv + (nv > 1 ? " anciennes versions" : " ancienne version"));
     if (infos.length) h += '<p class="f-infos">' + infos.map(texte).join(" · ") + "</p>";
+    if (!F.depuis) h += blocPartage(cid, [x]);
+    else h += '<p class="f-infos">Partagé par ' + texte(P.nomCompte(cid)) + "</p>";
     h += '<div class="f-apercu"></div>';
     h += '<p class="f-doux f-pied">Remplacer, renommer, ajouter une variante : <button class="lien" data-f="spectacle">dans Spectacle, « Gérer les fichiers »</button>.</p>';
     return h;
   }
+  // Partager un ou plusieurs fichiers avec les autres comptes (Partage entre comptes) : une case par compte.
+  function blocPartage(cid, xs, lot) {
+    if (!P.partageCibles || !xs.length) return "";
+    var cs = P.partageCibles(cid);
+    if (!cs.length) return "";
+    var h = '<div class="f-ou f-partage"><span class="f-ou-titre">' + (xs.length > 1 ? "Partager ces " + xs.length + " fichiers avec" : "Partager ce fichier avec") + '</span><div class="f-partage-cibles">';
+    cs.forEach(function (c) {
+      var n = xs.filter(function (x) { return c.adresse && P.partageVoit(cid, "fichier", cleFichier(x.p, x.d), c.adresse); }).length, tout = n === xs.length, part = n && !tout;
+      var viaSpectacle = xs.every(function (x) { return c.adresse && (P.partageVoit(cid, "spectacle", String(x.p.id || x.p.nom), c.adresse) || P.partageVoit(cid, "fichiers", String(x.p.id || x.p.nom), c.adresse)); });
+      h += '<label class="f-cible' + (tout || viaSpectacle ? " oui" : "") + (!c.adresse || viaSpectacle ? " fige" : "") + '"' + (viaSpectacle ? ' title="Déjà partagé avec le spectacle entier"' : !c.adresse ? ' title="Adresse Google de ce compte encore inconnue"' : "") + '><input type="checkbox" data-f-cible="' + texte(c.adresse) + '"' + (lot ? ' data-f-lot="1"' : "") + (tout || viaSpectacle ? " checked" : "") + (!c.adresse || viaSpectacle ? " disabled" : "") + (part ? ' data-part="1"' : "") + '><span class="f-point" style="background:' + c.couleur + '"></span>' + texte(c.nom) + "</label>";
+    });
+    return h + '</div><p class="f-doux">Rien n\'est copié dans le Drive de l\'autre compte : il lit ce fichier ici.</p></div>';
+  }
+  function partager(cid, xs, adresse, oui) {
+    xs.forEach(function (x) { P.partageRegler(cid, "fichier", cleFichier(x.p, x.d), x.p.nom + " \u203a " + x.d.nom, adresse, oui); });
+    P.partageFini(cid);
+    P.avis(oui ? (xs.length > 1 ? xs.length + " fichiers partagés." : "Fichier partagé.") : "Ce compte ne le voit plus.");
+    dessiner();
+  }
+  function pris() { return vueDocs.filter(function (x) { return F.pris[cleDoc(x)]; }); }
   function carteGarde() {
     var t = totalGarde(), n = 0;
     P.tousComptes().forEach(function (c) { n += Object.keys(gardes(c.id)).length; });
@@ -474,17 +524,29 @@
     if (!racine || racine.hidden || !P) return;
     var cid = F.compte, d = D[cid], ps = projets(cid);
     if (!cid) { racine.innerHTML = '<div class="f-info"><h1>Fichiers</h1><p>Choisis un compte dans le volet pour voir les fichiers de ses spectacles.</p></div>'; return; }
-    if (!d || !d.projets) {
+    if ((!d || !d.projets) && !F.depuis && partagesRecus(cid).length) { d = D[cid] = d || { projets: null, le: 0, frais: 0, panne: "", enCours: false, lu: false }; ps = []; }   // rien à lui, mais des fichiers partagés avec lui
+    else if (!d || !d.projets) {
       var acces = d && /ACCES/.test(d.panne);
-      racine.innerHTML = '<div class="f-info"><h1>Fichiers</h1>' + (d && d.panne ? "<p>" + (acces ? "Les fichiers viennent de Spectacle. Ouvre Spectacle une fois sur cet appareil, puis reviens ici." : "Les fichiers n'ont pas pu être lus : " + texte(d.panne)) + '</p><div class="f-gestes">' + (acces ? '<button class="bouton fort" data-f="spectacle">Ouvrir Spectacle</button>' : '<button class="bouton fort" data-f="relire">Réessayer</button>') + "</div>" : '<p class="f-doux">Lecture des fichiers…</p>') + "</div>";
+      racine.innerHTML = '<div class="f-info"><h1>Fichiers</h1>' + (F.depuis ? '<p>Partagés par ' + texte(P.nomCompte(cid)) + ' · <button class="lien" data-f="retour-partage">Revenir à ' + texte(P.nomCompte(F.depuis)) + "</button></p>" : "") + (d && d.panne ? "<p>" + (acces ? "Les fichiers viennent de Spectacle. Ouvre Spectacle une fois sur cet appareil, puis reviens ici." : "Les fichiers n'ont pas pu être lus : " + texte(d.panne)) + '</p><div class="f-gestes">' + (acces ? '<button class="bouton fort" data-f="spectacle">Ouvrir Spectacle</button>' : '<button class="bouton fort" data-f="relire">Réessayer</button>') + "</div>" : '<p class="f-doux">Lecture des fichiers…</p>') + "</div>";
       return;
     }
     if (!F.raccourci && !ps.some(function (p) { return (p.id || p.nom) === F.spectacle; })) F.spectacle = ps.length ? (ps[0].id || ps[0].nom) : "";
     var tous = lignes(cid), defile = (racine.querySelector(".f-rangs") || {}).scrollTop || 0, foyer = document.activeElement && document.activeElement.id === "fCherche", pos = foyer ? document.activeElement.selectionStart : 0;
     // Panneau de gauche : les spectacles et les raccourcis
     var g = '<aside class="f-panneau f-rayons"><h1>Fichiers</h1><div class="f-rayons-liste">';
+    if (F.depuis) g += '<button class="f-rayon f-retour" data-f="retour-partage"><span>\u2039 ' + texte(P.nomCompte(F.depuis)) + '</span></button><h2>Partagés par ' + texte(P.nomCompte(cid)) + "</h2>";
     ps.forEach(function (p) { var k = p.id || p.nom; g += '<button class="f-rayon"' + (!F.raccourci && F.spectacle === k ? ' aria-current="true"' : "") + ' data-f-spectacle="' + texte(k) + '"><span>' + texte(p.nom) + "</span><small>" + docsDe(p).length + "</small></button>"; });
-    if (!ps.length) g += '<p class="f-doux" style="padding:0 10px">Aucun spectacle pour l\'instant.</p>';
+    if (!ps.length) g += '<p class="f-doux" style="padding:0 10px">' + (F.depuis ? "Plus rien n'est partagé avec ce compte." : "Aucun spectacle pour l'instant.") + "</p>";
+    var recus = F.depuis ? [] : partagesRecus(cid), vusR = {};
+    if (recus.length) {
+      g += "<h2>Partagés avec ce compte</h2>";
+      recus.forEach(function (r, i) {
+        var k = r.src + "\n" + spectacleDe(r.cle);
+        if (vusR[k]) return; vusR[k] = 1;
+        var nom = r.quoi === "fichier" ? String(r.titre || "").split(" \u203a ")[0] : r.titre;
+        g += '<button class="f-rayon" data-f-partage="' + i + '" title="De ' + texte(r.srcNom) + '"><span>' + texte(nom || r.cle) + "</span><small>" + texte(r.srcNom) + "</small></button>";
+      });
+    }
     g += '<h2>Raccourcis</h2>';
     RACCOURCIS.forEach(function (r) { var n = tous.filter(function (x) { return r[2](cid, x); }).length; g += '<button class="f-rayon"' + (F.raccourci === r[0] ? ' aria-current="true"' : "") + ' data-f-raccourci="' + r[0] + '"><span>' + (r[0] === "absents" ? absentsTitre() : r[1]) + "</span><small>" + n + "</small></button>"; });
     g += "</div>" + carteGarde() + "</aside>";
@@ -492,9 +554,9 @@
     if (F.ecran === "mac") m = '<section class="f-panneau f-large-mac">' + dessinerMac() + "</section>";
     else {
       var corps = dessinerListe(cid), frais = d.enCours ? "Mise à jour…" : d.panne ? "Liste gardée sur l'appareil (pas de réponse en ligne)." : "";
-      m = '<section class="f-panneau f-liste"><div class="f-outils"><label class="f-cherche">' + ICO.cherche + '<input id="fCherche" type="search" placeholder="Chercher un fichier" autocomplete="off" value="' + texte(F.cherche) + '"></label><button class="bouton fort" data-f="ajouter" title="Les fichiers s\'ajoutent dans Spectacle, « Gérer les fichiers »">' + ICO.plus + (petit() ? "" : "<span>Ajouter un fichier</span>") + "</button></div>" +
+      m = '<section class="f-panneau f-liste"><div class="f-outils"><label class="f-cherche">' + ICO.cherche + '<input id="fCherche" type="search" placeholder="Chercher un fichier" autocomplete="off" value="' + texte(F.cherche) + '"></label><button class="bouton fort" data-f="ajouter" title="Les fichiers s\'ajoutent dans Spectacle, « Gérer les fichiers »">' + ICO.plus + (petit() ? "" : "<span>Ajouter un fichier</span>") + "</button>" + (!F.depuis && P.partageCibles && P.partageCibles(cid).length ? '<button class="bouton' + (F.choix ? " fort" : "") + '" data-f="choisir" title="Choisir plusieurs fichiers pour les partager">' + (F.choix ? "Fini" : "Choisir") + "</button>" : "") + "</div>" +
         (mac.ancienne ? '<p class="f-bandeau">Pour garder les fichiers dans un dossier du Finder, mets à jour l\'appli Origami : <button class="lien" data-f="applis">Applis, « Sur ce Mac »</button>.</p>' : "") +
-        '<div class="f-rangs">' + corps + "</div>" + (frais ? '<p class="f-frais">' + frais + "</p>" : "") + "</section>" +
+        '<div class="f-rangs">' + corps + "</div>" + (F.choix ? '<div class="f-lot">' + (pris().length ? blocPartage(cid, pris(), true) : '<p class="f-doux">Touche les fichiers à partager ensemble.</p>') + "</div>" : "") + (frais ? '<p class="f-frais">' + frais + "</p>" : "") + "</section>" +
         '<section class="f-panneau f-fiche' + (F.fiche && choisie() ? " montree" : "") + '">' + dessinerFiche(cid) + "</section>";
     }
     racine.innerHTML = '<div class="f-zone ' + largeur + (F.ecran === "mac" ? " ecran-mac" : "") + '">' + g + m + "</div>";
@@ -508,9 +570,12 @@
   function clic(ev) {
     var b = ev.target.closest("button"); if (!b || !racine.contains(b)) return;
     var cid = F.compte, d = b.dataset;
+    if (d.fPartage != null) { var rp = partagesRecus(cid)[+d.fPartage]; if (rp) { voirPartage(cid, rp.src, rp.cle); charger(F.compte); if (D[F.compte].projets) suite(F.compte); dessiner(); } return; }
+    if (d.f === "retour-partage") { var dep = F.depuis; F.depuis = ""; F.compte = dep; F.spectacle = ""; F.raccourci = ""; F.doc = ""; F.cherche = ""; F.ecran = "liste"; F.fiche = false; viderApercu(); charger(dep); if (D[dep].projets) suite(dep); dessiner(); return; }
     if (d.fSpectacle != null) { F.spectacle = d.fSpectacle; F.raccourci = ""; F.ecran = "liste"; F.cherche = ""; F.fiche = false; dessiner(); return; }
     if (d.fRaccourci) { F.raccourci = d.fRaccourci; F.ecran = "liste"; F.cherche = ""; F.fiche = false; dessiner(); return; }
-    if (d.fDoc != null) { var x0 = vueDocs[+d.fDoc]; if (x0) { F.doc = cleDoc(x0); F.fiche = true; dessiner(); } return; }
+    if (d.fDoc != null) { var x0 = vueDocs[+d.fDoc]; if (x0 && F.choix) { var k0 = cleDoc(x0); if (F.pris[k0]) delete F.pris[k0]; else F.pris[k0] = 1; dessiner(); return; } if (x0) { F.doc = cleDoc(x0); F.fiche = true; dessiner(); } return; }
+    if (d.f === "choisir") { F.choix = !F.choix; F.pris = {}; dessiner(); return; }
     var x = choisie();
     switch (d.f) {
       case "ouvrir": if (x) ouvrir(x); break;
@@ -539,6 +604,11 @@
       case "retirer": b.disabled = true; retirer(d.c, d.id).then(function () { dessiner(); P.avis(mac.ok ? "Retiré de ce Mac (dans la Corbeille). Il reste en ligne." : "Retiré de cet appareil. Il reste en ligne."); }, function (e) { dessiner(); P.avis(message(e), true); }); break;
     }
   }
+  function changeCible(ev) {
+    var t = ev.target; if (!t || !t.dataset || t.dataset.fCible == null || !t.dataset.fCible) return;
+    var xs = t.dataset.fLot ? pris() : [choisie()].filter(Boolean);
+    if (xs.length) partager(F.compte, xs, t.dataset.fCible, t.checked);
+  }
   function saisie(ev) { if (ev.target && ev.target.id === "fCherche") { F.cherche = ev.target.value; F.fiche = false; dessiner(); } }
   function mesurer() {
     if (!racine) return;
@@ -553,13 +623,16 @@
         racine = section;
         racine.addEventListener("click", clic);
         racine.addEventListener("input", saisie);
+        racine.addEventListener("change", changeCible);
         try { new ResizeObserver(mesurer).observe(racine); } catch (e) { window.addEventListener("resize", mesurer); }
       }
-      if (cid !== F.compte) { F.compte = cid || ""; F.spectacle = ""; F.raccourci = ""; F.doc = ""; F.cherche = ""; F.ecran = "liste"; F.fiche = false; viderApercu(); }
+      if (F.depuis ? cid !== F.depuis : cid !== F.compte) { F.depuis = ""; F.compte = cid || ""; F.spectacle = ""; F.raccourci = ""; F.doc = ""; F.cherche = ""; F.ecran = "liste"; F.fiche = false; viderApercu(); }
       var w = racine.clientWidth || window.innerWidth; largeur = w >= 980 ? "large" : w >= 640 ? "moyen" : "etroit";
       dessiner();
       if (F.compte) { charger(F.compte); if (D[F.compte].projets) suite(F.compte); }
     },
+    // Partage entre comptes : ouvrir, depuis le compte « depuis », un spectacle que le compte « src » partage avec lui.
+    voirPartage: function (depuis, src, cle) { voirPartage(depuis, src, cle); },
     // La copie des données du compte vient de changer (Spectacle ouvert à côté) : la liste se relit.
     rafraichir: function (cid) {
       if (!racine || racine.hidden || !P || cid !== F.compte || !D[cid]) return;
@@ -591,6 +664,16 @@
     ".f-rayon span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
     ".f-rayon small{font-size:12px;color:var(--doux);font-weight:400}",
     ".f-rayon:hover{background:var(--carte2)}",
+    ".f-retour{color:var(--accent);font-weight:600}",
+    ".f-partage-cibles{display:flex;flex-wrap:wrap;gap:6px 8px;margin:8px 0 6px}",
+    ".f-cible{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 10px;border:1px solid var(--ligne);border-radius:999px;font-size:13px;cursor:pointer}",
+    ".f-cible.oui{border-color:var(--accent);background:var(--accent-clair)}",
+    ".f-cible.fige{opacity:.6;cursor:default}",
+    ".f-cible input{margin:0}",
+    ".f-point{width:8px;height:8px;border-radius:50%;flex:none}",
+    ".f-lot{flex:none;padding:0 12px 12px;border-top:1px solid var(--ligne)}",
+    ".f-case{flex:none;width:18px;height:18px;border:1.5px solid var(--doux);border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--accent)}",
+    ".f-rang.pris{background:var(--accent-clair)}",
     ".f-rayon[aria-current=true]{background:var(--accent-clair);font-weight:600}",
     "html.sombre .f-rayon[aria-current=true]{background:#26324f}",
     ".f-garde{flex:none;margin-top:10px;padding:11px 12px;border-radius:11px;background:var(--carte2);font-size:13px}",
