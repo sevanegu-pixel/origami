@@ -604,10 +604,11 @@ p.aide-fine.lu { margin: 6px 0 0; }
   lire();
 })();
 </script>
-<script src="agenda.js?v=2026-11-28.95"></script>
-<script src="repertoire.js?v=2026-11-28.95"></script>
-<script src="fichiers.js?v=2026-11-28.95"></script>
-<script src="google.js?v=2026-11-28.95"></script>
+<script src="agenda.js?v=2026-11-28.96"></script>
+<script src="repertoire.js?v=2026-11-28.96"></script>
+<script src="partage.js?v=2026-11-28.96"></script>
+<script src="fichiers.js?v=2026-11-28.96"></script>
+<script src="google.js?v=2026-11-28.96"></script>
 <script>
 (function () {
   "use strict";
@@ -653,7 +654,8 @@ p.aide-fine.lu { margin: 6px 0 0; }
     // Fichiers (25.11, fichiers.js) : les fichiers des spectacles du compte, gardés sur l'appareil (dossier du Finder dans l'appli du Mac).
     fichiers: { nom: "Fichiers", texte: "Les fichiers de tes spectacles, gardés sur l'appareil.", genre: "fichiers" },
     // Répertoire commun (repertoire.js) : les contacts envoyés exprès aux applis d'un même compte ; chaque appli garde son carnet.
-    repertoire: { nom: "Répertoire", genre: "repertoire" },
+    // 28.11 : devenu « Partage entre comptes » (partage.js) ; les contacts communs en sont un onglet.
+    repertoire: { nom: "Partage entre comptes", genre: "repertoire" },
     // Écran « Applis » (18.11, demande de Sévane) : toutes les applis d'un compte, avec leur logo, à installer ou ouvrir.
     applis: { nom: "Applis", genre: "applis" },
     // L'agenda d'origine de Diffusion reste ouvrable depuis l'Agenda (ajouter une date de spectacle, export).
@@ -1436,7 +1438,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
     var n = typeof d.n === "number" ? d.n : 0;
     function dire(r) { try { w.postMessage(Object.assign({ origami: "repertoire-recu", n: n }, r), origine); } catch (e) {} }
     if (!window.OrigamiRepertoire || !Array.isArray(d.fiches) || !d.fiches.length || d.fiches.length > 500) { dire({ refus: true }); return; }
-    window.OrigamiRepertoire.recevoir(pontRepertoire, cid || "compagnie", d.fiches, source).then(function (r) { dire(r); avis("Répertoire commun : " + window.OrigamiRepertoire.bilan(r)); }, function () { dire({ refus: true }); });
+    window.OrigamiRepertoire.recevoir(pontRepertoire, cid || "compagnie", d.fiches, source).then(function (r) { dire(r); avis("Contacts communs : " + window.OrigamiRepertoire.bilan(r)); }, function () { dire({ refus: true }); });
   }
   window.addEventListener("message", function (ev) {
     if (!/^https:\/\/([a-z0-9-]+\.)*(script\.google\.com|googleusercontent\.com)$/.test(ev.origin)) return;
@@ -1709,6 +1711,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
     else if (etat.vue === "tickets0" && etat.compte === id) dessinerTickets();
     else if (etat.vue === "diffusion0" && etat.compte === id) dessinerDiffusion();
     else if (etat.vue === "agenda" && window.OrigamiAgenda) window.OrigamiAgenda.rafraichir();
+    else if (etat.vue === "repertoire" && window.OrigamiPartage) window.OrigamiPartage.rafraichir();
     else if (etat.vue === "repertoire" && window.OrigamiRepertoire) window.OrigamiRepertoire.rafraichir();
   }
   function heure(t) { var d = new Date(t); return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2); }
@@ -1792,7 +1795,9 @@ p.aide-fine.lu { margin: 6px 0 0; }
   function applisDe(c) { var l = c.applis.filter(function (x) { return x !== "tickets"; });   /* 28.11 : l'ancienne appli Tickets n'est plus dans les listes (ses tickets sont repris dans la nouvelle) */ if (c.id !== "compagnie" && l.indexOf("compta") < 0 && comptaDe(c.id)) l.push("compta"); if (offre(c.id, "tickets") || (c.applis.indexOf("tickets") >= 0 && !etatMoteur(c.id))) l.push("tickets0");   /* sans moteur relié sur cet appareil : la ligne reste, l'écran dit comment relier */ if (grosse(c.id, "diffusion")) l.push("diffusion0"); return l; }
   // Les modules d'un compte : pour l'instant ceux de la Diffusion du compte compagnie (son appli s'ouvre dans un cadre).
   var MODULES = ["spectacle", "prospection", "fichiers", "agenda"];
-  function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) { if (modulesPrets(c.id)) m.push("spectacle", "prospection", "fichiers"); m.push("agenda"); } return m; }   // l'Agenda vient du moteur du compte ; Spectacle et Prospection, de ses modules installés (v15)
+  function modulesDe(c) { var m = c && c.id === "compagnie" && c.applis.indexOf("diffusion") >= 0 ? MODULES.slice() : []; if (c && !m.length && moteurs[c.id]) { if (modulesPrets(c.id)) m.push("spectacle", "prospection", "fichiers"); else if (fichiersRecus(c.id)) m.push("fichiers"); m.push("agenda"); } return m; }   // l'Agenda vient du moteur du compte ; Spectacle et Prospection, de ses modules installés (v15)
+  // 28.11 : un compte sans Spectacle à lui a quand même « Fichiers » quand un autre compte lui partage des fichiers.
+  function fichiersRecus(id) { try { return !!(window.OrigamiPartage && typeof pontPartage !== "undefined" && window.OrigamiPartage.pour(pontPartage, id, ["fichiers", "fichier", "spectacle"]).length); } catch (e) { return false; } }
   function vuesDe(c) { var l = modulesDe(c).concat(applisDe(c)); if (c && c.id === "compagnie" && l.indexOf("diffusion") >= 0) l.push("agendaDiff"); return l; }
   // Dans le volet : les modules d'abord ; Diffusion elle-même n'y est plus (elle reste sur le tableau de bord).
   function voletDe(c) { var m = modulesDe(c); return { modules: m, applis: applisDe(c).filter(function (id) { return !(m.length && id === "diffusion"); }) }; }
@@ -2884,7 +2889,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
   // Appli vierge (18.11, demande de Sévane) : tout est déjà visible, mais grisé tant qu'aucun compte n'est ajouté.
   // Seuls le tableau de bord, « Ajouter un compte » et les Réglages marchent sans compte.
   var APERCU_MODULES = ["spectacle", "prospection", "fichiers", "agenda", "repertoire"], APERCU_APPLIS = ["compta", "tickets", "frais", "boite"];
-  var TEXTES_APERCU = { spectacle: "Tes spectacles et leurs étapes.", prospection: "Lieux, contacts et relances.", agenda: "Tes agendas Google et tes dates.", repertoire: "Les contacts partagés entre tes applis." };
+  var TEXTES_APERCU = { spectacle: "Tes spectacles et leurs étapes.", prospection: "Lieux, contacts et relances.", agenda: "Tes agendas Google et tes dates.", repertoire: "Ce que tes comptes ont en commun : contacts, fichiers, spectacles." };
   var TITRE_GRISE = "Ajoute d'abord un compte pour l'utiliser";
   function ligneApplis() { return '<button class="ligne" data-vue="applis"' + (etat.vue === "applis" ? ' aria-current="true"' : "") + ">" + icone("applis") + '<span class="nom">Applis</span></button>'; }
   function boutonApplis() { return '<button data-vue="applis"' + (etat.vue === "applis" ? ' aria-current="true"' : "") + ">" + icone("applis") + "Applis</button>"; }
@@ -2915,7 +2920,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
     function ligne(id) { return '<button class="ligne" data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + '<span class="nom">' + nomAppli(cv, id) + "</span>" + (cadres[cleCadre(cv, id)] ? '<span class="ouverte" title="Déjà ouverte"></span>' : "") + "</button>"; }
     h += '<div class="groupe"><h2>' + (c0 ? "Origami" : "Dans tous les comptes") + "</h2>";
     h += '<button class="ligne" data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + '<span class="nom">Tableau de bord</span></button>' + ligneApplis();
-    var ligneRep = '<button class="ligne" data-vue="repertoire"' + (etat.vue === "repertoire" ? ' aria-current="true"' : "") + ">" + icone("repertoire") + '<span class="nom">Répertoire</span></button>';
+    var ligneRep = '<button class="ligne" data-vue="repertoire"' + (etat.vue === "repertoire" ? ' aria-current="true"' : "") + ">" + icone("repertoire") + '<span class="nom">Partage entre comptes</span></button>';
     if (!c0) h += ligneRep;   // « Tous les comptes » : le répertoire de chaque compte affiché
     if (!c0 && volet.modules.length) h += '</div><div class="groupe"><h2>' + texte(cv.nom) + "</h2>";
     volet.modules.forEach(function (id) { h += ligne(id); });
@@ -2927,7 +2932,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
     var b = '<button data-vue="accueil"' + (etat.vue === "accueil" ? ' aria-current="true"' : "") + ">" + icone("accueil") + "Accueil</button>" + boutonApplis();
     var cb = c0 || compte("compagnie") || COMPTE_VIDE;
     var vb = voletDe(cb); vb.modules.concat(vb.applis).forEach(function (id) { b += '<button data-vue="' + id + '"' + (c0 || id === "agenda" ? "" : ' data-de="compagnie"') + (etat.vue === id ? ' aria-current="true"' : "") + ">" + icone(id) + nomAppli(cb, id) + "</button>"; });
-    b += '<button data-vue="repertoire"' + (etat.vue === "repertoire" ? ' aria-current="true"' : "") + ">" + icone("repertoire") + "Répertoire</button>";
+    b += '<button data-vue="repertoire"' + (etat.vue === "repertoire" ? ' aria-current="true"' : "") + ">" + icone("repertoire") + "Partage</button>";
     b += '<button data-vue="reglages"' + (etat.vue === "reglages" ? ' aria-current="true"' : "") + ">" + icone("reglages") + "Réglages</button>";
     barre.innerHTML = b;
     var ouverte = barre.querySelector('[aria-current="true"]');
@@ -5291,7 +5296,15 @@ p.aide-fine.lu { margin: 6px 0 0; }
   // Pont vers le Répertoire commun (repertoire.js) : mêmes comptes que l'Agenda, les lignes déjà rangées dans le compte, la Boîte mail.
   var repertoireZone = document.getElementById("repertoire");
   var pontRepertoire = {
-    comptesVus: pontAgenda.comptesVus,
+    // 28.11 : un compte affiché seul voit aussi les contacts communs que ses autres comptes partagent avec lui (Partage entre comptes).
+    comptesVus: function () {
+      var l = pontAgenda.comptesVus();
+      if (etat.compte !== "tous" && l.length === 1 && window.OrigamiPartage) window.OrigamiPartage.pour(pontPartage, l[0].id, ["contacts"]).forEach(function (r) {
+        var c = compte(r.src);
+        if (c && !l.some(function (x) { return x.id === c.id; })) l.push({ id: c.id, nom: c.nom, couleur: c.couleur, relie: !!moteurs[c.id], partage: true });
+      });
+      return l;
+    },
     relie: function (id) { return !!moteurs[id]; },
     charge: function (id) { return !!memoires[id]; },
     appel: function (id, fn, args) { return moteurAppel(id, fn, args); },
@@ -5354,6 +5367,50 @@ p.aide-fine.lu { margin: 6px 0 0; }
     },
     ouvrirVue: function (cid, vue) { if (!compte(cid)) return; etat.compte = cid; etat.vue = vue; montrer(); }
   };
+  // Pont vers « Partage entre comptes » (partage.js, 28.11) : tous les comptes de l'appareil avec leur adresse Google, la liste
+  // « partages » rangée dans chaque compte, les spectacles (copie de Spectacle sur l'appareil, sinon la porte en lecture).
+  var pontPartage = {
+    comptes: function () { return comptes().map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }); },
+    vus: function () { var l = etat.compte === "tous" ? affiches() : [compte(etat.compte)].filter(Boolean); return l.map(function (c) { return { id: c.id, nom: c.nom, couleur: c.couleur }; }); },
+    adresse: function (id) { return adresseDe(id); },
+    relie: function (id) { return !!moteurs[id]; },
+    charge: function (id) { return !!memoires[id]; },
+    appel: function (id, fn, args) { return moteurAppel(id, fn, args); },
+    lignes: function (id) { return lignes(id, "partages"); },
+    avis: function (t, souci) { avis(t, souci); },
+    repertoire: pontRepertoire,
+    ouvrirVoile: function (h) { ouvrirVoile(h); },
+    fermerVoile: function () { fermerVoile(); },
+    spectacles: function (cid) {
+      function liste(ps) { return (Array.isArray(ps) ? ps : []).filter(function (p) { return p && typeof p === "object" && p.nom; }).map(function (p) { return { cle: String(p.id || p.nom), nom: String(p.nom) }; }); }
+      return pontFichiers.copie(cid).then(function (c) {
+        if (c && Array.isArray(c.projets)) return liste(c.projets);
+        return porteSpectacle(cid, "donneesTableauDeBord", [false]).then(function (r) { return liste(r && r.projets); });
+      });
+    },
+    // Un partage a changé : l'écran du compte d'en face (Fichiers, contacts) le montre à sa prochaine ouverture.
+    changement: function () { dessinerMenu(); },
+    // Un spectacle partagé en entier s'ouvre dans le Spectacle de son compte d'origine (le volet passe sur ce compte, c'est dit).
+    ouvrirSpectacle: function (src) {
+      var c = compte(src); if (!c) return;
+      if (vuesDe(c).indexOf("spectacle") < 0) { avis("Spectacle n'est pas encore ouvert sur cet appareil pour " + c.nom + ".", true); return; }
+      etat.compte = src; etat.vue = "spectacle"; montrer(); avis("Spectacle de " + c.nom + ".");
+    },
+    ouvrirFichiers: function (cid, src, cle) {
+      if (!compte(cid) || !compte(src)) return;
+      if (window.OrigamiFichiers && window.OrigamiFichiers.voirPartage) window.OrigamiFichiers.voirPartage(cid, src, cle);
+      etat.compte = cid; etat.vue = "fichiers"; montrer();
+    }
+  };
+  // Fichiers d'un autre compte partagés avec celui-ci (ses fichiers, ou le spectacle entier).
+  pontFichiers.partages = function (cid) { return window.OrigamiPartage ? window.OrigamiPartage.pour(pontPartage, cid, ["fichiers", "fichier", "spectacle"]) : []; };
+  if (window.OrigamiPartage) {
+    pontFichiers.partageCibles = function (cid) { return window.OrigamiPartage.cibles(pontPartage, cid); };
+    pontFichiers.partageVoit = function (cid, quoi, cle, adresse) { return window.OrigamiPartage.voit(pontPartage, cid, quoi, cle, adresse); };
+    pontFichiers.partageRegler = function (cid, quoi, cle, titre, adresse, oui) { window.OrigamiPartage.regler(pontPartage, cid, quoi, cle, titre, adresse, oui); };
+    pontFichiers.partageFini = function (cid) { window.OrigamiPartage.pousser(pontPartage, cid); };
+    window.OrigamiPartage.brancher(pontPartage);   // le bouton « Partager… » du menu d'un agenda marche sans passer par l'écran
+  }
   function montrer() {
     if (BOITE_SEULE || BOITE_RETIRER || BOITE_RANGER) return;   // ces onglets de la Boîte mail ne montrent que leur feuille
     if (etat.compte !== "tous" && !compte(etat.compte)) etat.compte = compteParDefaut();
@@ -5374,7 +5431,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
     accueil.hidden = vue !== "accueil";
     zoneReglages.hidden = vue !== "reglages";
     agendaZone.hidden = vue !== "agenda";
-    repertoireZone.hidden = vue !== "repertoire" || !window.OrigamiRepertoire;
+    repertoireZone.hidden = vue !== "repertoire" || !(window.OrigamiPartage || window.OrigamiRepertoire);
     fichiersZone.hidden = vue !== "fichiers" || !window.OrigamiFichiers;
     page.hidden = !!cadre || vue === "accueil" || vue === "reglages" || vue === "agenda" || !repertoireZone.hidden || !fichiersZone.hidden;
     if (!cadre) attente.hidden = true;
@@ -5385,7 +5442,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
     else if (vue === "diffusion0") { dessinerDiffusion(); releverSiVieux(c0.id); releverDiffusionSiVieux(c0.id); }
     else if (vue === "agenda") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiAgenda) window.OrigamiAgenda.montrer(agendaZone, pontAgenda); else page.hidden = false, page.innerHTML = '<div class="info"><h1>Agenda</h1><p>L\'agenda n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (vue === "fichiers") { if (window.OrigamiFichiers) window.OrigamiFichiers.montrer(fichiersZone, pontFichiers, c0 ? c0.id : ""); else page.innerHTML = '<div class="info"><h1>Fichiers</h1><p>Les fichiers n\'ont pas pu se charger. Recharge la page.</p></div>'; }
-    else if (vue === "repertoire") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiRepertoire) window.OrigamiRepertoire.montrer(repertoireZone, pontRepertoire); else page.innerHTML = '<div class="info"><h1>Répertoire</h1><p>Le répertoire n\'a pas pu se charger. Recharge la page.</p></div>'; }
+    else if (vue === "repertoire") { (etat.compte === "tous" ? affiches() : [c0]).forEach(function (c) { releverSiVieux(c.id); }); if (window.OrigamiPartage) window.OrigamiPartage.montrer(repertoireZone, pontPartage); else if (window.OrigamiRepertoire) window.OrigamiRepertoire.montrer(repertoireZone, pontRepertoire); else page.innerHTML = '<div class="info"><h1>Répertoire</h1><p>Le répertoire n\'a pas pu se charger. Recharge la page.</p></div>'; }
     else if (!cadre) {
       dessinerPage(vue);
       // Applis : le compte est relu ici aussi (19.11 : sans cela, un compte tout juste relié restait sur « Arrive dès que le compte est relu »).
@@ -5617,7 +5674,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
   function oublierCompte(id) {
     if (!FENETRE) retiresNoter(id);
     delete etat.noms[id]; delete fenComptes[id]; oublierCompta(id); oublierModules(id); garder("origami_boite@" + id, ""); etat.ajoutes = etat.ajoutes.filter(function (c) { return c.id !== id; }); delete etat.masques[id];
-    delete moteurs[id]; delete memoires[id]; oublierDiff(id); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(id); file = file.filter(function (x) { return x.compte !== id; }); retenirMoteurs(); garderMemoire(id);
+    delete moteurs[id]; delete memoires[id]; oublierDiff(id); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier(id); if (window.OrigamiPartage) window.OrigamiPartage.oublier(id); file = file.filter(function (x) { return x.compte !== id; }); retenirMoteurs(); garderMemoire(id);
   }
   // Retirer la compagnie : tout ce qui la relie à cet appareil est oublié, puis elle disparaît des comptes.
   function retirerCompagnie() {
@@ -5626,7 +5683,7 @@ p.aide-fine.lu { margin: 6px 0 0; }
     garderResume(null);
     Object.keys(cadres).forEach(function (k) { if (k.indexOf("@") < 0) fermerCadre(k); });
     delete etat.noms.compagnie; delete fenComptes.compagnie; delete etat.masques.compagnie;
-    delete moteurs.compagnie; delete memoires.compagnie; oublierDiff("compagnie"); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier("compagnie");
+    delete moteurs.compagnie; delete memoires.compagnie; oublierDiff("compagnie"); if (window.OrigamiRepertoire) window.OrigamiRepertoire.oublier("compagnie"); if (window.OrigamiPartage) window.OrigamiPartage.oublier("compagnie");
     file = file.filter(function (x) { return x.compte !== "compagnie"; }); retenirMoteurs(); garderMemoire("compagnie");
     etat.sansCompagnie = true; etat.compte = compteParDefaut(); etat.vue = comptes().length ? "reglages" : "accueil";
     avis("Compte retiré de cette appli."); montrer();
