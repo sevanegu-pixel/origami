@@ -3,6 +3,8 @@ package ch.origami.boitemail.veille
 import android.app.Activity
 import android.view.View
 import android.webkit.WebView
+import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import app.tauri.annotation.Command
@@ -43,6 +45,18 @@ class VeillePlugin(private val activity: Activity) : Plugin(activity) {
             WindowInsetsCompat.CONSUMED
         }
         ViewCompat.requestApplyInsets(contenu)
+
+        // Bouton « retour » d'Android : l'appli revient à son écran précédent (volet, fenêtre d'écriture, mail ouvert…).
+        // La page dit si elle a encore un écran où revenir ; sinon l'appli passe en arrière-plan sans se fermer (rien n'est perdu).
+        // Un mail en cours d'écriture n'est jamais perdu : sa fermeture le garde en brouillon ou pose la question, comme le « × ».
+        val act = activity as? ComponentActivity ?: return
+        act.onBackPressedDispatcher.addCallback(act, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                webView.evaluateJavascript("(function(){try{return !!(window.__telRetour&&window.__telRetour())}catch(e){return false}})()") { r ->
+                    if (r != "true") activity.moveTaskToBack(true)
+                }
+            }
+        })
     }
 
     @Command

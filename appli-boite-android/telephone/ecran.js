@@ -117,8 +117,18 @@
       var ouvrirAvant = ouvrirConversation;
       ouvrirConversation = function (id) {
         anciens().forEach(function (p) { p.fils.forEach(function (f) { if (f.id === id) f.nonLu = false; }); });
-        return ouvrirAvant.apply(this, arguments);
+        // Le mail s'ouvre en haut de l'écran ; au retour, la liste reprend là où on l'avait laissée.
+        var g = document.getElementById('msg-grille');
+        if (g && !g.classList.contains('detail')) window.__telY = window.scrollY || 0;
+        var r = ouvrirAvant.apply(this, arguments);
+        setTimeout(function () { window.scrollTo(0, 0); }, 0);
+        return r;
       };
+      document.addEventListener('click', function (e) {
+        if (!(e.target.closest && e.target.closest('[data-fil-retour]')) || typeof window.__telY !== 'number') return;
+        var y = window.__telY;
+        [60, 300].forEach(function (t) { setTimeout(function () { window.scrollTo(0, y); }, t); });
+      }, true);
     }
     var l = document.getElementById('msg-liste');
     var pied = document.createElement('div'); pied.className = 'tel-suite';
@@ -183,6 +193,90 @@
     document.addEventListener('change', function () { setTimeout(maj, 0); }, true);
     new MutationObserver(maj).observe(l, { childList: true, subtree: true });
     maj();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
+})();
+
+/* Bouton « retour » d'Android, côté écran de la boîte : chaque appui défait la dernière chose ouverte, dans cet ordre :
+   question en cours, volet « Actions », fenêtre (écrire un mail, dossiers…), tiroir, sélection, mail ouvert, autre rubrique.
+   Une fenêtre d'écriture se ferme par le même chemin que son « × » : le texte est gardé en brouillon, ou une question est posée.
+   L'écran dit sans cesse à la coquille s'il lui reste un écran où revenir ; sinon la coquille laisse Android mettre l'appli de côté. */
+(function () {
+  if (window.__telRetourEcran) return; window.__telRetourEcran = true;
+  function id(x) { return document.getElementById(x); }
+  function visible(el) { return !!(el && !el.classList.contains('cache') && el.offsetParent !== null); }
+  function etape() {
+    var d = id('dialogue');
+    if (d && !d.classList.contains('cache') && typeof fermerDialogue === 'function') return function () { fermerDialogue(false); };
+    var fa = id('feuille-actions');
+    if ((fa && fa.classList.contains('ouverte')) || document.querySelector('.menu-actions')) { if (typeof fermerMenuActions === 'function') return function () { fermerMenuActions(); }; }
+    var m = id('modale');
+    if (m && !m.classList.contains('cache') && typeof fermerModale === 'function') return function () { fermerModale(); };
+    var v = id('volet');
+    if (v && v.classList.contains('ouvert') && typeof tiroir === 'function') return function () { tiroir(false); };
+    if (document.documentElement.classList.contains('tel-selection')) { var a = document.querySelector('.tel-annuler-selection'); if (a) return function () { a.click(); }; }
+    var vue = (typeof etat === 'object' && etat) ? etat.vue : '';
+    var g = id('msg-grille');
+    if (vue === 'messages' && g && g.classList.contains('detail')) { var r = document.querySelector('#msg-fil [data-fil-retour]'); if (r) return function () { r.click(); }; }
+    if (vue && vue !== 'messages') {
+      var b = document.querySelector('[data-mvue="messages"]') || document.querySelector('.volet .nav[data-vue="messages"]');
+      if (b) return function () { b.click(); };
+      if (typeof montrer === 'function') return function () { montrer('messages'); };
+    }
+    return null;
+  }
+  var dernier = null;
+  function dire(force) {
+    var peut = !!etape();
+    if (!force && peut === dernier) return;
+    dernier = peut;
+    try { window.parent.postMessage({ boiteMail: 'retour-etat', peut: peut }, '*'); } catch (e) { /* seul */ }
+  }
+  window.addEventListener('message', function (ev) {
+    var dd = ev.data || {};
+    if (ev.source !== window.parent || dd.boiteMail !== 'retour') return;
+    var f = etape();
+    try { if (f) f(); } catch (e) { /* rien */ }
+    setTimeout(function () { dire(true); }, 250);
+  });
+  setInterval(function () { dire(false); }, 300);
+  setInterval(function () { dire(true); }, 3000);
+  dire(true);
+})();
+
+/* Rubriques (Boîte, Campagnes, Modèles, Contacts, Carnet d'adresses) rangées dans le menu ☰ de la liste des mails, pour la place.
+   Sur la liste des mails, la rangée du haut est cachée ; ☰ les montre en tête des dossiers. Dans les autres rubriques,
+   la rangée reste visible (c'est d'elle qu'on passe de l'une à l'autre). Les boutons du menu appuient sur ceux de la rangée. */
+(function () {
+  if (window.__telRubriques) return; window.__telRubriques = true;
+  function id(x) { return document.getElementById(x); }
+  setInterval(function () {
+    var vue = (typeof etat === 'object' && etat) ? etat.vue : '';
+    document.documentElement.classList.toggle('tel-vue-boite', vue === 'messages');
+  }, 300);
+  function demarrer() {
+    var b = id('msg-ouvrir-dossiers');
+    if (!b || typeof b.onclick !== 'function') return setTimeout(demarrer, 300);
+    var avant = b.onclick;
+    b.onclick = function () {
+      var r = avant.apply(this, arguments);
+      try {
+        var rangee = [].slice.call(document.querySelectorAll('#sous-onglets button')).filter(function (x) { return !x.classList.contains('cache') && x.textContent.trim(); });
+        var corps = id('modale-corps');
+        if (rangee.length && corps && !corps.querySelector('.tel-rubriques')) {
+          var bloc = document.createElement('div'); bloc.className = 'tel-rubriques';
+          rangee.forEach(function (o) {
+            var c = document.createElement('button'); c.type = 'button';
+            c.className = 'tel-rubrique' + (o.classList.contains('actif') || o.getAttribute('aria-selected') === 'true' ? ' actif' : '');
+            c.textContent = o.textContent.trim();
+            c.addEventListener('click', function () { if (typeof fermerModale === 'function') fermerModale(); o.click(); });
+            bloc.appendChild(c);
+          });
+          corps.insertBefore(bloc, corps.firstChild);
+        }
+      } catch (e) { /* menu sans rubriques */ }
+      return r;
+    };
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', demarrer); else demarrer();
 })();

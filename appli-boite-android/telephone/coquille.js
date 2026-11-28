@@ -43,3 +43,24 @@
     $('menu-roue').addEventListener('change', function (e) { if (e.target.closest('[data-notif]')) telConfigurer(); });
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') setTimeout(notifTour, 1500); });
   }
+  /* 3. Bouton « retour » d'Android (appelé par le module Kotlin) : le menu de la roue se ferme, sinon l'écran visible
+        revient à son écran précédent ; s'il n'en a plus, Android met l'appli de côté (rien n'est fermé ni perdu). */
+  if (ANDROID) {
+    var telRetourPeut = [];
+    window.addEventListener('message', function (ev) {
+      var d = ev.data || {};
+      if (d.boiteMail !== 'retour-etat') return;
+      telRetourPeut = telRetourPeut.filter(function (x) { return x.src !== ev.source; });
+      telRetourPeut.push({ src: ev.source, peut: !!d.peut });
+    });
+    window.__telRetour = function () {
+      var m = $('menu-roue');
+      if (m && m.classList.contains('visible')) { m.classList.remove('visible'); return true; }
+      var f = [].filter.call(document.querySelectorAll('iframe'), function (x) { return x.offsetParent !== null && x.offsetWidth > 0; })[0];
+      if (!f || !f.contentWindow) return false;
+      var e = telRetourPeut.filter(function (x) { return x.src === f.contentWindow; })[0];
+      if (!e || !e.peut) return false;
+      try { f.contentWindow.postMessage({ boiteMail: 'retour' }, '*'); } catch (x) { return false; }
+      return true;
+    };
+  }

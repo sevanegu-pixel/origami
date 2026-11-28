@@ -9,7 +9,10 @@ html.telephone .bandeau-test { font-size: 10px; padding: 2px 8px; }
 html.telephone #sous-onglets { margin: 0; padding: 0 8px; border: 0; }
 html.telephone #sous-onglets .volets { gap: 2px; padding: 0; border-bottom: 1px solid var(--ligne); scrollbar-width: none; }
 html.telephone #sous-onglets .volets button { padding: 8px 10px; font-size: 13px; min-height: 0; }
-html.telephone .contenu, html.telephone main { padding: 0 !important; margin: 0 !important; }
+html.telephone.tel-vue-boite .contenu, html.telephone.tel-vue-boite main { padding: 0 !important; margin: 0 !important; }
+/* Autres rubriques (Campagnes, Modèles, Contacts, Carnet) : marges sur les côtés et tailles plus petites qu'à l'ordinateur. */
+html.telephone:not(.tel-vue-boite) .contenu, html.telephone:not(.tel-vue-boite) main { padding: 0 14px 96px !important; margin: 0 !important; }
+html.telephone:not(.tel-vue-boite) .vue:not(.cache) { zoom: .88; }
 
 /* La colonne des mails : pleine largeur, sans carte */
 html.telephone #msg-grille { padding: 0; margin: 0; gap: 0; }
@@ -108,3 +111,71 @@ html.telephone.tel-selection #msg-actions { position: sticky; top: 0; z-index: 5
 html.telephone .tel-annuler-selection { width: 34px; height: 30px; padding: 0; font-size: 18px; line-height: 1; }
 html.telephone #msg-liste .conv { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 html.telephone #msg-liste .conv.cochee { background: color-mix(in srgb, var(--accent) 16%, var(--carte)) !important; }
+
+/* ---- Finitions téléphone (28.11) : rien de collé aux bords ---- */
+/* Recherche : le texte respire dans la pastille ; le contour de saisie entoure toute la pastille, pas le texte seul. */
+html.telephone #msg-recherche { padding: 0 16px 0 10px !important; outline: none !important; }
+html.telephone #msg-recherche:focus { outline: none !important; box-shadow: none !important; }
+html.telephone .msg-colonne > .barre:focus-within { box-shadow: 0 0 0 2px var(--accent); background: var(--carte); }
+
+/* Mail ouvert : flèche retour ronde sans cadre, objet du mail en grand en dessous, sur plusieurs lignes au besoin. */
+html.telephone #msg-fil .fil-tete { display: flex; align-items: flex-start; gap: 6px; margin: 0 -12px; padding: 8px 12px 6px 6px; background: var(--carte); }
+html.telephone #msg-fil .fil-tete .retour-fil { flex: 0 0 auto; width: 42px; height: 42px; min-height: 0; padding: 0; border: 0 !important; border-radius: 50%; background: transparent !important; box-shadow: none !important; font-size: 22px; line-height: 42px; color: var(--texte); }
+html.telephone #msg-fil .fil-tete .retour-fil:active { background: color-mix(in srgb, var(--texte) 10%, transparent) !important; }
+html.telephone #msg-fil .fil-tete h2 { flex: 1 1 auto; min-width: 0; margin: 8px 0 0; font-size: 20px; font-weight: 500; line-height: 1.3; white-space: normal; overflow: visible; text-overflow: clip; word-break: break-word; }
+html.telephone #msg-fil .fil-tete .agrandir-fil { display: none !important; }
+html.telephone #msg-fil .fil-actions { display: flex; align-items: center; gap: 8px; margin: 0; padding: 2px 2px 12px 48px; }
+html.telephone #msg-fil .fil-actions .btn { min-height: 36px; height: 36px; padding: 0 16px; border-radius: 18px; font-size: 14px; }
+
+/* Volet « Actions » du bas : de l'air autour du titre et des choix. */
+html.telephone .feuille-bas { padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)) !important; }
+html.telephone .feuille-bas .poignee { margin: 2px auto 14px !important; }
+html.telephone .feuille-bas .feuille-titre { display: block; margin: 0 4px 14px !important; font-size: 18px; }
+html.telephone .feuille-actions-liste { gap: 8px; padding: 0 0 4px; }
+html.telephone .feuille-bas .feuille-annuler { margin-top: 12px; min-height: 46px; width: 100%; }
+
+/* Écrire, Aperçu : boutons du bas rangés. « Envoyer maintenant » sur toute la largeur, les trois autres côte à côte. */
+html.telephone #modale-pied { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px)) !important; }
+html.telephone #modale-pied > .btn { width: 100%; min-height: 42px !important; height: auto !important; padding: 6px 6px !important; font-size: 13px; line-height: 1.2; white-space: normal; margin: 0 !important; }
+html.telephone #modale-pied > .btn.cache { display: none !important; }
+html.telephone #modale-pied #mc-envoyer, html.telephone #modale-pied > .btn.principal { grid-column: 1 / -1; order: -1; min-height: 46px !important; border-radius: 23px; font-size: 15px; margin: 0 !important; }
+html.telephone #modale-pied .mc-etat-pied { grid-column: 1 / -1; }
+html.telephone #mc-apercu { max-width: 100%; overflow-x: hidden; }
+html.telephone #mc-apercu .mc-cadre { max-width: 100%; overflow-x: hidden; overflow-wrap: anywhere; }
+html.telephone #mc-apercu .mc-cadre * { max-width: 100%; box-sizing: border-box; }
+html.telephone #modale .modale-corps { padding-left: 16px !important; padding-right: 16px !important; }
+
+/* Rubriques dans le menu ☰ (liste des mails) */
+html.telephone.tel-vue-boite #sous-onglets { display: none !important; }
+html.telephone .tel-rubriques { display: flex; flex-direction: column; gap: 2px; margin: 0 0 12px; padding: 0 0 12px; border-bottom: 1px solid var(--ligne); }
+html.telephone .tel-rubrique { display: block; width: 100%; text-align: left; border: 0; background: transparent; border-radius: 22px; padding: 12px 16px; font: inherit; font-size: 15px; font-weight: 500; color: var(--texte); }
+html.telephone .tel-rubrique.actif { background: color-mix(in srgb, var(--accent) 16%, var(--carte)); }
+
+/* Campagnes : la barre « Tester anti-spam / Enregistrer le brouillon / Vérifier et lancer » reste en bas de la page,
+   à sa place, au lieu d'être épinglée par-dessus les champs (surtout clavier ouvert). */
+html.telephone .barre-action { position: static !important; bottom: auto !important; box-shadow: none !important; margin: 14px 0 24px; }
+/* Clavier ouvert (fenêtre basse) : la barre du bas de l'écran et les boutons flottants s'effacent pour laisser voir ce qu'on écrit. */
+@media (max-height: 520px) {
+  html.telephone #barre-mobile, html.telephone .tel-nouveau, html.telephone .ecrire-central { display: none !important; }
+}
+
+/* Champs à remplir : même taille de texte que le reste (l'ordinateur les grossit pour les écrans tactiles ; ici, inutile :
+   l'appli ne zoome pas quand on touche un champ). Plus fins, ils prennent moins de place. */
+html.telephone input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not(#msg-recherche),
+html.telephone select, html.telephone textarea {
+  font-size: 14px !important; line-height: 1.35 !important; height: auto !important; min-height: 36px !important; padding-top: 6px; padding-bottom: 6px;
+}
+html.telephone textarea { min-height: 72px !important; }
+html.telephone #msg-recherche { font-size: 15px !important; }
+html.telephone .puces-saisie { font-size: 14px !important; }
+
+/* Petits boutons de variables (Prénom, Nom, Email, Structure, Rôle, Ville…) : des pastilles fines. */
+html.telephone .vars { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0; }
+html.telephone .vars button, html.telephone .vars .btn { min-height: 0 !important; height: auto !important; padding: 3px 9px !important; font-size: 12px !important; line-height: 1.3; border-radius: 12px; }
+html.telephone .vars .aide { font-size: 12px; }
+/* Bascules (Éditer / Aperçu, Modèles / Pieds de page, Fiches / Groupes…) : décollées des bords, sur toute la largeur. */
+html.telephone .segment:not(.cache) { width: auto !important; margin: 8px 0 !important; padding: 3px !important; gap: 2px; box-sizing: border-box; }
+html.telephone .segment > button { flex: 1 1 auto; white-space: nowrap; min-height: 0 !important; padding: 7px 10px !important; font-size: 13.5px !important; }
+html.telephone #onglets-atelier { margin: 8px 0 10px !important; z-index: 6; box-shadow: 0 0 0 6px var(--carte); }
+/* Boutons des autres rubriques : plus fins. */
+html.telephone:not(.tel-vue-boite) .vue .btn { min-height: 34px; padding: 6px 12px; font-size: 14px; }
