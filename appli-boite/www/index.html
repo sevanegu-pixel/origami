@@ -320,7 +320,8 @@
   function fenEnvoyer(onglet) {
     fenServie = true;
     if (!fenSource) { fenAttente = { onglet: onglet }; return; }
-    try { if (fenDehors) fenSource.postMessage({ boiteMail: 'dehors', a: fenDehors.a || '', cc: fenDehors.cc || '', cci: fenDehors.cci || '', objet: fenDehors.objet || '', texte: fenDehors.texte || '', attente: fenDehors.attente || '' }, '*'); } catch (x) { /* fermé */ }
+    try { if (fenDehors && fenDehors.brouillon) fenSource.postMessage({ boiteMail: 'brouillonSeul', id: fenDehors.brouillon }, '*'); } catch (x) { /* fermé */ }
+    try { if (fenDehors && !fenDehors.brouillon) fenSource.postMessage({ boiteMail: 'dehors', a: fenDehors.a || '', cc: fenDehors.cc || '', cci: fenDehors.cci || '', objet: fenDehors.objet || '', texte: fenDehors.texte || '', attente: fenDehors.attente || '' }, '*'); } catch (x) { /* fermé */ }
     try { fenSource.postMessage({ boiteMail: 'ecrireOnglet', onglet: onglet || null }, '*'); } catch (x) { /* fermé */ }
     guetterJoindre();
   }
@@ -1446,7 +1447,14 @@
      changer son propre code ; la page Origami, connectée à Google, le fait (« Continuer avec Google » : elle retrouve la boîte installée
      et remplace seulement son code, même adresse, liaisons gardées). L'appli demande au moteur où il en est (infosBoite : moteur 37 et
      plus) et propose le bouton quand il est plus ancien que DERNIER_MOTEUR (la version publiée sur la boîte compagnie et le modèle). */
-  var DERNIER_MOTEUR = 38, versions = {};
+  var DERNIER_MOTEUR = 39, versions = {};
+  // Numéro du moteur d'une boîte (0 : trop ancien pour le dire, ou muet), demandé une fois puis gardé.
+  var numerosMoteur = {}; // à part de « versions » (qui porte aussi la sonde de « Mettre à jour la boîte »)
+  function versionMoteur(c) {
+    var v = versions[c.id]; if (v && v.n >= 39) return Promise.resolve(v.n); // plus ancien : redemandé (la boîte a pu être mise à jour)
+    if (numerosMoteur[c.id]) return Promise.resolve(numerosMoteur[c.id]);
+    return porte(c, 'infosBoite', []).then(function (r) { var n = Number(r && r.moteur) || 37; if (n >= 39) numerosMoteur[c.id] = n; return n; }, function () { return 0; });
+  }
   function htmlMaj(c) {
     var v = versions[c.id];
     if (!v) { versions[c.id] = { attente: true }; porte(c, 'infosBoite', []).then(function (r) { versions[c.id] = { n: Number(r && r.moteur) || 37, corbeille: !!(r && r.classeur && r.classeur.corbeille) }; },
@@ -1617,6 +1625,18 @@
     var p = champsLien(u), c = compteDuLien(p.boite);
     if (c === false) { try { if (T && T.window && T.window.getCurrentWindow) { var w1 = T.window.getCurrentWindow(); w1.show(); if (w1.unminimize) w1.unminimize(); w1.setFocus(); } } catch (e) { /* déjà visible */ } montrer('ajouter'); return true; }
     var texte = String(p.texte || '').slice(0, 1000), attente = /^[0-9A-Za-z_-]{6,40}$/.test(p.attente || '') ? p.attente : '';
+    /* 28.11 (Sévane : depuis la Compta, « seulement la fenêtre écrire, pas le reste, et quand on envoie, la fenêtre se ferme ») :
+       boitemail://brouillon?…&fenetre=seule ouvre le brouillon (pièces jointes comprises) dans la fenêtre d'écriture seule. Il faut
+       l'écran du moteur 39 (message « brouillonSeul ») : une boîte plus ancienne l'ouvre dans la grande fenêtre, comme avant. */
+    var idSeul = m[1].toLowerCase() === 'brouillon' && p.fenetre === 'seule' && c && fenetresPossibles() ? String(p.conversation || p.id || '') : '';
+    if (idSeul && /^[0-9A-Za-z_-]{6,40}$/.test(idSeul) && !demandeDehors.repli) {
+      var cS = c;
+      versionMoteur(cS).then(function (n) {
+        if (n >= 39) return ouvrirFenetreEcrire(cS.id, null, { brouillon: idSeul });
+        demandeDehors.repli = true; try { demandeDehors(String(u).replace(/([?&])fenetre=seule(&|$)/, '$1').replace(/[?&]$/, '')); } finally { demandeDehors.repli = false; }
+      });
+      return true;
+    }
     if (m[1].toLowerCase() === 'ecrire' && p.fenetre === 'seule' && c && fenetresPossibles()) { // seulement la fenêtre d'écriture : la grande fenêtre ne bouge pas
       ouvrirFenetreEcrire(c.id, null, { a: p.a || '', cc: p.cc || '', cci: p.cci || '', objet: p.objet || '', texte: texte, attente: attente });
       return true;
